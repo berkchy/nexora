@@ -122,6 +122,9 @@ apply_patch "$PATCHES/amxmodx-cbase-bit32-guard.diff"  "$SRC/amxmodx"
 apply_patch "$PATCHES/amxmodx-ham-trampoline-arm64.patch"  "$SRC/amxmodx"
 apply_patch "$PATCHES/amxmodx-cbase-pev-fallback.patch"     "$SRC/amxmodx"
 apply_patch "$PATCHES/amxmodx-fun-strip-user-weapons.diff"  "$SRC/amxmodx"
+# Xash3D has no SV_DropClient detour (symbol hidden + ABI differs), so deliver
+# client_disconnected/client_remove from the engine pfnClientDisconnect path.
+apply_patch "$PATCHES/amxmodx-xash-disconnect-forwards.patch"  "$SRC/amxmodx"
 # ARM flush-to-zero: disable FZ bit so denormalized floats (used by pev/set_pev
 # vector round-trip) are preserved instead of being flushed to zero.
 AMXX_FM="$SRC/amxmodx/modules/fakemeta/fakemeta_amxx.cpp"

@@ -1,0 +1,85 @@
+diff --git a/amxmodx/meta_api.cpp b/amxmodx/meta_api.cpp
+index cd31a1e..dcff878 100644
+--- a/amxmodx/meta_api.cpp
++++ b/amxmodx/meta_api.cpp
+@@ -638,18 +638,16 @@ void C_ServerActivate(edict_t *pEdictList, int edictCount, int clientMax)
+ 		}
+ 	}
+ 
+-	if (g_isDropClientHookAvailable)
++	if (g_isDropClientHookAvailable && !g_isDropClientHookEnabled)
+ 	{
+-		if (!g_isDropClientHookEnabled)
++		if (RehldsApi)
+ 		{
+-			if (RehldsApi)
+-			{
+-				RehldsHookchains->SV_DropClient()->registerHook(SV_DropClient_RH);
+-			}
+-			else
+-			{
+-				DropClientDetour->EnableDetour();
+-			}
++			RehldsHookchains->SV_DropClient()->registerHook(SV_DropClient_RH);
++			g_isDropClientHookEnabled = true;
++		}
++		else if (DropClientDetour)
++		{
++			DropClientDetour->EnableDetour();
+ 			g_isDropClientHookEnabled = true;
+ 		}
+ 	}
+@@ -730,20 +728,17 @@ void C_ServerDeactivate()
+ 		}
+ 	}
+ 
+-	if (g_isDropClientHookAvailable)
++	if (g_isDropClientHookAvailable && g_isDropClientHookEnabled)
+ 	{
+-		if (g_isDropClientHookEnabled)
++		if (RehldsApi)
+ 		{
+-			if (RehldsApi)
+-			{
+-				RehldsHookchains->SV_DropClient()->unregisterHook(SV_DropClient_RH);
+-			}
+-			else
+-			{
+-				DropClientDetour->DisableDetour();
+-			}
+-			g_isDropClientHookEnabled = false;
++			RehldsHookchains->SV_DropClient()->unregisterHook(SV_DropClient_RH);
+ 		}
++		else if (DropClientDetour)
++		{
++			DropClientDetour->DisableDetour();
++		}
++		g_isDropClientHookEnabled = false;
+ 	}
+ 
+ 	g_players_num	= 0;
+@@ -1710,8 +1705,13 @@ C_DLLEXPORT	int	Meta_Attach(PLUG_LOADTIME now, META_FUNCTIONS *pFunctionTable, m
+ 		}
+ 		else
+ 		{
+-			auto reason = RehldsApi ? "update ReHLDS" : "check your gamedata files";
+-			AMXXLOG_Log("client_disconnected and client_remove forwards have been disabled - %s.", reason);
++			// Xash3D-FWGS does not export SV_DropClient and its signature
++			// differs from GoldSrc's variadic form, so the detour cannot be
++			// installed. The engine still calls pfnClientDisconnect (forwarded
++			// through metamod), so deliver client_disconnected/client_remove
++			// from C_ClientDisconnect instead of leaving them permanently off.
++			g_isDropClientHookAvailable = true;
++			AMXXLOG_Log("SV_DropClient detour unavailable - client_disconnected and client_remove forwards use the engine ClientDisconnect path.");
+ 		}
+ 	}
+ 
+@@ -1780,7 +1780,7 @@ C_DLLEXPORT	int	Meta_Detach(PLUG_LOADTIME now, PL_UNLOAD_REASON	reason)
+ 				RehldsHookchains->SV_DropClient()->unregisterHook(SV_DropClient_RH);
+ 			}
+ 		}
+-		else
++		else if (DropClientDetour)
+ 		{
+ 			DropClientDetour->Destroy();
+ 		}
