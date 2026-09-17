@@ -19,6 +19,8 @@ import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
@@ -312,14 +314,11 @@ private fun LibListCard(vm: PatcherViewModel) {
                     .toList()
                     .sortedBy { libGroupOrder(it.first) }
             }
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .verticalScroll(rememberScrollState())
-                    .heightIn(max = 300.dp),
+            LazyColumn(
+                modifier = Modifier.fillMaxWidth().heightIn(max = 300.dp),
                 verticalArrangement = Arrangement.spacedBy(0.dp),
             ) {
-                groups.forEach { (group, groupLibs) ->
+                items(groups, key = { it.first }) { (group, groupLibs) ->
                     LibGroupRow(
                         group = group,
                         groupLibs = groupLibs,
