@@ -79,32 +79,7 @@ data class LibInfo(
     val upToDate: Boolean,
     val downloading: Boolean = false,
     val downloadProgress: Float = -1f,
-    val label: String = name,
-    val group: String = "other",
 )
-
-private val LIB_GROUP_ORDER = listOf("core", "metamod", "dlls", "modules", "other")
-
-internal fun libGroupOrder(group: String): Int =
-    LIB_GROUP_ORDER.indexOf(group).let { if (it < 0) LIB_GROUP_ORDER.size else it }
-
-private fun labelForLib(name: String): String = when {
-    name == "libamxmodx.so" -> "AMX Mod X core"
-    name == "libmetamod.so" -> "Metamod"
-    name == "libyapb.so" -> "YaPB"
-    name.startsWith("libclient_android_") -> "Client DLL"
-    name.startsWith("libcs_android_") -> "Game DLL"
-    name.contains("_amxx_") -> name.removePrefix("lib").substringBefore("_amxx_")
-    else -> name
-}
-
-private fun groupForLib(name: String): String = when {
-    name == "libamxmodx.so" -> "core"
-    name == "libmetamod.so" || name == "libyapb.so" -> "metamod"
-    name.startsWith("libclient_android_") || name.startsWith("libcs_android_") -> "dlls"
-    name.contains("_amxx_") -> "modules"
-    else -> "other"
-}
 
 sealed interface CompileState {
     data object Idle : CompileState
@@ -329,8 +304,6 @@ class PatcherViewModel(app: Application) : AndroidViewModel(app) {
                     localSize = f.length(),
                     releaseSize = f.length(),
                     upToDate = true,
-                    label = labelForLib(name),
-                    group = groupForLib(name),
                 )
             }.filterNotNull()
 
@@ -355,11 +328,9 @@ class PatcherViewModel(app: Application) : AndroidViewModel(app) {
                         upToDate = if (asset != null) {
                             IncrementalUpdateManager.isUpToDate(File(targetDir, name), asset)
                         } else true,
-                        label = labelForLib(name),
-                        group = groupForLib(name),
                     )
                 }
-                _libs.value = rows.sortedWith(compareBy({ libGroupOrder(it.group) }, { it.label }))
+                _libs.value = rows
             }
             val outdated = _libs.value.filter { !it.upToDate && it.releaseSize > 0 }
             if (autoLoad && outdated.isEmpty() && assets.isNotEmpty()) {
@@ -380,18 +351,6 @@ class PatcherViewModel(app: Application) : AndroidViewModel(app) {
     fun refreshSingleLib(libName: String) {
         viewModelScope.launch(Dispatchers.IO) {
             downloadLib(libName)
-        }
-    }
-
-    fun refreshGroup(group: String) {
-        val names = _libs.value
-            .filter { it.group == group && !it.upToDate && it.releaseSize > 0 }
-            .map { it.name }
-        if (names.isEmpty()) return
-        viewModelScope.launch(Dispatchers.IO) {
-            for (name in names) {
-                downloadLib(name)
-            }
         }
     }
 

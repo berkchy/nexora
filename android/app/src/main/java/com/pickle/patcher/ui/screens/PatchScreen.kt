@@ -25,13 +25,19 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Bolt
+import androidx.compose.material.icons.filled.Build
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Download
+import androidx.compose.material.icons.filled.Extension
 import androidx.compose.material.icons.filled.FolderOpen
 import androidx.compose.material.icons.filled.InstallDesktop
+import androidx.compose.material.icons.filled.PhoneAndroid
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.RocketLaunch
+import androidx.compose.material.icons.filled.SmartToy
+import androidx.compose.material.icons.filled.SportsEsports
 import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -48,6 +54,7 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -61,7 +68,6 @@ import com.pickle.patcher.patcher.BundleState
 import com.pickle.patcher.patcher.LibInfo
 import com.pickle.patcher.patcher.PatchUiState
 import com.pickle.patcher.patcher.PatcherViewModel
-import com.pickle.patcher.patcher.libGroupOrder
 import com.pickle.patcher.ui.theme.Accent
 import com.pickle.patcher.ui.theme.AlertRed
 import com.pickle.patcher.ui.theme.Gray40
@@ -309,21 +315,16 @@ private fun LibListCard(vm: PatcherViewModel) {
                 color = Gray40,
             )
         } else {
-            val groups = remember(libs) {
-                libs.groupBy { it.group }
-                    .toList()
-                    .sortedBy { libGroupOrder(it.first) }
-            }
+            // Flat list: every lib is its own row, box height ~4 rows so it
+            // stays compact and the rest scrolls inside.
             LazyColumn(
-                modifier = Modifier.fillMaxWidth().heightIn(max = 300.dp),
+                modifier = Modifier.fillMaxWidth().heightIn(max = 176.dp),
                 verticalArrangement = Arrangement.spacedBy(0.dp),
             ) {
-                items(groups, key = { it.first }) { (group, groupLibs) ->
-                    LibGroupRow(
-                        group = group,
-                        groupLibs = groupLibs,
-                        onRefreshGroup = { vm.refreshGroup(group) },
-                        onRefreshLib = { vm.refreshSingleLib(it) },
+                items(libs, key = { it.name }) { lib ->
+                    LibRow(
+                        lib = lib,
+                        onRefresh = { vm.refreshSingleLib(lib.name) },
                     )
                 }
             }
@@ -332,95 +333,25 @@ private fun LibListCard(vm: PatcherViewModel) {
 }
 
 @Composable
-private fun LibGroupRow(
-    group: String,
-    groupLibs: List<LibInfo>,
-    onRefreshGroup: () -> Unit,
-    onRefreshLib: (String) -> Unit,
-) {
-    val anyDownloading = groupLibs.any { it.downloading }
-    val toUpdate = groupLibs.count { !it.upToDate && it.releaseSize > 0 }
-    val missing = groupLibs.count { it.releaseSize > 0 && it.localSize == 0L }
-    val total = groupLibs.size
-    val allUpToDate = toUpdate == 0
-
-    fun statusText(): String = when {
-        anyDownloading -> "Downloading…"
-        toUpdate == 0 -> "Up to date"
-        missing == total -> "Not installed"
-        toUpdate == 1 -> "1 file to update"
-        else -> "$toUpdate files to update"
-    }
-
+private fun LibRow(lib: LibInfo, onRefresh: () -> Unit) {
+    val icon = libTypeIcon(lib.name)
+    val iconDesc = libTypeDesc(lib.name)
     Row(
         modifier = Modifier
             .fillMaxWidth()
             .padding(vertical = 6.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
+        Icon(
+            imageVector = icon,
+            contentDescription = iconDesc,
+            modifier = Modifier.size(20.dp).padding(end = 8.dp),
+            tint = Gray70,
+        )
         Column(modifier = Modifier.weight(1f)) {
             Text(
-                when (group) {
-                    "core" -> "AMX Mod X core"
-                    "metamod" -> "Metamod HL1"
-                    "dlls" -> "CS16Client DLLs"
-                    "modules" -> "AMXX modules ($total)"
-                    else -> "Other files"
-                },
+                lib.name,
                 style = MaterialTheme.typography.bodyMedium,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-            )
-            if (anyDownloading) {
-                AppProgressBar(groupLibs.maxOf { it.downloadProgress }.coerceAtLeast(0f))
-            } else {
-                Text(
-                    statusText(),
-                    style = MaterialTheme.typography.bodySmall,
-                    color = if (allUpToDate) Gray60 else AlertRed,
-                )
-            }
-        }
-        if (anyDownloading) {
-            Icon(
-                Icons.Filled.Download,
-                contentDescription = "Downloading",
-                modifier = Modifier.size(20.dp),
-                tint = Accent,
-            )
-        } else {
-            Icon(
-                Icons.Filled.Refresh,
-                contentDescription = "Refresh",
-                modifier = Modifier
-                    .size(20.dp)
-                    .clickable { onRefreshGroup() },
-                tint = if (allUpToDate) Gray60 else Accent,
-            )
-        }
-    }
-
-    if (!allUpToDate && !anyDownloading) {
-        Column(modifier = Modifier.fillMaxWidth().padding(start = 12.dp)) {
-            groupLibs.filter { !it.upToDate && it.releaseSize > 0 }.forEach { lib ->
-                LibRow(lib = lib, onRefresh = { onRefreshLib(lib.name) })
-            }
-        }
-    }
-}
-
-@Composable
-private fun LibRow(lib: LibInfo, onRefresh: () -> Unit) {
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(vertical = 4.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        Column(modifier = Modifier.weight(1f)) {
-            Text(
-                lib.label.ifBlank { lib.name },
-                style = MaterialTheme.typography.bodySmall,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
             )
@@ -442,20 +373,47 @@ private fun LibRow(lib: LibInfo, onRefresh: () -> Unit) {
             Icon(
                 Icons.Filled.Download,
                 contentDescription = "Downloading",
-                modifier = Modifier.size(18.dp),
+                modifier = Modifier.size(20.dp),
                 tint = Accent,
+            )
+        } else if (lib.upToDate) {
+            Icon(
+                Icons.Filled.CheckCircle,
+                contentDescription = "Up to date",
+                modifier = Modifier.size(20.dp),
+                tint = Gray60,
             )
         } else {
             Icon(
                 Icons.Filled.Refresh,
                 contentDescription = "Refresh",
                 modifier = Modifier
-                    .size(18.dp)
+                    .size(20.dp)
                     .clickable { onRefresh() },
-                tint = if (lib.upToDate) Gray60 else Accent,
+                tint = Accent,
             )
         }
     }
+}
+
+private fun libTypeIcon(name: String): ImageVector = when {
+    name == "libamxmodx.so" -> Icons.Filled.Extension
+    name == "libmetamod.so" -> Icons.Filled.Bolt
+    name == "libyapb.so" -> Icons.Filled.SmartToy
+    name.startsWith("libclient_android_") -> Icons.Filled.PhoneAndroid
+    name.startsWith("libcs_android_") -> Icons.Filled.SportsEsports
+    name.contains("_amxx_") -> Icons.Filled.Build
+    else -> Icons.Filled.FolderOpen
+}
+
+private fun libTypeDesc(name: String): String = when {
+    name == "libamxmodx.so" -> "AMX Mod X core"
+    name == "libmetamod.so" -> "Metamod HL1"
+    name == "libyapb.so" -> "YaPB bot"
+    name.startsWith("libclient_android_") -> "CS16Client client DLL"
+    name.startsWith("libcs_android_") -> "ReGameDLL game DLL"
+    name.contains("_amxx_") -> "AMXX module"
+    else -> "Library"
 }
 
 @Composable
