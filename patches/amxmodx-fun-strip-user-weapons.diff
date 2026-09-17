@@ -1,5 +1,5 @@
 diff --git a/modules/fun/fun.cpp b/modules/fun/fun.cpp
-index 2df866a..2e59e51 100644
+index 2df866a..dacd806 100644
 --- a/modules/fun/fun.cpp
 +++ b/modules/fun/fun.cpp
 @@ -409,23 +409,67 @@ static cell AMX_NATIVE_CALL strip_user_weapons(AMX *amx, cell *params)
@@ -38,7 +38,7 @@ index 2df866a..2e59e51 100644
 +	for (int i = 0; i < kMaxScanEdicts; ++i)
  	{
 -		return 0;
-+		edict_t *pEntity = (*g_engfuncs.pfnPEntityOfEntOffset)(i);
++		edict_t *pEntity = (*g_engfuncs.pfnPEntityOfEntIndex)(i);
 +		if (pEntity == nullptr)
 +			break;
 +
@@ -70,7 +70,7 @@ index 2df866a..2e59e51 100644
 -	REMOVE_ENTITY(pEntity);
 +	for (int k = 0; k < matchedCount; ++k)
 +	{
-+		edict_t *pEntity = (*g_engfuncs.pfnPEntityOfEntOffset)(matched[k]);
++		edict_t *pEntity = (*g_engfuncs.pfnPEntityOfEntIndex)(matched[k]);
 +		if (!pEntity || pEntity->free)
 +			continue;
 +		REMOVE_ENTITY(pEntity);
