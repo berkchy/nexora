@@ -19,8 +19,6 @@ import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
@@ -61,6 +59,7 @@ import com.pickle.patcher.patcher.BundleState
 import com.pickle.patcher.patcher.LibInfo
 import com.pickle.patcher.patcher.PatchUiState
 import com.pickle.patcher.patcher.PatcherViewModel
+import com.pickle.patcher.patcher.libGroupOrder
 import com.pickle.patcher.ui.theme.Accent
 import com.pickle.patcher.ui.theme.AlertRed
 import com.pickle.patcher.ui.theme.Gray40
@@ -308,16 +307,104 @@ private fun LibListCard(vm: PatcherViewModel) {
                 color = Gray40,
             )
         } else {
-            LazyColumn(
-                modifier = Modifier.fillMaxWidth().heightIn(max = 300.dp),
+            val groups = remember(libs) {
+                libs.groupBy { it.group }
+                    .toList()
+                    .sortedBy { libGroupOrder(it.first) }
+            }
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .verticalScroll(rememberScrollState())
+                    .heightIn(max = 300.dp),
                 verticalArrangement = Arrangement.spacedBy(0.dp),
             ) {
-                items(libs, key = { it.name }) { lib ->
-                    LibRow(
-                        lib = lib,
-                        onRefresh = { vm.refreshSingleLib(lib.name) },
+                groups.forEach { (group, groupLibs) ->
+                    LibGroupRow(
+                        group = group,
+                        groupLibs = groupLibs,
+                        onRefreshGroup = { vm.refreshGroup(group) },
+                        onRefreshLib = { vm.refreshSingleLib(it) },
                     )
                 }
+            }
+        }
+    }
+}
+
+@Composable
+private fun LibGroupRow(
+    group: String,
+    groupLibs: List<LibInfo>,
+    onRefreshGroup: () -> Unit,
+    onRefreshLib: (String) -> Unit,
+) {
+    val anyDownloading = groupLibs.any { it.downloading }
+    val toUpdate = groupLibs.count { !it.upToDate && it.releaseSize > 0 }
+    val missing = groupLibs.count { it.releaseSize > 0 && it.localSize == 0L }
+    val total = groupLibs.size
+    val allUpToDate = toUpdate == 0
+
+    fun statusText(): String = when {
+        anyDownloading -> "Downloading…"
+        toUpdate == 0 -> "Up to date"
+        missing == total -> "Not installed"
+        toUpdate == 1 -> "1 file to update"
+        else -> "$toUpdate files to update"
+    }
+
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 6.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Column(modifier = Modifier.weight(1f)) {
+            Text(
+                when (group) {
+                    "core" -> "AMX Mod X core"
+                    "metamod" -> "Metamod HL1"
+                    "dlls" -> "CS16Client DLLs"
+                    "modules" -> "AMXX modules ($total)"
+                    else -> "Other files"
+                },
+                style = MaterialTheme.typography.bodyMedium,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+            if (anyDownloading) {
+                AppProgressBar(groupLibs.maxOf { it.downloadProgress }.coerceAtLeast(0f))
+            } else {
+                Text(
+                    statusText(),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = if (allUpToDate) Gray60 else AlertRed,
+                )
+            }
+        }
+        if (anyDownloading) {
+            Icon(
+                Icons.Filled.Download,
+                contentDescription = "Downloading",
+                modifier = Modifier.size(20.dp),
+                tint = Accent,
+            )
+        } else {
+            Icon(
+                Icons.Filled.Refresh,
+                contentDescription = "Refresh",
+                modifier = Modifier
+                    .size(20.dp)
+                    .clickable { onRefreshGroup() },
+                tint = if (allUpToDate) Gray60 else Accent,
+            )
+        }
+    }
+
+    if (!allUpToDate && !anyDownloading) {
+        Column(modifier = Modifier.fillMaxWidth().padding(start = 12.dp)) {
+            groupLibs.filter { !it.upToDate && it.releaseSize > 0 }.forEach { lib ->
+                LibRow(lib = lib, onRefresh = { onRefreshLib(lib.name) })
             }
         }
     }
@@ -328,13 +415,13 @@ private fun LibRow(lib: LibInfo, onRefresh: () -> Unit) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(vertical = 6.dp),
+            .padding(vertical = 4.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Column(modifier = Modifier.weight(1f)) {
             Text(
-                lib.name,
-                style = MaterialTheme.typography.bodyMedium,
+                lib.label.ifBlank { lib.name },
+                style = MaterialTheme.typography.bodySmall,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
             )
@@ -356,7 +443,7 @@ private fun LibRow(lib: LibInfo, onRefresh: () -> Unit) {
             Icon(
                 Icons.Filled.Download,
                 contentDescription = "Downloading",
-                modifier = Modifier.size(20.dp),
+                modifier = Modifier.size(18.dp),
                 tint = Accent,
             )
         } else {
@@ -364,7 +451,7 @@ private fun LibRow(lib: LibInfo, onRefresh: () -> Unit) {
                 Icons.Filled.Refresh,
                 contentDescription = "Refresh",
                 modifier = Modifier
-                    .size(20.dp)
+                    .size(18.dp)
                     .clickable { onRefresh() },
                 tint = if (lib.upToDate) Gray60 else Accent,
             )

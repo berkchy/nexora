@@ -79,7 +79,32 @@ data class LibInfo(
     val upToDate: Boolean,
     val downloading: Boolean = false,
     val downloadProgress: Float = -1f,
+    val label: String = name,
+    val group: String = "other",
 )
+
+private val LIB_GROUP_ORDER = listOf("core", "metamod", "dlls", "modules", "other")
+
+internal fun libGroupOrder(group: String): Int =
+    LIB_GROUP_ORDER.indexOf(group).let { if (it < 0) LIB_GROUP_ORDER.size else it }
+
+private fun labelForLib(name: String): String = when {
+    name == "libamxmodx.so" -> "AMX Mod X core"
+    name == "libmetamod.so" -> "Metamod"
+    name == "libyapb.so" -> "YaPB"
+    name.startsWith("libclient_android_") -> "Client DLL"
+    name.startsWith("libcs_android_") -> "Game DLL"
+    name.contains("_amxx_") -> name.removePrefix("lib").substringBefore("_amxx_")
+    else -> name
+}
+
+private fun groupForLib(name: String): String = when {
+    name == "libamxmodx.so" -> "core"
+    name == "libmetamod.so" || name == "libyapb.so" -> "metamod"
+    name.startsWith("libclient_android_") || name.startsWith("libcs_android_") -> "dlls"
+    name.contains("_amxx_") -> "modules"
+    else -> "other"
+}
 
 sealed interface CompileState {
     data object Idle : CompileState
@@ -285,42 +310,65 @@ class PatcherViewModel(app: Application) : AndroidViewModel(app) {
 
     fun scanLibs(autoLoad: Boolean = false) {
         viewModelScope.launch(Dispatchers.IO) {
-            val targetDir = File(libsDir, _abi.value)
+            val abi = _abi.value
+            val targetDir = File(libsDir, abi)
             val localFiles = if (targetDir.isDirectory) {
                 targetDir.listFiles()
-                    ?.filter { it.name.endsWith(".so") && !it.name.startsWith("libmenu_") }
-                    ?.associate { it.name to it.length() }
+                    ?.filter { it.isFile && it.name.endsWith(".so") && !it.name.startsWith("libmenu_") }
+                    ?.map { it.name to it }
+                    ?.toMap()
                     ?: emptyMap()
             } else emptyMap()
 
-            // API-free: newest tag via redirect + per-ABI manifest asset list.
-            var tagName = "live"
-            var releaseMap: Map<String, Long> = emptyMap()
-            try {
-                tagName = ReleaseRepository.latestTagRedirect(repo) ?: tagName
-                val assets = IncrementalUpdateManager.fetchReleaseAssets(tagName, _abi.value)
-                releaseMap = assets.associate { it.cleanName to it.size }
-            } catch (_: Throwable) { }
-
-            val allNames = (localFiles.keys + releaseMap.keys).distinct().sorted()
-            _libs.value = allNames.map { name ->
-                val local = localFiles[name] ?: 0L
-                val release = releaseMap[name] ?: 0L
+            // Read the lib list from the local libs/<abi>/ directory first so the
+            // UI has something instantly, even offline. Manifest refines below.
+            _libs.value = localFiles.keys.sorted().map { name ->
+                val f = localFiles[name] ?: return@map null
                 LibInfo(
                     name = name,
-                    localSize = local,
-                    releaseSize = release,
-                    upToDate = release > 0 && local == release,
+                    localSize = f.length(),
+                    releaseSize = f.length(),
+                    upToDate = true,
+                    label = labelForLib(name),
+                    group = groupForLib(name),
                 )
+            }.filterNotNull()
+
+            // API-free: newest tag via redirect + per-ABI manifest asset list.
+            var tagName = "live"
+            var assets: List<IncrementalUpdateManager.AssetInfo> = emptyList()
+            try {
+                tagName = ReleaseRepository.latestTagRedirect(repo) ?: tagName
+                assets = IncrementalUpdateManager.fetchReleaseAssets(tagName, abi)
+            } catch (_: Throwable) { }
+
+            if (assets.isNotEmpty()) {
+                val releaseMap = assets.associateBy { it.cleanName }
+                val allNames = (localFiles.keys + releaseMap.keys).distinct().sorted()
+                val rows = allNames.map { name ->
+                    val f = localFiles[name]
+                    val asset = releaseMap[name]
+                    LibInfo(
+                        name = name,
+                        localSize = f?.length() ?: 0L,
+                        releaseSize = asset?.size ?: (f?.length() ?: 0L),
+                        upToDate = if (asset != null) {
+                            IncrementalUpdateManager.isUpToDate(File(targetDir, name), asset)
+                        } else true,
+                        label = labelForLib(name),
+                        group = groupForLib(name),
+                    )
+                }
+                _libs.value = rows.sortedWith(compareBy({ libGroupOrder(it.group) }, { it.label }))
             }
             val outdated = _libs.value.filter { !it.upToDate && it.releaseSize > 0 }
-            if (autoLoad && outdated.isEmpty() && releaseMap.isNotEmpty()) {
+            if (autoLoad && outdated.isEmpty() && assets.isNotEmpty()) {
                 // Everything on disk is up to date — auto-load the bundle so the
                 // user can patch straight away. (Guard on a fresh release list,
                 // otherwise a failed check could auto-load stale libs.)
-                val files = IncrementalUpdateManager.loadBundleFiles(libsDir, _abi.value)
+                val files = IncrementalUpdateManager.loadBundleFiles(libsDir, abi)
                 if (files.isNotEmpty()) {
-                    val b = buildBundleFromFiles(files, _abi.value)
+                    val b = buildBundleFromFiles(files, abi)
                     markBundleTagKnown(tagName)
                     loadedBundle = b
                     _bundle.value = BundleState.Loaded
@@ -331,27 +379,44 @@ class PatcherViewModel(app: Application) : AndroidViewModel(app) {
 
     fun refreshSingleLib(libName: String) {
         viewModelScope.launch(Dispatchers.IO) {
+            downloadLib(libName)
+        }
+    }
+
+    fun refreshGroup(group: String) {
+        val names = _libs.value
+            .filter { it.group == group && !it.upToDate && it.releaseSize > 0 }
+            .map { it.name }
+        if (names.isEmpty()) return
+        viewModelScope.launch(Dispatchers.IO) {
+            for (name in names) {
+                downloadLib(name)
+            }
+        }
+    }
+
+    private suspend fun downloadLib(libName: String) {
+        try {
+            val tagName = ReleaseRepository.latestTagRedirect(repo) ?: return
+            val assets = IncrementalUpdateManager.fetchReleaseAssets(tagName, _abi.value)
+            val asset = assets.find { it.cleanName == libName } ?: return
             _libs.value = _libs.value.map {
                 if (it.name == libName) it.copy(downloading = true, downloadProgress = 0f) else it
             }
-            try {
-                val tagName = ReleaseRepository.latestTagRedirect(repo) ?: return@launch
-                val assets = IncrementalUpdateManager.fetchReleaseAssets(tagName, _abi.value)
-                val asset = assets.find { it.cleanName == libName } ?: return@launch
-                IncrementalUpdateManager.downloadSingle(asset, libsDir, _abi.value) { p ->
-                    _libs.value = _libs.value.map {
-                        if (it.name == libName) it.copy(downloading = true, downloadProgress = p) else it
-                    }
-                }
-                val fileOnDisk = File(File(libsDir, _abi.value), libName)
-                val newSize = if (fileOnDisk.exists()) fileOnDisk.length() else 0L
+            IncrementalUpdateManager.downloadSingle(asset, libsDir, _abi.value) { p ->
                 _libs.value = _libs.value.map {
-                    if (it.name == libName) LibInfo(libName, newSize, asset.size, newSize == asset.size) else it
+                    if (it.name == libName) it.copy(downloading = true, downloadProgress = p) else it
                 }
-            } catch (t: Throwable) {
-                _libs.value = _libs.value.map {
-                    if (it.name == libName) it.copy(downloading = false) else it
-                }
+            }
+            val fileOnDisk = File(File(libsDir, _abi.value), libName)
+            val newSize = if (fileOnDisk.exists()) fileOnDisk.length() else 0L
+            val upToDate = IncrementalUpdateManager.isUpToDate(fileOnDisk, asset)
+            _libs.value = _libs.value.map {
+                if (it.name == libName) it.copy(localSize = newSize, upToDate = upToDate) else it
+            }
+        } catch (t: Throwable) {
+            _libs.value = _libs.value.map {
+                if (it.name == libName) it.copy(downloading = false) else it
             }
         }
     }

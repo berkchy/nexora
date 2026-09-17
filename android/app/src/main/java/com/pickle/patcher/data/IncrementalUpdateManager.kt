@@ -5,12 +5,13 @@ import kotlinx.serialization.json.Json
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import java.io.File
+import java.security.MessageDigest
 import java.util.concurrent.TimeUnit
 
 /**
  * Manages incremental updates using GitHub Releases API.
- * Compares file sizes between release assets and local libs/ directory.
- * No manifest.json needed — just size comparison.
+ * Compares SHA-256 hashes between release manifest entries and local libs/
+ * directory (falls back to size comparison when a hash is unavailable).
  */
 object IncrementalUpdateManager {
 
@@ -45,6 +46,7 @@ object IncrementalUpdateManager {
             val name: String = "",
             val asset: String = "",
             val size: Long = 0,
+            val sha256: String = "",
         )
     }
 
@@ -53,6 +55,7 @@ object IncrementalUpdateManager {
         val cleanName: String,
         val size: Long,
         val downloadUrl: String,
+        val sha256: String = "",
     )
 
     data class UpdateResult(
@@ -96,6 +99,7 @@ object IncrementalUpdateManager {
                     assetName = f.asset,
                     cleanName = f.name,
                     size = f.size,
+                    sha256 = f.sha256,
                     downloadUrl = ReleaseRepository.assetUrl(REPO, tag, f.asset),
                 )
             }
@@ -133,7 +137,7 @@ object IncrementalUpdateManager {
 
     /**
      * Compare release assets against local files on disk.
-     * Uses file size as the comparison metric.
+     * Uses SHA-256 when the manifest provides it, falling back to size.
      */
     fun diff(releaseAssets: List<AssetInfo>, libsDir: File, abi: String): UpdateResult {
         val targetDir = File(libsDir, abi)
@@ -142,7 +146,7 @@ object IncrementalUpdateManager {
 
         for (asset in releaseAssets) {
             val fileOnDisk = File(targetDir, asset.cleanName)
-            if (fileOnDisk.exists() && fileOnDisk.length() == asset.size) {
+            if (isUpToDate(fileOnDisk, asset)) {
                 upToDate.add(asset)
             } else {
                 toDownload.add(asset)
@@ -151,6 +155,36 @@ object IncrementalUpdateManager {
 
         val totalBytes = toDownload.sumOf { it.size }
         return UpdateResult(toDownload = toDownload, upToDate = upToDate, totalBytes = totalBytes)
+    }
+
+    /**
+     * True when the local file exists and matches the release entry.
+     * Prefers SHA-256; falls back to size comparison when no hash is known.
+     */
+    fun isUpToDate(fileOnDisk: File, asset: AssetInfo): Boolean {
+        if (!fileOnDisk.exists()) return false
+        return when {
+            asset.sha256.isNotBlank() -> sha256(fileOnDisk) == asset.sha256
+            else -> fileOnDisk.length() == asset.size
+        }
+    }
+
+    /**
+     * Compute the SHA-256 hex digest of a file, or null on any failure.
+     */
+    fun sha256(file: File): String? = try {
+        file.inputStream().use { input ->
+            val digest = MessageDigest.getInstance("SHA-256")
+            val buffer = ByteArray(65536)
+            while (true) {
+                val n = input.read(buffer)
+                if (n < 0) break
+                digest.update(buffer, 0, n)
+            }
+            digest.digest().joinToString("") { "%02x".format(it) }
+        }
+    } catch (_: Throwable) {
+        null
     }
 
     /**
