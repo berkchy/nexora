@@ -256,3 +256,19 @@ index 74d1366..0f0a5f8 100644
  	}
  
  	return m_handle;
+diff --git a/metamod/src/dllapi.cpp b/metamod/src/dllapi.cpp
+index 6947859..1c5d6a5 100644
+--- a/metamod/src/dllapi.cpp
++++ b/metamod/src/dllapi.cpp
+@@ -27,6 +27,11 @@ static BOOL mm_ClientConnect(edict_t *pEntity, const char *pszName, const char *
+ static void MM_PRE_HOOK EXT_FUNC mm_ClientDisconnect(edict_t *pEntity)
+ {
+ 	g_players.clear_player_cvar_query(pEntity);
++	// Forward to metamod plugins (AMXX fakemeta FM_ClientDisconnect) and to the
++	// game DLL's own ClientDisconnect. Without this, client-disconnect callbacks
++	// never fire on Xash3D and stale player state breaks plugins like ZP.
++	META_DLLAPI_HANDLE_void(FN_CLIENTDISCONNECT, pfnClientDisconnect, (pEntity));
++	RETURN_API_void();
+ }
+ 
+ // this forward can be disabled from metamod.cpp
