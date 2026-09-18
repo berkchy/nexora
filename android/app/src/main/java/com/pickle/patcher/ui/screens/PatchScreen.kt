@@ -363,7 +363,7 @@ private fun LibRow(lib: LibInfo, onRefresh: () -> Unit) {
                         val local = lib.localSize.mb()
                         val release = lib.releaseSize.mb()
                         if (lib.upToDate) "$local (up to date)" else "$local → $release"
-                    } else "Not installed",
+                    } else if (lib.releaseSize > 0) "Outdated" else "Not installed",
                     style = MaterialTheme.typography.bodySmall,
                     color = if (lib.upToDate) Gray60 else AlertRed,
                 )
