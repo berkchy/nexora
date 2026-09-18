@@ -616,6 +616,9 @@ class PatcherViewModel(app: Application) : AndroidViewModel(app) {
                 if (!out.canonicalPath.startsWith(target.canonicalPath + File.separator)) {
                     throw IOException("Unsafe path in addons zip: $name")
                 }
+                // User-edited config files are extracted only when missing — a
+                // fresh download must never clobber the user's own settings.
+                if (PROTECTED_ADDON_CONFIGS.contains(name) && out.exists()) return@forEach
                 out.parentFile?.mkdirs()
                 zf.getInputStream(entry).use { input ->
                     out.outputStream().use { output -> input.copyTo(output) }
@@ -1308,6 +1311,19 @@ class PatcherViewModel(app: Application) : AndroidViewModel(app) {
         const val APP_RELEASE_REPO = "berkchy/nexora"
         const val NOTIFICATION_CHANNEL_ID = "bundle_updates"
         const val NOTIFICATION_ID = 1001
+        /**
+         * User-edited AMXX config files from addons/amxmodx/configs/. The addons
+         * extractor may only create these when missing — never overwrite them.
+         */
+        val PROTECTED_ADDON_CONFIGS = setOf(
+            "addons/amxmodx/configs/modules.ini",
+            "addons/amxmodx/configs/amxx.cfg",
+            "addons/amxmodx/configs/cvars.ini",
+            "addons/amxmodx/configs/maps.ini",
+            "addons/amxmodx/configs/plugins.ini",
+            "addons/amxmodx/configs/sql.cfg",
+            "addons/amxmodx/configs/users.ini",
+        )
     }
 
     /**
