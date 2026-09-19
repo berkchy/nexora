@@ -146,6 +146,18 @@ class PatcherViewModel(app: Application) : AndroidViewModel(app) {
         getApplication<Application>().getSharedPreferences("compiler_prefs", Context.MODE_PRIVATE)
     }
 
+    // Declared before init: useCachedBundle() runs synchronously in init and
+    // reads these (Kotlin initializes properties in textual order).
+    private var loadedBundle: Bundle? = null
+    private var lastReport: ApkPatcher.PatchReport? = null
+
+    val hasCachedBundle: Boolean get() = bundleProvider.hasCachedBundle()
+
+    val repo = "berkchy/nexora"
+
+    private val workDir = File(app.getExternalFilesDir(null) ?: app.cacheDir, "patcher")
+    private val libsDir = File(app.getExternalFilesDir(null) ?: app.cacheDir, "libs")
+
     init {
         val savedScripts = compilerPrefs.getString("script_root", null)
         if (!savedScripts.isNullOrEmpty() && File(savedScripts).isDirectory) {
@@ -197,16 +209,6 @@ class PatcherViewModel(app: Application) : AndroidViewModel(app) {
             }
         }
     }
-
-    private var loadedBundle: Bundle? = null
-    private var lastReport: ApkPatcher.PatchReport? = null
-
-    val hasCachedBundle: Boolean get() = bundleProvider.hasCachedBundle()
-
-    val repo = "berkchy/nexora"
-
-    private val workDir = File(app.getExternalFilesDir(null) ?: app.cacheDir, "patcher")
-    private val libsDir = File(app.getExternalFilesDir(null) ?: app.cacheDir, "libs")
 
     /**
      * Loads the bundled signing key. Prefers the PEM pair (PKCS#8 key + X.509 cert)
