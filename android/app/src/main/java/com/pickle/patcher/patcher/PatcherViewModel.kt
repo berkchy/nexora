@@ -1,20 +1,16 @@
 package com.pickle.patcher.patcher
 
 import android.app.Application
-import android.app.NotificationChannel
-import android.app.NotificationManager
 import android.content.Context
 import android.content.Intent
 import android.net.Uri
 import android.os.Build
 import android.os.Environment
 import android.os.SystemClock
-import androidx.core.app.NotificationCompat
 import androidx.core.content.FileProvider
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.pickle.patcher.CrashLog
-import com.pickle.patcher.R
 import com.pickle.patcher.data.BundleProvider
 import com.pickle.patcher.data.IncrementalUpdateManager
 import com.pickle.patcher.data.ReleaseRepository
@@ -126,6 +122,15 @@ class PatcherViewModel(app: Application) : AndroidViewModel(app) {
     private val _libs = MutableStateFlow<List<LibInfo>>(emptyList())
     val libs: StateFlow<List<LibInfo>> = _libs.asStateFlow()
 
+    /** True while a manual remote lib-status check is in flight. */
+    private val _libsChecking = MutableStateFlow(false)
+    val libsChecking: StateFlow<Boolean> = _libsChecking.asStateFlow()
+
+    /** Manual "Check updates" for libs: compares local .so files with the release. */
+    fun refreshLibStatus() {
+        scanLibs(checkRemote = true)
+    }
+
     private val _scripts = MutableStateFlow<List<SmaSource>>(emptyList())
     val scripts: StateFlow<List<SmaSource>> = _scripts.asStateFlow()
 
@@ -151,10 +156,11 @@ class PatcherViewModel(app: Application) : AndroidViewModel(app) {
         if (!savedOutput.isNullOrEmpty() && File(savedOutput).isDirectory) {
             _outputRoot.value = savedOutput
         }
+        // Manual-update mode: on launch only show what is already on disk.
+        // No network calls here — the user triggers "Download" and
+        // "Update check" explicitly.
         scanLibs()
-        // On launch, behave as if the mod bundle "Download" was pressed:
-        // download anything outdated, then load the bundle automatically.
-        fetchAndDownloadBundle()
+        useCachedBundle()
     }
 
     private val _compile = MutableStateFlow<CompileState>(CompileState.Idle)
@@ -283,7 +289,12 @@ class PatcherViewModel(app: Application) : AndroidViewModel(app) {
         _bundle.value = BundleState.Ready("Loaded", b.manifest.entries.size, b.manifest.version)
     }
 
-    fun scanLibs(autoLoad: Boolean = false) {
+    /**
+     * Lists local libs instantly (offline). When [checkRemote] is true it also
+     * fetches the release manifest and marks outdated files — that network
+     * check only runs from explicit user actions (Update check / Check updates).
+     */
+    fun scanLibs(autoLoad: Boolean = false, checkRemote: Boolean = false) {
         viewModelScope.launch(Dispatchers.IO) {
             val abi = _abi.value
             val targetDir = File(libsDir, abi)
@@ -308,12 +319,18 @@ class PatcherViewModel(app: Application) : AndroidViewModel(app) {
             }.filterNotNull()
 
             // API-free: newest tag via redirect + per-ABI manifest asset list.
+            // Only on explicit user request (checkRemote) — never on launch.
             var tagName = "live"
             var assets: List<IncrementalUpdateManager.AssetInfo> = emptyList()
-            try {
-                tagName = ReleaseRepository.latestTagRedirect(repo) ?: tagName
-                assets = IncrementalUpdateManager.fetchReleaseAssets(tagName, abi)
-            } catch (_: Throwable) { }
+            if (checkRemote) {
+                _libsChecking.value = true
+                try {
+                    tagName = ReleaseRepository.latestTagRedirect(repo) ?: tagName
+                    assets = IncrementalUpdateManager.fetchReleaseAssets(tagName, abi)
+                } catch (_: Throwable) { } finally {
+                    _libsChecking.value = false
+                }
+            }
 
             if (assets.isNotEmpty()) {
                 val releaseMap = assets.associateBy { it.cleanName }
@@ -765,22 +782,15 @@ class PatcherViewModel(app: Application) : AndroidViewModel(app) {
     private val _appUpdate = MutableStateFlow<AppUpdate>(AppUpdate.Idle)
     val appUpdate: StateFlow<AppUpdate> = _appUpdate.asStateFlow()
 
-    /** Set to false once the popup shows or the user interacts — polling stops. */
-    private val _pollEnabled = MutableStateFlow(true)
-    val pollEnabled: StateFlow<Boolean> = _pollEnabled.asStateFlow()
-
-    private val updatePrefs by lazy {
-        getApplication<Application>().getSharedPreferences("updater_prefs", Context.MODE_PRIVATE)
-    }
-
-    private var nextPollAt: Long = 0L
-
-    fun checkAppUpdate(silent: Boolean = true) {
+    /**
+     * Manual update check only — called from the overflow menu's
+     * "Update check". Never runs automatically, no polling, no notifications.
+     */
+    fun checkAppUpdate() {
         val cur = _appUpdate.value
         if (cur is AppUpdate.Checking || cur is AppUpdate.Downloading || cur is AppUpdate.Downloaded) return
-        if (silent && SystemClock.elapsedRealtime() < nextPollAt) return
         viewModelScope.launch(Dispatchers.IO) {
-            if (!silent) _appUpdate.value = AppUpdate.Checking
+            _appUpdate.value = AppUpdate.Checking
             try {
                 // API-free: resolve the newest tag via the github.com redirect
                 // (…/releases/latest) and probe the APK asset with a HEAD
@@ -800,34 +810,20 @@ class PatcherViewModel(app: Application) : AndroidViewModel(app) {
                     null
                 }
                 val differentFromInstalled = ours == null || !ours.startsWith("v") || tag != ours
-                val shouldNotify = if (silent) {
-                    // Back off so an unchanged tag does not hammer github.com:
-                    // at most one redirect + HEAD probe every 5 minutes.
-                    nextPollAt = SystemClock.elapsedRealtime() + 5 * 60 * 1000L
-                    differentFromInstalled &&
-                        tag != updatePrefs.getString("known_tag", null)
-                } else {
-                    differentFromInstalled
-                }
 
-                if (apkSize != null && shouldNotify) {
-                    checkBundleUpdate(tag)
+                if (apkSize != null && differentFromInstalled) {
                     _appUpdate.value = AppUpdate.Available(tag, "", emptyList(), apkSize, apkUrl)
                 } else {
-                    if (differentFromInstalled) checkBundleUpdate(tag)
-                    updatePrefs.edit().putString("known_tag", tag).apply()
-                    _appUpdate.value = if (silent) AppUpdate.Idle else AppUpdate.UpToDate(tag)
+                    _appUpdate.value = AppUpdate.UpToDate(tag)
                 }
             } catch (t: Throwable) {
-                nextPollAt = SystemClock.elapsedRealtime() + 5 * 60 * 1000L
-                _appUpdate.value = if (silent) AppUpdate.Idle else AppUpdate.Failed(t.message ?: "Update check failed")
+                _appUpdate.value = AppUpdate.Failed(t.message ?: "Update check failed")
             }
         }
     }
 
     fun downloadAppUpdate() {
         val cur = _appUpdate.value as? AppUpdate.Available ?: return
-        _pollEnabled.value = false
         viewModelScope.launch(Dispatchers.IO) {
             try {
                 val dest = File(workDir, "update.apk")
@@ -837,7 +833,7 @@ class PatcherViewModel(app: Application) : AndroidViewModel(app) {
                     val dt = (SystemClock.elapsedRealtime() - t0).coerceAtLeast(1L)
                     _appUpdate.value = AppUpdate.Downloading(cur.tag, done, total, done * 1000L / dt)
                 }
-                updatePrefs.edit().putString("known_tag", cur.tag).apply()
+                                updatePrefs.edit().putString("known_tag", cur.tag).apply()
                 _appUpdate.value = AppUpdate.Downloaded(cur.tag, dest)
             } catch (t: Throwable) {
                 _appUpdate.value = AppUpdate.Failed(t.message ?: "Download failed")
@@ -846,49 +842,11 @@ class PatcherViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     fun dismissUpdate() {
-        (_appUpdate.value as? AppUpdate.Available)?.let {
-            updatePrefs.edit().putString("known_tag", it.tag).apply()
-        }
-        _pollEnabled.value = false
         _appUpdate.value = AppUpdate.Idle
     }
 
     fun consumeDownloaded() {
         _appUpdate.value = AppUpdate.Idle
-    }
-
-    // ------------------------------------------------- bundle update notification
-
-    private fun checkBundleUpdate(latestTag: String) {
-        val knownBundleTag = updatePrefs.getString("known_bundle_tag", null)
-        if (latestTag == knownBundleTag) return
-
-        val app = getApplication<Application>()
-        val nm = app.getSystemService(NotificationManager::class.java)
-
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            val channel = NotificationChannel(
-                NOTIFICATION_CHANNEL_ID,
-                "Bundle Updates",
-                NotificationManager.IMPORTANCE_DEFAULT,
-            ).apply {
-                description = "Notifies when a new mod bundle is available"
-            }
-            nm.createNotificationChannel(channel)
-        }
-
-        val notification = NotificationCompat.Builder(app, NOTIFICATION_CHANNEL_ID)
-            .setSmallIcon(R.drawable.ic_launcher_foreground)
-            .setContentTitle("New bundle available")
-            .setContentText("Version $latestTag has been published. Open Patcher to download.")
-            .setAutoCancel(true)
-            .build()
-
-        try {
-            nm.notify(NOTIFICATION_ID, notification)
-        } catch (_: SecurityException) {
-            // POST_NOTIFICATIONS not granted on Android 13+
-        }
     }
 
     fun markBundleTagKnown(tag: String) {
@@ -897,7 +855,6 @@ class PatcherViewModel(app: Application) : AndroidViewModel(app) {
 
     // ------------------------------------------------------- plugins editor
     // Reads plugins-*.ini files and toggles lines with ';' (AMXX skips those).
-
     data class PluginLine(val text: String, val enabled: Boolean, val editable: Boolean, val isPlugin: Boolean)
     data class PluginIniFile(val name: String, val file: File, val lines: List<PluginLine>)
 
@@ -993,15 +950,6 @@ class PatcherViewModel(app: Application) : AndroidViewModel(app) {
             tail(latest, 60).forEach { sb.append(it).append("\n") }
         }
         sb.toString()
-    }
-
-    // ------------------------------------------------------ dismissed update
-    // Brings back an update popup the user dismissed with "Later".
-
-    fun showDismissedUpdate() {
-        updatePrefs.edit().remove("known_tag").apply()
-        _pollEnabled.value = true
-        checkAppUpdate(silent = false)
     }
 
     /**
@@ -1309,8 +1257,6 @@ class PatcherViewModel(app: Application) : AndroidViewModel(app) {
         val SUPPORTED_ABIS = listOf("arm64-v8a", "armeabi-v7a")
         /** Releases (tags + patcher APK) are published here by CI. */
         const val APP_RELEASE_REPO = "berkchy/nexora"
-        const val NOTIFICATION_CHANNEL_ID = "bundle_updates"
-        const val NOTIFICATION_ID = 1001
         /**
          * User-edited AMXX config files from addons/amxmodx/configs/. The addons
          * extractor may only create these when missing — never overwrite them.

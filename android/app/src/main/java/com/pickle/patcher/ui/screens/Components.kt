@@ -32,7 +32,6 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.LinearProgressIndicator
-import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Surface
@@ -51,14 +50,12 @@ import com.pickle.patcher.ui.theme.Accent
 import com.pickle.patcher.ui.theme.Gray40
 import com.pickle.patcher.ui.theme.Gray60
 import com.pickle.patcher.ui.theme.Gray70
-import com.pickle.patcher.ui.theme.Gray80
 import com.pickle.patcher.ui.theme.Gray85
-import com.pickle.patcher.ui.theme.Gray90
 import com.pickle.patcher.ui.theme.SuccessGreen
 import com.pickle.patcher.ui.theme.White
 
-private val CardShape = RoundedCornerShape(12.dp)
-private val ButtonShape = RoundedCornerShape(8.dp)
+private val CardShape = RoundedCornerShape(16.dp)
+private val ButtonShape = RoundedCornerShape(14.dp)
 
 enum class StepState { PENDING, ACTIVE, DONE }
 
@@ -67,7 +64,7 @@ fun SectionHeader(text: String, modifier: Modifier = Modifier) {
     Text(
         text = text,
         style = MaterialTheme.typography.labelLarge,
-        color = Gray40,
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
         modifier = modifier.padding(bottom = 8.dp),
     )
 }
@@ -80,8 +77,8 @@ fun AppCard(
     Surface(
         modifier = modifier.fillMaxWidth(),
         shape = CardShape,
-        color = Gray90,
-        tonalElevation = 0.dp,
+        color = MaterialTheme.colorScheme.surfaceContainerHigh,
+        tonalElevation = 1.dp,
     ) {
         Column(modifier = Modifier.padding(16.dp)) {
             content()
@@ -100,13 +97,13 @@ fun PrimaryButton(
     Button(
         onClick = onClick,
         enabled = enabled,
-        modifier = modifier.fillMaxWidth().height(44.dp),
+        modifier = modifier.fillMaxWidth().height(48.dp),
         shape = ButtonShape,
         colors = ButtonDefaults.buttonColors(
-            containerColor = Accent,
-            contentColor = Color.Black,
-            disabledContainerColor = Gray70,
-            disabledContentColor = Gray40,
+            containerColor = MaterialTheme.colorScheme.primary,
+            contentColor = MaterialTheme.colorScheme.onPrimary,
+            disabledContainerColor = MaterialTheme.colorScheme.surfaceContainerHighest,
+            disabledContentColor = MaterialTheme.colorScheme.onSurfaceVariant,
         ),
     ) {
         icon?.invoke()
@@ -126,13 +123,13 @@ fun SecondaryButton(
     OutlinedButton(
         onClick = onClick,
         enabled = enabled,
-        modifier = modifier.height(44.dp),
+        modifier = modifier.height(48.dp),
         shape = ButtonShape,
         colors = ButtonDefaults.outlinedButtonColors(
-            contentColor = Gray40,
-            disabledContentColor = Gray60,
+            contentColor = MaterialTheme.colorScheme.secondary,
+            disabledContentColor = MaterialTheme.colorScheme.onSurfaceVariant,
         ),
-        border = BorderStroke(1.dp, if (enabled) Gray70 else Gray60),
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
     ) {
         icon?.invoke()
         if (icon != null) Spacer(Modifier.width(6.dp))
@@ -151,7 +148,10 @@ fun GhostButton(
         onClick = onClick,
         enabled = enabled,
         modifier = modifier,
-        colors = ButtonDefaults.textButtonColors(contentColor = Accent),
+        colors = ButtonDefaults.textButtonColors(
+            contentColor = MaterialTheme.colorScheme.primary,
+            disabledContentColor = MaterialTheme.colorScheme.onSurfaceVariant,
+        ),
     ) {
         Text(text, style = MaterialTheme.typography.labelLarge)
     }
@@ -315,9 +315,9 @@ fun AppProgressBar(fraction: Float, modifier: Modifier = Modifier) {
     Column(modifier) {
         LinearProgressIndicator(
             progress = { animated },
-            modifier = Modifier.fillMaxWidth().height(4.dp).clip(RoundedCornerShape(2.dp)),
-            color = Accent,
-            trackColor = Gray80,
+            modifier = Modifier.fillMaxWidth().height(6.dp).clip(RoundedCornerShape(3.dp)),
+            color = MaterialTheme.colorScheme.primary,
+            trackColor = MaterialTheme.colorScheme.secondaryContainer,
             strokeCap = StrokeCap.Round,
         )
         Spacer(Modifier.height(4.dp))

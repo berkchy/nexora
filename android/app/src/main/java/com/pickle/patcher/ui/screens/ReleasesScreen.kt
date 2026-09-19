@@ -173,7 +173,7 @@ fun ReleasesScreen(vm: PatcherViewModel) {
             Spacer(Modifier.height(10.dp))
             PrimaryButton(
                 text = "Check for updates",
-                onClick = { vm.checkAppUpdate(silent = false) },
+                onClick = { vm.checkAppUpdate() },
                 icon = { Icon(Icons.Filled.Refresh, null, modifier = Modifier.size(18.dp)) },
             )
         }

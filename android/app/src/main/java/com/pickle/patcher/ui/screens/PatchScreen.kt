@@ -275,7 +275,7 @@ private fun BundleCard(vm: PatcherViewModel) {
                     Column(modifier = Modifier.weight(1f)) {
                         Text("Libs loaded", style = MaterialTheme.typography.titleSmall)
                         Text(
-                            "Up to date",
+                            "Ready to patch",
                             style = MaterialTheme.typography.bodySmall, color = Gray40,
                         )
                     }
@@ -306,13 +306,37 @@ private fun BundleCard(vm: PatcherViewModel) {
 @Composable
 private fun LibListCard(vm: PatcherViewModel) {
     val libs by vm.libs.collectAsState()
+    val checking by vm.libsChecking.collectAsState()
 
     AppCard {
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.SpaceBetween,
+            modifier = Modifier.fillMaxWidth(),
+        ) {
+            Text(
+                if (libs.isEmpty()) "Local libs" else "${libs.size} local libs",
+                style = MaterialTheme.typography.titleSmall,
+                color = Gray40,
+            )
+            GhostButton(
+                text = if (checking) "Checking…" else "Check updates",
+                onClick = { vm.refreshLibStatus() },
+                enabled = !checking,
+            )
+        }
+        Spacer(Modifier.height(4.dp))
         if (libs.isEmpty()) {
             Text(
                 "No .so files found in libs directory.",
                 style = MaterialTheme.typography.bodyMedium,
                 color = Gray40,
+            )
+            Spacer(Modifier.height(4.dp))
+            Text(
+                "Press Download in MOD BUNDLE to fetch them.",
+                style = MaterialTheme.typography.bodySmall,
+                color = Gray60,
             )
         } else {
             // Flat list: every lib is its own row, box height ~4 rows so it

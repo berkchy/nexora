@@ -53,6 +53,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.unit.dp
 import androidx.navigation.NavGraph.Companion.findStartDestination
@@ -68,11 +69,8 @@ import com.pickle.patcher.ui.screens.PluginsScreen
 import com.pickle.patcher.ui.screens.CrashLogScreen
 import com.pickle.patcher.ui.screens.PatchScreen
 import com.pickle.patcher.ui.theme.NexoraTheme
-import com.pickle.patcher.ui.theme.Black
 import com.pickle.patcher.ui.theme.Gray40
 import com.pickle.patcher.ui.theme.Gray60
-import com.pickle.patcher.ui.theme.Gray85
-import com.pickle.patcher.ui.theme.Gray90
 import com.pickle.patcher.ui.theme.White
 import androidx.lifecycle.viewmodel.compose.viewModel
 
@@ -113,23 +111,10 @@ fun PatcherApp(vm: PatcherViewModel) {
     val currentRoute = entry?.destination?.route
     val context = androidx.compose.ui.platform.LocalContext.current
     val update by vm.appUpdate.collectAsState()
-    val pollEnabled by vm.pollEnabled.collectAsState()
 
-    // Poll GitHub releases every 15s while the app is open. Stops as soon as
-    // the popup shows or the user interacts with it (dismiss/download).
-    LaunchedEffect(pollEnabled) {
-        if (!pollEnabled) return@LaunchedEffect
-        vm.checkAppUpdate()
-        while (vm.pollEnabled.value) {
-            kotlinx.coroutines.delay(15_000)
-            if (!vm.pollEnabled.value) break
-            when (vm.appUpdate.value) {
-                is PatcherViewModel.AppUpdate.Idle,
-                is PatcherViewModel.AppUpdate.Failed -> vm.checkAppUpdate()
-                else -> break
-            }
-        }
-    }
+    // No automatic update checks: the user triggers "Update check" from the
+    // overflow menu explicitly. When the user downloads an app update from the
+    // dialog, installation starts automatically once it finishes.
 
     androidx.compose.runtime.LaunchedEffect(update) {
         val u = update
@@ -140,16 +125,23 @@ fun PatcherApp(vm: PatcherViewModel) {
     }
 
     Scaffold(
-        containerColor = Black,
-        contentColor = White,
+        containerColor = MaterialTheme.colorScheme.background,
+        contentColor = MaterialTheme.colorScheme.onBackground,
         topBar = {
             TopAppBar(
+                colors = androidx.compose.material3.TopAppBarDefaults.topAppBarColors(
+                    containerColor = MaterialTheme.colorScheme.surfaceContainer,
+                    titleContentColor = MaterialTheme.colorScheme.onSurface,
+                    navigationIconContentColor = MaterialTheme.colorScheme.onSurface,
+                    actionIconContentColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                ),
                 title = {
                     Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
-                        Icon(
+                        androidx.compose.foundation.Image(
                             painter = painterResource(id = R.mipmap.ic_launcher),
                             contentDescription = null,
-                            modifier = Modifier.height(24.dp).width(24.dp),
+                            modifier = Modifier.height(28.dp).width(28.dp)
+                                .clip(androidx.compose.foundation.shape.RoundedCornerShape(7.dp)),
                         )
                         Spacer(Modifier.width(8.dp))
                         Text("Nexora", style = MaterialTheme.typography.titleMedium)
@@ -170,11 +162,11 @@ fun PatcherApp(vm: PatcherViewModel) {
         },
         bottomBar = {
             Surface(
-                color = Gray90,
+                color = MaterialTheme.colorScheme.surfaceContainer,
                 shadowElevation = 8.dp,
             ) {
                 NavigationBar(
-                    containerColor = Gray90,
+                    containerColor = MaterialTheme.colorScheme.surfaceContainer,
                     tonalElevation = 0.dp,
                 ) {
                     Dest.entries.forEach { dest ->
@@ -204,11 +196,11 @@ fun PatcherApp(vm: PatcherViewModel) {
                                 )
                             },
                             colors = NavigationBarItemDefaults.colors(
-                                selectedIconColor = MaterialTheme.colorScheme.primary,
-                                selectedTextColor = MaterialTheme.colorScheme.primary,
-                                unselectedIconColor = Gray40,
-                                unselectedTextColor = Gray40,
-                                indicatorColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.12f),
+                                selectedIconColor = MaterialTheme.colorScheme.onSecondaryContainer,
+                                selectedTextColor = MaterialTheme.colorScheme.onSurface,
+                                unselectedIconColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                                unselectedTextColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                                indicatorColor = MaterialTheme.colorScheme.secondaryContainer,
                             ),
                         )
                     }
@@ -268,7 +260,8 @@ private fun OverflowMenu(
             text = { Text("Update check") },
             onClick = {
                 expanded = false
-                vm.checkAppUpdate(silent = false)
+                vm.checkAppUpdate()
+                vm.refreshLibStatus()
             },
         )
         DropdownMenuItem(
@@ -292,13 +285,6 @@ private fun OverflowMenu(
                         context.startActivity(android.content.Intent.createChooser(intent, "Share logs"))
                     }
                 }
-            },
-        )
-        DropdownMenuItem(
-            text = { Text("Show dismissed update") },
-            onClick = {
-                expanded = false
-                vm.showDismissedUpdate()
             },
         )
         DropdownMenuItem(
@@ -354,9 +340,6 @@ private fun OverflowMenu(
                     Text("Close")
                 }
             },
-            containerColor = Gray90,
-            titleContentColor = White,
-            textContentColor = White,
         )
     }
 }
@@ -477,7 +460,7 @@ private fun UpdateDialog(vm: PatcherViewModel, state: PatcherViewModel.AppUpdate
                     }
                 }
                 is PatcherViewModel.AppUpdate.Failed -> {
-                    androidx.compose.material3.TextButton(onClick = { vm.checkAppUpdate(silent = false) }) {
+                    androidx.compose.material3.TextButton(onClick = { vm.checkAppUpdate() }) {
                         Text("Retry")
                     }
                 }
@@ -491,8 +474,5 @@ private fun UpdateDialog(vm: PatcherViewModel, state: PatcherViewModel.AppUpdate
                 }
             }
         },
-        containerColor = Gray90,
-        titleContentColor = White,
-        textContentColor = White,
     )
 }
