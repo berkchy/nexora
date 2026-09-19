@@ -782,6 +782,10 @@ class PatcherViewModel(app: Application) : AndroidViewModel(app) {
     private val _appUpdate = MutableStateFlow<AppUpdate>(AppUpdate.Idle)
     val appUpdate: StateFlow<AppUpdate> = _appUpdate.asStateFlow()
 
+    private val updatePrefs by lazy {
+        getApplication<Application>().getSharedPreferences("updater_prefs", Context.MODE_PRIVATE)
+    }
+
     /**
      * Manual update check only — called from the overflow menu's
      * "Update check". Never runs automatically, no polling, no notifications.
