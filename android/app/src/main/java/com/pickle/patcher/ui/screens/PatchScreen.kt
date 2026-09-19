@@ -28,7 +28,6 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Bolt
 import androidx.compose.material.icons.filled.Build
 import androidx.compose.material.icons.filled.CheckCircle
-import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Download
 import androidx.compose.material.icons.filled.Extension
 import androidx.compose.material.icons.filled.FolderOpen
@@ -63,7 +62,6 @@ import androidx.compose.material3.Checkbox
 import androidx.compose.material3.TextButton
 import androidx.compose.foundation.layout.heightIn
 import com.pickle.patcher.lib.ApkPatcher
-import com.pickle.patcher.patcher.AddonsState
 import com.pickle.patcher.patcher.BundleState
 import com.pickle.patcher.patcher.LibInfo
 import com.pickle.patcher.patcher.PatchUiState
@@ -111,11 +109,6 @@ fun PatchScreen(vm: PatcherViewModel) {
 
         SectionHeader("BUILD")
         PatchCard(vm)
-
-        Spacer(Modifier.height(16.dp))
-
-        SectionHeader("ADDONS")
-        AddonsQuickCard(vm)
 
         Spacer(Modifier.height(16.dp))
     }
@@ -676,81 +669,6 @@ private fun PatchResult(report: ApkPatcher.PatchReport, onInstall: () -> Unit) {
                 style = MaterialTheme.typography.bodySmall,
                 color = Gray40,
             )
-        }
-    }
-}
-
-@Composable
-private fun AddonsQuickCard(vm: PatcherViewModel) {
-    val addons by vm.addons.collectAsState()
-    val addonFiles by vm.addonFiles.collectAsState()
-    val missing = addonFiles.count { !it.installed }
-    val total = addonFiles.size
-
-    AppCard {
-        if (total == 0) {
-            Text(
-                "No addons scanned. Load a bundle first.",
-                style = MaterialTheme.typography.bodyMedium,
-                color = Gray40,
-            )
-            Spacer(Modifier.height(8.dp))
-            SecondaryButton(
-                text = "Scan Addons",
-                onClick = { vm.scanAddonsStatus() },
-                icon = { Icon(Icons.Filled.Refresh, null, modifier = Modifier.size(18.dp)) },
-            )
-        } else {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Icon(
-                    if (missing > 0) Icons.Filled.Warning else Icons.Filled.CheckCircle,
-                    contentDescription = null,
-                    tint = if (missing > 0) AlertRed else SuccessGreen,
-                    modifier = Modifier.size(20.dp),
-                )
-                Spacer(Modifier.width(10.dp))
-                Column(modifier = Modifier.weight(1f)) {
-                    Text(
-                        if (missing > 0) "$missing addon files missing" else "All $total addon files installed",
-                        style = MaterialTheme.typography.titleSmall,
-                        color = if (missing > 0) AlertRed else SuccessGreen,
-                    )
-                    Text(
-                        vm.installPath.value,
-                        style = MaterialTheme.typography.bodySmall,
-                        color = Gray40,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                    )
-                }
-            }
-            if (missing > 0) {
-                Spacer(Modifier.height(8.dp))
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    PrimaryButton(
-                        text = "Install Missing",
-                        onClick = { vm.installAddonsFromBundle() },
-                        modifier = Modifier.weight(1f),
-                    )
-                    SecondaryButton(
-                        text = "Details",
-                        onClick = { vm.scanAddonsStatus() },
-                        modifier = Modifier.weight(1f),
-                    )
-                }
-            }
-        }
-
-        when (val s = addons) {
-            is AddonsState.Done -> {
-                Spacer(Modifier.height(8.dp))
-                Text(s.message, style = MaterialTheme.typography.bodySmall, color = SuccessGreen)
-            }
-            is AddonsState.Error -> {
-                Spacer(Modifier.height(8.dp))
-                Text(s.message, style = MaterialTheme.typography.bodySmall, color = AlertRed)
-            }
-            else -> {}
         }
     }
 }

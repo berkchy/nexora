@@ -59,6 +59,7 @@ import com.pickle.patcher.ui.theme.White
 @Composable
 fun CompilerScreen(vm: PatcherViewModel) {
     val scroll = rememberScrollState()
+    val listScroll = rememberScrollState()
     val scripts by vm.scripts.collectAsState()
     val compile by vm.compile.collectAsState()
     val scriptRoot by vm.scriptRoot.collectAsState()
@@ -242,13 +243,20 @@ fun CompilerScreen(vm: PatcherViewModel) {
                         }
                     }
                 }
-                scripts.forEach { s ->
-                    ScriptRow(s, s.path in selected) {
-                        selected = if (s.path in selected) selected - s.path else selected + s.path
+                // Inner scroll box (like LIBS): keeps the COMPILE card
+                // reachable even with 100+ plugins.
+                Column(
+                    modifier = Modifier.fillMaxWidth().heightIn(max = 264.dp).verticalScroll(listScroll),
+                ) {
+                    scripts.forEach { s ->
+                        ScriptRow(s, s.path in selected) {
+                            selected = if (s.path in selected) selected - s.path else selected + s.path
+                        }
                     }
                 }
             }
         }
+
 
         if (selectedSources.isNotEmpty()) {
             Spacer(Modifier.height(16.dp))
