@@ -245,23 +245,44 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          # Single rolling release: wipe the old continuous release + tag,
-          # re-tag this commit, publish fresh assets.
+          # Rolling release: the tag + release stay, only assets are replaced.
+          # On a bundle-only build the APK + version.txt are left untouched
+          # (no APK is built, so they must survive).
+          if ! gh release view continuous >/dev/null 2>&1; then
+            git config user.name "github-actions[bot]"
+            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+            git tag -f continuous
+            git push origin continuous
+            gh release create continuous \
+              --title "Nexora Continuous" \
+              --notes "Nexora Continuous build"
+          fi
+          if [ "${{ steps.build_type.outputs.needs_apk }}" = "true" ]; then
+            PRESERVE='^$'
+          else
+            PRESERVE='^(nexora_continuous\.apk|version\.txt)$'
+          fi
+          gh release view continuous --json assets --jq -r '.assets[] | .name' | while read -r name; do
+            [ -z "$name" ] && continue
+            if echo "$name" | grep -qE "$PRESERVE"; then
+              echo "Keeping: $name"
+            else
+              echo "Deleting: $name"
+              gh release delete-asset continuous "$name" -y || true
+            fi
+          done
           BODY="Nexora Continuous build ${APP_VERSION_NAME:-}
           Commit: ${{ steps.build_type.outputs.commit_msg }}
           Run: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
           Built: $(date -u +%Y-%m-%dT%H:%M:%SZ)"
-          gh release delete continuous --cleanup-tag -y || true
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git tag -f continuous
-          git push origin continuous
-          gh release create continuous \
-            --title "Nexora Continuous" \
-            --notes "$BODY" \
-            amxx-addons.zip manifest.json manifest-v7a.json version.txt \
-            incremental/arm64-v8a/*.so incremental-v7a/armeabi-v7a/*.so \
-            android/app/build/outputs/apk/release/*.apk
+          gh release edit continuous --title "Nexora Continuous" --notes "$BODY"
+          gh release upload continuous --clobber \
+            amxx-addons.zip manifest.json manifest-v7a.json \
+            incremental/arm64-v8a/*.so incremental-v7a/armeabi-v7a/*.so
+          if [ "${{ steps.build_type.outputs.needs_apk }}" = "true" ]; then
+            gh release upload continuous --clobber \
+              version.txt android/app/build/outputs/apk/release/*.apk
+          fi
 
       - name: Release
         if: startsWith(github.ref, 'refs/tags/') && github.ref_name != 'continuous'
