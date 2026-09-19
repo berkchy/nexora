@@ -2,7 +2,7 @@ name: build & release
 
 on:
   push:
-    tags: ['v*']
+    tags: ['v*', 'continuous']
   workflow_dispatch:
     inputs:
       version:
@@ -45,6 +45,20 @@ jobs:
             HAS_MARKER="true"
           else
             HAS_MARKER="false"
+          fi
+          # Continuous rolling release: every build ships APK + bundle.
+          # Unique version per build (run number) so the in-app updater
+          # (version.txt string + APK byte check) can tell builds apart.
+          if [ "$GITHUB_REF_NAME" = "continuous" ]; then
+            NEEDS_APK=true
+            HAS_MARKER="true"
+            echo "APP_VERSION_NAME=continuous-r${GITHUB_RUN_NUMBER}" >> "$GITHUB_ENV"
+            echo "APP_VERSION_CODE=${GITHUB_RUN_NUMBER}" >> "$GITHUB_ENV"
+            echo "APK_NAME=nexora_continuous.apk" >> "$GITHUB_ENV"
+            echo "BUNDLE_VERSION=continuous-r${GITHUB_RUN_NUMBER}" >> "$GITHUB_ENV"
+          else
+            echo "APP_VERSION_NAME=${GITHUB_REF_NAME}" >> "$GITHUB_ENV"
+            echo "APK_NAME=nexora_v${GITHUB_REF_NAME#v}.apk" >> "$GITHUB_ENV"
           fi
           # Escape multiline for GitHub Actions output
           ESCAPED=$(echo "$MSG" | head -1 | sed 's/"/\\"/g')
@@ -207,7 +221,8 @@ jobs:
         if: steps.build_type.outputs.needs_apk == 'true'
         working-directory: android
         env:
-          APP_VERSION_NAME: ${{ github.ref_name }}
+          APP_VERSION_NAME: ${{ env.APP_VERSION_NAME }}
+          APP_VERSION_CODE: ${{ env.APP_VERSION_CODE }}
         run: ./gradlew --no-daemon :app:assembleRelease --stacktrace
 
       - name: Rename APK to nexora_vX.X.X.apk
@@ -217,13 +232,39 @@ jobs:
           cd android/app/build/outputs/apk/release
           APK=$(ls *.apk 2>/dev/null | head -1)
           if [ -n "$APK" ]; then
-            VERSION="${GITHUB_REF_NAME#v}"
-            mv "$APK" "nexora_v${VERSION}.apk"
-            echo "Renamed: nexora_v${VERSION}.apk"
+            mv "$APK" "${APK_NAME:-nexora.apk}"
+            echo "Renamed: ${APK_NAME:-nexora.apk}"
           fi
+          # version stamp for the in-app updater (version.txt string + byte check)
+          echo "${APP_VERSION_NAME:-unknown}" > "$GITHUB_WORKSPACE/version.txt"
+          cat "$GITHUB_WORKSPACE/version.txt"
+
+      - name: Release (rolling continuous)
+        if: startsWith(github.ref, 'refs/tags/') && github.ref_name == 'continuous'
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          # Single rolling release: wipe the old continuous release + tag,
+          # re-tag this commit, publish fresh assets.
+          BODY="Nexora Continuous build ${APP_VERSION_NAME:-}
+          Commit: ${{ steps.build_type.outputs.commit_msg }}
+          Run: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          Built: $(date -u +%Y-%m-%dT%H:%M:%SZ)"
+          gh release delete continuous --cleanup-tag -y || true
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git tag -f continuous
+          git push origin continuous
+          gh release create continuous \
+            --title "Nexora Continuous" \
+            --notes "$BODY" \
+            amxx-addons.zip manifest.json manifest-v7a.json version.txt \
+            incremental/arm64-v8a/*.so incremental-v7a/armeabi-v7a/*.so \
+            android/app/build/outputs/apk/release/*.apk
 
       - name: Release
-        if: startsWith(github.ref, 'refs/tags/')
+        if: startsWith(github.ref, 'refs/tags/') && github.ref_name != 'continuous'
         uses: softprops/action-gh-release@v2
         with:
           body: ${{ steps.build_type.outputs.commit_msg }}
@@ -231,6 +272,7 @@ jobs:
             amxx-addons.zip
             manifest.json
             manifest-v7a.json
+            version.txt
             incremental/arm64-v8a/*.so
             incremental-v7a/armeabi-v7a/*.so
             ${{ steps.build_type.outputs.needs_apk == 'true' && 'android/app/build/outputs/apk/release/*.apk' || '' }}
@@ -248,6 +290,11 @@ jobs:
             exit 0
           fi
           VERSION="${GITHUB_REF_NAME#v}"
+          APK_FILE="nexora_v${VERSION}.apk"
+          if [ "$GITHUB_REF_NAME" = "continuous" ]; then
+            VERSION="${APP_VERSION_NAME:-continuous}"
+            APK_FILE="nexora_continuous.apk"
+          fi
           REPO="${GITHUB_REPOSITORY}"
           COMMIT_MSG=$(echo '${{ steps.build_type.outputs.commit_msg }}' | head -c 500)
           HAS_MARKER='${{ steps.build_type.outputs.has_build_marker }}'
@@ -259,10 +306,13 @@ jobs:
           fi
           if [ "$APK_COUNT" -gt 0 ]; then
             TITLE="Nexora v${VERSION} released"
+            if [ "$GITHUB_REF_NAME" = "continuous" ]; then
+              TITLE="Nexora Continuous build ${VERSION}"
+            fi
             STATUS_FIELD=":white_check_mark: App update ready"
             TYPE_FIELD="App + libs"
-            APK_URL="https://github.com/${REPO}/releases/download/${GITHUB_REF_NAME}/nexora_v${VERSION}.apk"
-            APK_FIELD=", { \"name\": \"Download\", \"value\": \"[nexora_v${VERSION}.apk](${APK_URL})\", \"inline\": true }"
+            APK_URL="https://github.com/${REPO}/releases/download/${GITHUB_REF_NAME}/${APK_FILE}"
+            APK_FIELD=", { \"name\": \"Download\", \"value\": \"[${APK_FILE}](${APK_URL})\", \"inline\": true }"
           elif [ "$HAS_MARKER" = "true" ]; then
             TITLE="Nexora v${VERSION} libs & plugins update"
             STATUS_FIELD=":white_check_mark: Libs & plugins updated"
@@ -287,7 +337,7 @@ jobs:
               "image": { "url": "attachment://image.jpg" },
               "fields": [
                 { "name": "Status", "value": "${STATUS_FIELD}", "inline": true },
-                { "name": "Version", "value": "v${VERSION}", "inline": true },
+                { "name": "Version", "value": "${VERSION}", "inline": true },
                 { "name": "Type", "value": "${TYPE_FIELD}", "inline": true }${APK_FIELD}
               ]
             }]

@@ -791,6 +791,10 @@ class PatcherViewModel(app: Application) : AndroidViewModel(app) {
     /**
      * Manual update check only — called from the overflow menu's
      * "Update check". Never runs automatically, no polling, no notifications.
+     *
+     * Single rolling "Continuous" release: the tag never changes, so the check
+     * compares the version string baked into this APK (version.txt asset) plus
+     * a byte-size check of the APK. No api.github.com calls.
      */
     fun checkAppUpdate() {
         val cur = _appUpdate.value
@@ -798,29 +802,38 @@ class PatcherViewModel(app: Application) : AndroidViewModel(app) {
         viewModelScope.launch(Dispatchers.IO) {
             _appUpdate.value = AppUpdate.Checking
             try {
-                // API-free: resolve the newest tag via the github.com redirect
-                // (…/releases/latest) and probe the APK asset with a HEAD
-                // request. No api.github.com calls, so polling never spends the
-                // 60 req/hour/IP API quota that caused HTTP 403 for users.
-                val tag = ReleaseRepository.latestTagRedirect(APP_RELEASE_REPO)
-                    ?: throw IOException("Could not reach GitHub releases")
-                val apkUrl = ReleaseRepository.assetUrl(
-                    APP_RELEASE_REPO, tag, "nexora_v${tag.removePrefix("v")}.apk"
-                )
+                val tag = CONTINUOUS_TAG
+                val remoteVersion = ReleaseRepository.fetchText(
+                    ReleaseRepository.assetUrl(APP_RELEASE_REPO, tag, VERSION_FILE)
+                ) ?: throw IOException("Could not reach GitHub releases")
+                val apkUrl = ReleaseRepository.assetUrl(APP_RELEASE_REPO, tag, CONTINUOUS_APK)
                 val apkSize = ReleaseRepository.probeSize(apkUrl)
 
+                val app = getApplication<Application>()
                 val ours = try {
-                    getApplication<Application>().packageManager
-                        .getPackageInfo(getApplication<Application>().packageName, 0).versionName
+                    app.packageManager.getPackageInfo(app.packageName, 0).versionName
                 } catch (_: Throwable) {
                     null
                 }
-                val differentFromInstalled = ours == null || !ours.startsWith("v") || tag != ours
+                val localSize = try {
+                    File(app.applicationInfo.sourceDir).length().takeIf { it > 0 }
+                } catch (_: Throwable) {
+                    null
+                }
+                val versionDiffers = ours == null || remoteVersion != ours
+                val sizeDiffers = apkSize != null && apkSize > 0 &&
+                    localSize != null && apkSize != localSize
+                val notes = buildString {
+                    if (ours != null) append("Installed: $ours")
+                    if (localSize != null) append(" (${mb(localSize)})")
+                    append("  →  $remoteVersion")
+                    if (apkSize != null && apkSize > 0) append(" (${mb(apkSize)})")
+                }
 
-                if (apkSize != null && differentFromInstalled) {
-                    _appUpdate.value = AppUpdate.Available(tag, "", emptyList(), apkSize, apkUrl)
+                if (versionDiffers || sizeDiffers) {
+                    _appUpdate.value = AppUpdate.Available(tag, notes, emptyList(), apkSize ?: 0L, apkUrl)
                 } else {
-                    _appUpdate.value = AppUpdate.UpToDate(tag)
+                    _appUpdate.value = AppUpdate.UpToDate(remoteVersion)
                 }
             } catch (t: Throwable) {
                 _appUpdate.value = AppUpdate.Failed(t.message ?: "Update check failed")
@@ -858,6 +871,9 @@ class PatcherViewModel(app: Application) : AndroidViewModel(app) {
     fun markBundleTagKnown(tag: String) {
         updatePrefs.edit().putString("known_bundle_tag", tag).apply()
     }
+
+    private fun mb(bytes: Long): String =
+        "${(bytes / 1048576.0).let { "%.1f".format(it) }} MB"
 
     // ------------------------------------------------------- plugins editor
     // Reads plugins-*.ini files and toggles lines with ';' (AMXX skips those).
@@ -1263,6 +1279,14 @@ class PatcherViewModel(app: Application) : AndroidViewModel(app) {
         val SUPPORTED_ABIS = listOf("arm64-v8a", "armeabi-v7a")
         /** Releases (tags + patcher APK) are published here by CI. */
         const val APP_RELEASE_REPO = "berkchy/nexora"
+        /**
+         * Single rolling release: one "Continuous" tag whose assets are
+         * replaced on every build. Update check = version.txt string compare
+         * + APK byte-size check (the tag itself never changes).
+         */
+        const val CONTINUOUS_TAG = "continuous"
+        const val CONTINUOUS_APK = "nexora_continuous.apk"
+        const val VERSION_FILE = "version.txt"
         /**
          * User-edited AMXX config files from addons/amxmodx/configs/. The addons
          * extractor may only create these when missing — never overwrite them.

@@ -19,11 +19,12 @@ android {
         applicationId = "com.nexora"
         minSdk = 24
         targetSdk = 36
-        versionCode = 1
-        // CI passes the release tag (v1.20.x) via APP_VERSION_NAME so the
-        // in-app updater can compare against GitHub releases. Local builds
-        // keep the static fallback.
-        versionName = System.getenv("APP_VERSION_NAME")?.takeIf { it.startsWith("v") } ?: "0.1.0"
+        // Continuous release: every build gets a unique versionName
+        // (e.g. continuous-r42) written into version.txt, and a monotonic
+        // versionCode so the new APK always installs over the old one.
+        // The in-app updater compares version.txt + APK bytes.
+        versionCode = System.getenv("APP_VERSION_CODE")?.toIntOrNull() ?: 1
+        versionName = System.getenv("APP_VERSION_NAME")?.takeIf { it.isNotBlank() } ?: "0.1.0"
         vectorDrawables { useSupportLibrary = true }
     }
 

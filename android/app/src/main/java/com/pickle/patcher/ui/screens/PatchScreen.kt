@@ -80,6 +80,10 @@ import java.text.DecimalFormat
 private val mbFmt = DecimalFormat("0.0")
 private fun Long.mb(): String = "${mbFmt.format(this / 1048576.0)} MB"
 
+/** Manifest versions like 1.27.x print as v1.27.x; continuous builds print raw. */
+private fun String.toDisplayVersion(): String =
+    if (firstOrNull()?.isDigit() == true) "v$this" else this
+
 @Composable
 fun PatchScreen(vm: PatcherViewModel) {
     val scroll = rememberScrollState()
@@ -286,7 +290,7 @@ private fun BundleCard(vm: PatcherViewModel) {
                     Column(modifier = Modifier.weight(1f)) {
                         Text(bs.bundleName, style = MaterialTheme.typography.titleSmall)
                         Text(
-                            "${bs.entries} entries  ·  v${bs.version}",
+                            "${bs.entries} entries  ·  ${bs.version.toDisplayVersion()}",
                             style = MaterialTheme.typography.bodySmall, color = Gray40,
                         )
                     }

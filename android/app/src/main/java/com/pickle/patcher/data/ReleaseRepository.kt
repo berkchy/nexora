@@ -86,6 +86,26 @@ object ReleaseRepository {
         }
     }
 
+    /**
+     * GETs a small release text asset (e.g. version.txt from the Continuous
+     * release). Returns the trimmed body or null on any failure.
+     */
+    suspend fun fetchText(url: String): String? {
+        return try {
+            val req = Request.Builder()
+                .url(url)
+                .header("User-Agent", "cs16-amxx-patcher")
+                .get()
+                .build()
+            webClient.newCall(req).execute().use { resp ->
+                if (!resp.isSuccessful) null
+                else resp.body?.string()?.trim().orEmpty().ifBlank { null }
+            }
+        } catch (_: Throwable) {
+            null
+        }
+    }
+
     /** Seconds from a Retry-After header (integer or HTTP-date). */
     private fun retryAfterSeconds(raw: String?): Long? {
         if (raw.isNullOrBlank()) return null
