@@ -115,12 +115,17 @@ data class ExcludeRule(
 data class Bundle(
     val manifest: BundleManifest,
     val files: Map<String, ByteArray>,      // bundle.zip relative path -> content
+    /** On-disk fallback (source -> file), read lazily one entry at a time. */
+    val diskFiles: Map<String, java.io.File> = emptyMap(),
 ) {
-    fun resolveEntry(e: BundleManifest.BundleEntry): ByteArray? = files[e.source]
+    fun resolveEntry(e: BundleManifest.BundleEntry): ByteArray? =
+        files[e.source] ?: diskFiles[e.source]
+            ?.takeIf { it.isFile && it.exists() }
+            ?.readBytes()
 
     /** Returns a copy that only injects [entries]; the blob map stays complete. */
     fun withEntries(entries: List<BundleManifest.BundleEntry>): Bundle =
-        Bundle(manifest.copy(entries = entries), files)
+        Bundle(manifest.copy(entries = entries), files, diskFiles)
 
     companion object {
         private const val MANIFEST_PATH = "bundle.json"

@@ -269,9 +269,9 @@ class PatcherViewModel(app: Application) : AndroidViewModel(app) {
 
     fun useCachedBundle() {
         val abi = _abi.value
-        val files = IncrementalUpdateManager.loadBundleFiles(libsDir, abi)
+        val files = IncrementalUpdateManager.loadBundleFileMap(libsDir, abi)
         if (files.isNotEmpty()) {
-            val b = buildBundleFromFiles(files, abi)
+            val b = buildBundleFromFileMap(files, abi)
             loadedBundle = b
             _bundle.value = BundleState.Loaded
             scanLibs()
@@ -356,9 +356,9 @@ class PatcherViewModel(app: Application) : AndroidViewModel(app) {
                 // Everything on disk is up to date — auto-load the bundle so the
                 // user can patch straight away. (Guard on a fresh release list,
                 // otherwise a failed check could auto-load stale libs.)
-                val files = IncrementalUpdateManager.loadBundleFiles(libsDir, abi)
+                val files = IncrementalUpdateManager.loadBundleFileMap(libsDir, abi)
                 if (files.isNotEmpty()) {
-                    val b = buildBundleFromFiles(files, abi)
+                    val b = buildBundleFromFileMap(files, abi)
                     markBundleTagKnown(tagName)
                     loadedBundle = b
                     _bundle.value = BundleState.Loaded
@@ -415,9 +415,9 @@ class PatcherViewModel(app: Application) : AndroidViewModel(app) {
                 val diff = IncrementalUpdateManager.diff(assets, libsDir, _abi.value)
 
                 if (diff.toDownload.isEmpty()) {
-                    val files = IncrementalUpdateManager.loadBundleFiles(libsDir, _abi.value)
+                    val files = IncrementalUpdateManager.loadBundleFileMap(libsDir, _abi.value)
                     if (files.isEmpty()) throw IOException("No .so files found in libs/")
-                    val b = buildBundleFromFiles(files, _abi.value)
+                    val b = buildBundleFromFileMap(files, _abi.value)
                     markBundleTagKnown(tagName)
                     _bundle.value = BundleState.Loaded
                     loadedBundle = b
@@ -456,9 +456,9 @@ class PatcherViewModel(app: Application) : AndroidViewModel(app) {
                     },
                 )
 
-                val files = IncrementalUpdateManager.loadBundleFiles(libsDir, _abi.value)
+                val files = IncrementalUpdateManager.loadBundleFileMap(libsDir, _abi.value)
                 if (files.isEmpty()) throw IOException("No .so files found after download")
-                val b = buildBundleFromFiles(files, _abi.value)
+                val b = buildBundleFromFileMap(files, _abi.value)
                 markBundleTagKnown(tagName)
                 _bundle.value = BundleState.Ready(
                     "Updated ${diff.toDownload.size} files", b.manifest.entries.size, b.manifest.version
@@ -467,9 +467,9 @@ class PatcherViewModel(app: Application) : AndroidViewModel(app) {
                 scanLibs()
             } catch (t: Throwable) {
                 // Offline fallback: if there are already libs on disk, load them.
-                val files = IncrementalUpdateManager.loadBundleFiles(libsDir, _abi.value)
+                val files = IncrementalUpdateManager.loadBundleFileMap(libsDir, _abi.value)
                 if (files.isNotEmpty()) {
-                    val b = buildBundleFromFiles(files, _abi.value)
+                    val b = buildBundleFromFileMap(files, _abi.value)
                     loadedBundle = b
                     _bundle.value = BundleState.Loaded
                     scanLibs()
@@ -486,7 +486,9 @@ class PatcherViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
-    private fun buildBundleFromFiles(files: Map<String, ByteArray>, abi: String): Bundle {
+    /** Builds a disk-backed Bundle: lib bytes stay on disk, streamed one file
+     * at a time during patching (low-RAM safe). */
+    private fun buildBundleFromFileMap(files: Map<String, File>, abi: String): Bundle {
         val suffix = if (abi == "arm64-v8a") "arm64" else "armv7l"
         val modSuffix = if (abi == "arm64-v8a") "amd64" else "arm"
 
@@ -517,7 +519,7 @@ class PatcherViewModel(app: Application) : AndroidViewModel(app) {
             abi = abi,
             entries = entries,
         )
-        return Bundle(manifest, files)
+        return Bundle(manifest, emptyMap(), files)
     }
 
     /** A group of bundle entries the user can toggle individually before patching. */

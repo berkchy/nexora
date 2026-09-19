@@ -280,24 +280,26 @@ object IncrementalUpdateManager {
     }
 
     /**
-     * Load all .so files from libs/<abi>/ for patching.
-     * Returns Map<targetPath, fileBytes> compatible with ZipRepacker.
+     * Map downloaded .so files to their APK target paths WITHOUT reading
+     * their bytes (low-RAM safe: ~19 lib .so files total 100MB+ would OOM a
+     * 201MB-heap device). Callers build a disk-backed Bundle whose
+     * resolveEntry() streams one file at a time from disk during patching.
      */
-    fun loadBundleFiles(libsDir: File, abi: String): Map<String, ByteArray> {
+    fun loadBundleFileMap(libsDir: File, abi: String): Map<String, File> {
         val targetDir = File(libsDir, abi)
         if (!targetDir.exists()) return emptyMap()
 
         val suffix = if (abi == "arm64-v8a") "arm64" else "armv7l"
         val modSuffix = if (abi == "arm64-v8a") "amd64" else "arm"
 
-        val files = HashMap<String, ByteArray>()
+        val files = HashMap<String, File>()
         targetDir.listFiles()?.filter {
             it.isFile && it.extension == "so" && !it.name.startsWith("libmenu_")
         }?.forEach { file ->
             val name = file.name
             val targetPath = getTargetPath(name, abi, suffix, modSuffix)
             if (targetPath != null) {
-                files[targetPath] = file.readBytes()
+                files[targetPath] = file
             }
         }
         return files
