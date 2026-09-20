@@ -20,8 +20,11 @@ import com.pickle.patcher.lib.SigningKeystore
 import com.pickle.patcher.lib.ZipAnalyzer
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -603,7 +606,7 @@ class PatcherViewModel(app: Application) : AndroidViewModel(app) {
                         "Downloading addons…"
                     )
                 }
-                _addons.value = AddonsState.Downloading(1f, "Extracting into cstrike…")
+                _addons.value = AddonsState.Downloading(1f, "Extracting into ${_installPath.value.substringAfterLast("/")}…")
                 val target = File(_installPath.value)
                 val count = unzipInto(zip, target)
                 patchMetamodConfig(target, _abi.value)
@@ -1277,6 +1280,10 @@ class PatcherViewModel(app: Application) : AndroidViewModel(app) {
     private companion object {
         const val CACHE_TAG = "v2"
         const val GAME_DIR = "/storage/emulated/0/xash/cstrike"
+        /** Xash base dir; supported games live directly under it. */
+        const val GAME_ROOT = "/storage/emulated/0/xash"
+        const val GAME_CSTRIKE = "cstrike"
+        const val GAME_CZERO = "czero"
         /** ABIs the patcher can build for, in priority order. */
         val SUPPORTED_ABIS = listOf("arm64-v8a", "armeabi-v7a")
         /** Releases (tags + patcher APK) are published here by CI. */
@@ -1314,7 +1321,7 @@ class PatcherViewModel(app: Application) : AndroidViewModel(app) {
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R && !Environment.isExternalStorageManager()) {
                 return@launch
             }
-            val gameDir = File(GAME_DIR)
+            val gameDir = File(_installPath.value)
             if (!gameDir.exists()) return@launch
 
             val bundle = loadedBundle ?: bundleProvider.loadCachedBundle() ?: return@launch
@@ -1345,11 +1352,29 @@ class PatcherViewModel(app: Application) : AndroidViewModel(app) {
     private val _addonFiles = MutableStateFlow<List<AddonFileStatus>>(emptyList())
     val addonFiles: StateFlow<List<AddonFileStatus>> = _addonFiles.asStateFlow()
 
-    private val _installPath = MutableStateFlow(GAME_DIR)
+    private val gamePrefs by lazy {
+        getApplication<Application>().getSharedPreferences("game_prefs", Context.MODE_PRIVATE)
+    }
+
+    private fun savedGameId(): String =
+        gamePrefs.getString("game_id", GAME_CSTRIKE)?.takeIf {
+            it == GAME_CSTRIKE || it == GAME_CZERO
+        } ?: GAME_CSTRIKE
+
+    private fun gameDirFor(gameId: String): String = "$GAME_ROOT/$gameId"
+
+    private val _installPath = MutableStateFlow(gameDirFor(savedGameId()))
     val installPath: StateFlow<String> = _installPath.asStateFlow()
 
-    fun setInstallPath(path: String) {
-        _installPath.value = path
+    /** Selected game: "cstrike" (Counter-Strike 1.6) or "czero" (Condition Zero). */
+    val gameId: StateFlow<String> = _installPath
+        .map { path -> if (path.endsWith("/czero")) GAME_CZERO else GAME_CSTRIKE }
+        .stateIn(viewModelScope, SharingStarted.Eagerly, GAME_CSTRIKE)
+
+    fun setGame(gameId: String) {
+        if (gameId != GAME_CSTRIKE && gameId != GAME_CZERO) return
+        gamePrefs.edit().putString("game_id", gameId).apply()
+        _installPath.value = gameDirFor(gameId)
         scanAddonsStatus()
     }
 

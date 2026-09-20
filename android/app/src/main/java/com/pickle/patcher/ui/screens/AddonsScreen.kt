@@ -22,6 +22,7 @@ import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Error
 import androidx.compose.material.icons.filled.FolderOpen
 import androidx.compose.material.icons.filled.Warning
+import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
@@ -82,17 +83,32 @@ fun AddonsScreen(vm: PatcherViewModel) {
         }
 
         item {
-            SectionHeader("INSTALL PATH")
+            SectionHeader("GAME")
             AppCard {
+                val game by vm.gameId.collectAsState()
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    FilterChip(
+                        selected = game == PatcherViewModel.GAME_CSTRIKE,
+                        onClick = { vm.setGame(PatcherViewModel.GAME_CSTRIKE) },
+                        label = { Text("Counter-Strike 1.6") },
+                    )
+                    FilterChip(
+                        selected = game == PatcherViewModel.GAME_CZERO,
+                        onClick = { vm.setGame(PatcherViewModel.GAME_CZERO) },
+                        label = { Text("Condition Zero") },
+                    )
+                }
+                Spacer(Modifier.height(8.dp))
                 Text(
                     installPath,
                     style = MaterialTheme.typography.bodySmall,
                     color = Accent,
                     fontFamily = FontFamily.Monospace,
                 )
-                Spacer(Modifier.height(8.dp))
+                Spacer(Modifier.height(4.dp))
                 Text(
-                    "addons/ will be installed under this path.",
+                    "addons/ will be installed under this path. The CZ folder must " +
+                        "contain the game files; launch it with -game czero.",
                     style = MaterialTheme.typography.bodySmall,
                     color = Gray40,
                 )
