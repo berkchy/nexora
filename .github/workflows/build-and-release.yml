@@ -262,7 +262,7 @@ jobs:
           else
             PRESERVE='^(nexora_continuous\.apk|version\.txt)$'
           fi
-          gh release view continuous --json assets --jq -r '.assets[] | .name' | while read -r name; do
+          gh release view continuous --json assets | jq -r '.assets[] | .name' | while read -r name; do
             [ -z "$name" ] && continue
             if echo "$name" | grep -qE "$PRESERVE"; then
               echo "Keeping: $name"
