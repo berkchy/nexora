@@ -1277,7 +1277,7 @@ class PatcherViewModel(app: Application) : AndroidViewModel(app) {
             .firstOrNull { it.exists() && it.canExecute() }
     }
 
-    private companion object {
+    companion object {
         const val CACHE_TAG = "v2"
         const val GAME_DIR = "/storage/emulated/0/xash/cstrike"
         /** Xash base dir; supported games live directly under it. */
