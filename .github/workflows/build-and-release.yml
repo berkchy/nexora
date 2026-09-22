@@ -197,7 +197,7 @@ jobs:
             "$GITHUB_WORKSPACE/build-out/compiler/armeabi-v7a" \
             "$GITHUB_WORKSPACE/build-out/plugins"
           cd /tmp/prevso
-          gh release download continuous \
+          gh release download continuous --repo "$GITHUB_REPOSITORY" \
             --pattern 'arm64-v8a__*' --pattern 'armeabi-v7a__*' --pattern 'compiler-*' \
             --clobber
           shopt -s nullglob
