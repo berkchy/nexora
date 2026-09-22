@@ -1195,6 +1195,14 @@ class PatcherViewModel(app: Application) : AndroidViewModel(app) {
         var ok = exit == 0
         val body = buildString {
             append(output.trim().ifEmpty { if (ok) "Done." else "Compile failed." })
+            if (output.isBlank() && exit != 0) {
+                // Silent death (e.g. driver/kernel mismatch crashes before the
+                // banner flushes): record binary sizes for diagnosis.
+                val kernel = amxxpc.parentFile?.let { File(it, "amxxpc32.so") }
+                append("\n[no output, exit=$exit, driver=${amxxpc.length()} bytes" +
+                    (if (kernel != null && kernel.exists()) ", kernel=${kernel.length()} bytes" else ", no kernel") +
+                    "]")
+            }
             val out = File(compiledDir, f.nameWithoutExtension + ".amxx")
             if (exit != 0 || !out.exists()) {
                 ok = false
@@ -1233,6 +1241,30 @@ class PatcherViewModel(app: Application) : AndroidViewModel(app) {
         return if (want64) machine == 183 else machine == 40
     }
 
+    private fun compilerDir(): File = File(getApplication<Application>().filesDir, "compiler")
+
+    private fun readCompilerStamp(): String? = try {
+        File(compilerDir(), ".stamp").takeIf { it.exists() }?.readText()?.trim()
+    } catch (_: Throwable) {
+        null
+    }
+
+    private fun writeCompilerStamp(s: String) {
+        try {
+            compilerDir().mkdirs()
+            File(compilerDir(), ".stamp").writeText(s)
+        } catch (_: Throwable) {}
+    }
+
+    private fun appVersionCode(): Long = try {
+        val app = getApplication<Application>()
+        val info = app.packageManager.getPackageInfo(app.packageName, 0)
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) info.longVersionCode
+        else @Suppress("DEPRECATION") info.versionCode.toLong()
+    } catch (_: Throwable) {
+        0L
+    }
+
     /**
      * Returns a runnable amxxpc: prefers the copy shipped as native lib
      * (lib/arm64-v8a/libamxxpc.so in the patcher APK → nativeLibraryDir, always
@@ -1245,15 +1277,22 @@ class PatcherViewModel(app: Application) : AndroidViewModel(app) {
             val nativeAmxxpc = File(nativeDir, "libamxxpc.so")
             val nativeKernel = File(nativeDir, "libamxxpc32.so")
             if (nativeAmxxpc.exists() && nativeAmxxpc.canExecute()) {
-                // Driver dlopens "amxxpc32.so" (no lib prefix) — copy libamxxpc32.so to filesDir/amxxpc32.so so it is found
+                // Driver dlopens "amxxpc32.so" (no lib prefix) — keep a copy
+                // in filesDir. Driver+kernel must always be the same
+                // generation: a stale mismatched kernel crashes the driver
+                // before its banner flushes (silent "Compile failed"), so the
+                // pair is version-stamped and reinstalled atomically.
                 try {
-                    val compilerDir = File(getApplication<Application>().filesDir, "compiler")
-                    compilerDir.mkdirs()
-                    val kernelCopy = File(compilerDir, "amxxpc32.so")
-                    if (nativeKernel.exists() && (!kernelCopy.exists() || kernelCopy.length() != nativeKernel.length() || !matchesDeviceAbi(kernelCopy))) {
+                    val dir = compilerDir()
+                    dir.mkdirs()
+                    val kernelCopy = File(dir, "amxxpc32.so")
+                    val stamp = "native:${appVersionCode()}:${if (nativeKernel.exists()) nativeKernel.length() else -1}"
+                    if (nativeKernel.exists() && (readCompilerStamp() != stamp || !matchesDeviceAbi(kernelCopy))) {
+                        kernelCopy.delete()
                         kernelCopy.writeBytes(nativeKernel.readBytes())
                         try { Runtime.getRuntime().exec(arrayOf("chmod", "644", kernelCopy.absolutePath)).waitFor() } catch (_: Throwable) {}
                         kernelCopy.setReadable(true, false)
+                        writeCompilerStamp(stamp)
                     }
                 } catch (_: Throwable) {}
                 return nativeAmxxpc
@@ -1276,6 +1315,13 @@ class PatcherViewModel(app: Application) : AndroidViewModel(app) {
         if (driverBytes != null && driverBytes.isNotEmpty()) {
             try {
                 compilerDir.mkdirs()
+                val kernelBytes = bundleFiles.files["compiler/amxxpc32.so"]
+                val stamp = "bundle:${driverBytes.size}:${kernelBytes?.size ?: -1}"
+                if (readCompilerStamp() == stamp && amxxpc.exists() && matchesDeviceAbi(amxxpc) &&
+                    (kernelBytes == null || (kernel.exists() && matchesDeviceAbi(kernel)))
+                ) {
+                    return amxxpc
+                }
                 amxxpc.writeBytes(driverBytes)
                 // Reject wrong-arch binaries (e.g. arm64 driver from an old
                 // bundle on an arm32 device) instead of executing them.
@@ -1300,7 +1346,10 @@ class PatcherViewModel(app: Application) : AndroidViewModel(app) {
                             }
                         }
                     }
-                    if (amxxpc.exists()) return amxxpc
+                    if (amxxpc.exists()) {
+                        writeCompilerStamp(stamp)
+                        return amxxpc
+                    }
                 }
             } catch (_: Throwable) {
                 // extraction failed; fall through to local
