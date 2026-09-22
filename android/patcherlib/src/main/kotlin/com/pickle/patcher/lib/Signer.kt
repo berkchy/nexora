@@ -12,7 +12,6 @@ import java.security.PrivateKey
 import java.security.cert.CertificateFactory
 import java.security.cert.X509Certificate
 import java.security.spec.PKCS8EncodedKeySpec
-import java.util.Base64
 
 /**
  * Wraps the debug keystore used for all patched APKs (kept stable so the app can be
@@ -112,7 +111,35 @@ class SigningKeystore(
             val body = pem
                 .replace(Regex("-----(BEGIN|END) $label-----"), "")
                 .replace(Regex("\\s"), "")
-            return Base64.getDecoder().decode(body)
+            // NB: java.util.Base64 needs API 26+; this decoder works back to
+            // minSdk (24) with zero dependencies.
+            return pemBase64Decode(body)
+        }
+
+        private fun pemBase64Decode(s: String): ByteArray {
+            fun v(c: Char): Int = when (c) {
+                in 'A'..'Z' -> c - 'A'
+                in 'a'..'z' -> c - 'a' + 26
+                in '0'..'9' -> c - '0' + 52
+                '+', '-' -> 62
+                '/', '_' -> 63
+                else -> -1
+            }
+            val out = java.io.ByteArrayOutputStream((s.length * 3) / 4)
+            var bits = 0
+            var nBits = 0
+            for (c in s) {
+                if (c == '=') break
+                val d = v(c)
+                if (d < 0) continue
+                bits = (bits shl 6) or d
+                nBits += 6
+                if (nBits >= 8) {
+                    nBits -= 8
+                    out.write((bits shr nBits) and 0xFF)
+                }
+            }
+            return out.toByteArray()
         }
     }
 }
