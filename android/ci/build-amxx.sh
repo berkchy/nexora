@@ -387,6 +387,19 @@ TMP=$(mktemp -d)
 trap 'rm -rf "$TMP"' EXIT
 cmd_shim="$TMP/assert_shim.o"
 "$CC" -O2 -fPIC -c "$SBIN/assert_shim.c" -o "$cmd_shim"
+# ccache support: export CCACHE=ccache to route every NDK compile (direct
+# "$CC"/"$CXX" calls, make, cmake via COMPILER_LAUNCHER flags below) through
+# it. Wrapper scripts keep quoted "$CC" usages working untouched.
+if [ -n "${CCACHE:-}" ] && command -v "$CCACHE" >/dev/null 2>&1; then
+  mkdir -p "$TMP/ccache-wrap"
+  printf '#!/bin/sh\nexec "%s" "$REAL_CC" "$@"\n' "$CCACHE" > "$TMP/ccache-wrap/cc"
+  printf '#!/bin/sh\nexec "%s" "$REAL_CXX" "$@"\n' "$CCACHE" > "$TMP/ccache-wrap/cxx"
+  chmod +x "$TMP/ccache-wrap/cc" "$TMP/ccache-wrap/cxx"
+  export REAL_CC=$CC REAL_CXX=$CXX
+  CC=$TMP/ccache-wrap/cc
+  CXX=$TMP/ccache-wrap/cxx
+  echo "   ccache enabled via $CCACHE"
+fi
 
 compile_one() {
   local stage="$1" file="$2" extra_inc="$3" extra_defs="$4"
@@ -608,6 +621,8 @@ echo "== building metamod (metamod-fwgs, $ABI) =="
 MMBUILD=$TMP/metamod-fwgs-build
 cmake -S "$SRC/metamod-fwgs" -B "$MMBUILD" \
   -GNinja \
+  -DCMAKE_C_COMPILER_LAUNCHER="${CCACHE:-}" \
+  -DCMAKE_CXX_COMPILER_LAUNCHER="${CCACHE:-}" \
   -DCMAKE_TOOLCHAIN_FILE="$NDK/build/cmake/android.toolchain.cmake" \
   -DANDROID_ABI=$ABI \
   -DANDROID_PLATFORM=android-24 \
@@ -885,6 +900,8 @@ echo "== building yapb =="
 YAPBBUILD="$TMP/yapb-build"
 cmake -S "$SRC/yapb" -B "$YAPBBUILD" \
   -GNinja \
+  -DCMAKE_C_COMPILER_LAUNCHER="${CCACHE:-}" \
+  -DCMAKE_CXX_COMPILER_LAUNCHER="${CCACHE:-}" \
   -DCMAKE_TOOLCHAIN_FILE="$NDK/build/cmake/android.toolchain.cmake" \
   -DANDROID_ABI=$ABI \
   -DANDROID_PLATFORM=android-24 \
@@ -947,6 +964,8 @@ if [ -d "$CLIENT_SRC/3rdparty/miniutl" ] && [ -d "$CLIENT_SRC/3rdparty/mainui_cp
 fi
 cmake -S "$CLIENT_SRC" -B "$CLIENT_BUILD" \
   -GNinja \
+  -DCMAKE_C_COMPILER_LAUNCHER="${CCACHE:-}" \
+  -DCMAKE_CXX_COMPILER_LAUNCHER="${CCACHE:-}" \
   -DCMAKE_TOOLCHAIN_FILE="$NDK/build/cmake/android.toolchain.cmake" \
   -DANDROID_ABI=$ABI \
   -DANDROID_PLATFORM=android-24 \

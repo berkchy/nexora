@@ -67,6 +67,38 @@ jobs:
           echo "needs_bundle=$NEEDS_BUNDLE" >> "$GITHUB_OUTPUT"
           echo "has_build_marker=$HAS_MARKER" >> "$GITHUB_OUTPUT"
           echo "APK build: $NEEDS_APK | Bundle build: $NEEDS_BUNDLE"
+          # --- native skip guard: reuse the previous .so set when nothing
+          # native changed (saves ~5 min on app/addons/CI-only changes).
+          # Guard inputs: repo diff on native watch paths + HEAD SHAs of the
+          # floating upstream sources (unpinned master/branch clones).
+          SKIP_NATIVE=false
+          NATIVE_SHA_OUT=$(git rev-parse HEAD)
+          UP_AMXX=$(git ls-remote https://github.com/alliedmodders/amxmodx.git HEAD 2>/dev/null | cut -f1)
+          UP_MM=$(git ls-remote https://github.com/FWGS/metamod-fwgs.git HEAD 2>/dev/null | cut -f1)
+          UP_REAPI=$(git ls-remote https://github.com/rehlds/ReAPI.git HEAD 2>/dev/null | cut -f1)
+          UP_YAPB=$(git ls-remote https://github.com/yapb/yapb.git HEAD 2>/dev/null | cut -f1)
+          UP_RGDLL=$(git ls-remote https://github.com/berkchy/ReGameDLL_CS.git fix/first-spawn-equip 2>/dev/null | cut -f1)
+          UP_JSON=$(python3 -c "import json; print(json.dumps({'amxmodx':'$UP_AMXX','metamod':'$UP_MM','reapi':'$UP_REAPI','yapb':'$UP_YAPB','regamedll':'$UP_RGDLL'}))")
+          if [ "$GITHUB_REF_NAME" = "continuous" ] && [ -n "$UP_AMXX" ]; then
+            META_JSON=$(curl -fsSL --max-time 30 "https://github.com/${GITHUB_REPOSITORY}/releases/download/continuous/build-meta.json" 2>/dev/null || true)
+            NATIVE_SHA=$(echo "$META_JSON" | python3 -c "import json,sys; print(json.load(sys.stdin).get('native_sha',''))" 2>/dev/null || true)
+            if [ -n "$NATIVE_SHA" ]; then
+              git fetch --depth 1 origin "$NATIVE_SHA" 2>/dev/null || NATIVE_SHA=""
+            fi
+            if [ -n "$NATIVE_SHA" ]; then
+              META_UP=$(echo "$META_JSON" | python3 -c "import json,sys; print(json.dumps(json.load(sys.stdin).get('upstreams',{}),sort_keys=True))" 2>/dev/null || echo "")
+              CUR_UP=$(echo "$UP_JSON" | python3 -c "import json,sys; print(json.dumps(json.load(sys.stdin),sort_keys=True))" 2>/dev/null || echo "")
+              DIFF_OUT=$(git diff --name-only "$NATIVE_SHA" HEAD -- android/ci patches vcs16 3rdparty .github/workflows 2>/dev/null || echo "DIFF-FAILED")
+              if [ "$DIFF_OUT" != "DIFF-FAILED" ] && [ -z "$DIFF_OUT" ] && [ -n "$META_UP" ] && [ "$META_UP" = "$CUR_UP" ]; then
+                SKIP_NATIVE=true
+                NATIVE_SHA_OUT=$NATIVE_SHA
+              fi
+            fi
+          fi
+          echo "skip_native=$SKIP_NATIVE" >> "$GITHUB_OUTPUT"
+          echo "native_sha_out=$NATIVE_SHA_OUT" >> "$GITHUB_OUTPUT"
+          echo "upstreams_json=$UP_JSON" >> "$GITHUB_OUTPUT"
+          echo "Native skip: $SKIP_NATIVE (native_sha: $NATIVE_SHA_OUT)"
 
       - name: Set up JDK
         if: steps.build_type.outputs.needs_apk == 'true'
@@ -91,7 +123,32 @@ jobs:
           command -v cmake >/dev/null || sudo apt-get install -y cmake
           command -v ninja >/dev/null || sudo apt-get install -y ninja-build
 
+      - name: Setup ccache
+        if: steps.build_type.outputs.skip_native != 'true'
+        shell: bash
+        run: |
+          command -v ccache >/dev/null 2>&1 || { sudo apt-get update -qq && sudo apt-get install -y -qq ccache; } || true
+          echo "CCACHE=$(command -v ccache || echo '')" >> "$GITHUB_ENV"
+          mkdir -p "$GITHUB_WORKSPACE/.ccache"
+          if [ -n "$(command -v ccache || true)" ]; then
+            echo "CCACHE_DIR=$GITHUB_WORKSPACE/.ccache" >> "$GITHUB_ENV"
+            echo "CCACHE_MAXSIZE=1G" >> "$GITHUB_ENV"
+            echo "CCACHE_COMPILERTYPE=clang" >> "$GITHUB_ENV"
+            echo "CCACHE_SLOPPINESS=time_macros" >> "$GITHUB_ENV"
+            echo "CCACHE_BASEDIR=$GITHUB_WORKSPACE" >> "$GITHUB_ENV"
+            ccache --zero-stats || true
+          fi
+
+      - name: Restore ccache
+        if: steps.build_type.outputs.skip_native != 'true'
+        uses: actions/cache@v4
+        with:
+          path: ${{ github.workspace }}/.ccache
+          key: ccache-ndk-r25c-${{ hashFiles('android/ci/build-amxx.sh') }}
+          restore-keys: ccache-ndk-r25c-
+
       - name: Cross-compile core + modules + plugins
+        if: steps.build_type.outputs.skip_native != 'true'
         shell: bash
         run: |
           # amxmodx is fetched from upstream by build-amxx.sh and customized
@@ -117,7 +174,51 @@ jobs:
             fi
           done
 
+      - name: ccache stats (post native)
+        if: steps.build_type.outputs.skip_native != 'true'
+        shell: bash
+        run: |
+          if [ -n "${CCACHE:-}" ]; then ccache --show-stats || true; fi
+
+      - name: Restore native outputs from release
+        if: steps.build_type.outputs.skip_native == 'true'
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          # Native inputs unchanged: reuse the previous .so set (+ on-device
+          # compiler) instead of recompiling. Manifests/zip are regenerated
+          # below with the new version.
+          mkdir -p /tmp/prevso \
+            "$GITHUB_WORKSPACE/build-out/lib/arm64-v8a" \
+            "$GITHUB_WORKSPACE/build-out/lib/armeabi-v7a" \
+            "$GITHUB_WORKSPACE/build-out/compiler/arm64-v8a" \
+            "$GITHUB_WORKSPACE/build-out/compiler/armeabi-v7a" \
+            "$GITHUB_WORKSPACE/build-out/plugins"
+          cd /tmp/prevso
+          gh release download continuous \
+            --pattern 'arm64-v8a__*' --pattern 'armeabi-v7a__*' --pattern 'compiler-*' \
+            --clobber
+          shopt -s nullglob
+          for f in *; do
+            case "$f" in
+              compiler-arm64-v8a__*) cp "$f" "$GITHUB_WORKSPACE/build-out/compiler/arm64-v8a/${f#compiler-arm64-v8a__}" ;;
+              compiler-armeabi-v7a__*) cp "$f" "$GITHUB_WORKSPACE/build-out/compiler/armeabi-v7a/${f#compiler-armeabi-v7a__}" ;;
+              arm64-v8a__*) cp "$f" "$GITHUB_WORKSPACE/build-out/lib/arm64-v8a/${f#arm64-v8a__}" ;;
+              armeabi-v7a__*) cp "$f" "$GITHUB_WORKSPACE/build-out/lib/armeabi-v7a/${f#armeabi-v7a__}" ;;
+            esac
+          done
+          BO="$GITHUB_WORKSPACE/build-out"
+          N64=$(ls "$BO/lib/arm64-v8a" | wc -l)
+          echo "restored arm64 libs: $N64"
+          [ "$N64" -ge 10 ] || { echo "::error::restore failed: too few arm64 libs"; exit 1; }
+          [ -f "$BO/lib/arm64-v8a/libamxmodx.so" ] || { echo "::error::restore failed: no arm64 libamxmodx"; exit 1; }
+          [ -f "$BO/compiler/arm64-v8a/amxxpc" ] || { echo "::error::restore failed: no compiler"; exit 1; }
+          [ -f "$BO/lib/armeabi-v7a/libamxmodx.so" ] || touch "$GITHUB_WORKSPACE/v7a-missing"
+
       - name: Build ReGameDLL libcs (first-spawn fix)
+        if: steps.build_type.outputs.skip_native != 'true'
         shell: bash
         run: |
           set -euo pipefail
@@ -129,6 +230,8 @@ jobs:
             https://github.com/berkchy/ReGameDLL_CS.git "$RGDLL"
           cmake -S "$RGDLL" -B "$GITHUB_WORKSPACE/rgdll-build" \
             -DCMAKE_TOOLCHAIN_FILE="$ANDROID_NDK_HOME/build/cmake/android.toolchain.cmake" \
+            -DCMAKE_C_COMPILER_LAUNCHER="${CCACHE:-}" \
+            -DCMAKE_CXX_COMPILER_LAUNCHER="${CCACHE:-}" \
             -DANDROID_ABI=arm64-v8a \
             -DANDROID_PLATFORM=android-21 \
             -DXASH_COMPAT=ON \
@@ -165,6 +268,37 @@ jobs:
           # Addons zip
           cd "$GITHUB_WORKSPACE"
           zip -r amxx-addons.zip addons/ -x '*.git*'
+
+          # build-meta.json: lets the next run's skip guard know which commit
+          # + upstream SHAs the native outputs correspond to.
+          UPSTREAMS_JSON='${{ steps.build_type.outputs.upstreams_json }}' \
+          NATIVE_SHA_OUT='${{ steps.build_type.outputs.native_sha_out }}' \
+          python3 - "$GITHUB_WORKSPACE/build-meta.json" <<'PY'
+          import json, os, subprocess, sys
+          out = sys.argv[1]
+          commit = subprocess.run(['git', 'rev-parse', 'HEAD'],
+                                  capture_output=True, text=True).stdout.strip()
+          try:
+              upstreams = json.loads(os.environ.get('UPSTREAMS_JSON', '{}'))
+          except Exception:
+              upstreams = {}
+          native_sha = os.environ.get('NATIVE_SHA_OUT') or commit
+          json.dump({"commit": commit, "native_sha": native_sha,
+                     "upstreams": upstreams}, open(out, 'w'))
+          print(open(out).read())
+          PY
+
+          # Stage on-device compiler binaries as ABI-prefixed release assets
+          # (plain names would collide across ABIs).
+          mkdir -p "$GITHUB_WORKSPACE/compiler-assets"
+          cf="$GITHUB_WORKSPACE/build-out/compiler"
+          [ -f "$cf/arm64-v8a/amxxpc" ] && cp "$cf/arm64-v8a/amxxpc" "$GITHUB_WORKSPACE/compiler-assets/compiler-arm64-v8a__amxxpc"
+          [ -f "$cf/arm64-v8a/amxxpc32.so" ] && cp "$cf/arm64-v8a/amxxpc32.so" "$GITHUB_WORKSPACE/compiler-assets/compiler-arm64-v8a__amxxpc32.so"
+          if [ ! -f "$GITHUB_WORKSPACE/v7a-missing" ]; then
+            [ -f "$cf/armeabi-v7a/amxxpc" ] && cp "$cf/armeabi-v7a/amxxpc" "$GITHUB_WORKSPACE/compiler-assets/compiler-armeabi-v7a__amxxpc"
+            [ -f "$cf/armeabi-v7a/amxxpc32.so" ] && cp "$cf/armeabi-v7a/amxxpc32.so" "$GITHUB_WORKSPACE/compiler-assets/compiler-armeabi-v7a__amxxpc32.so"
+          fi
+          ls "$GITHUB_WORKSPACE/compiler-assets" || true
 
       - name: Install Android SDK platform & build tools
         if: steps.build_type.outputs.needs_apk == 'true'
@@ -276,13 +410,12 @@ jobs:
           Run: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
           Built: $(date -u +%Y-%m-%dT%H:%M:%SZ)"
           gh release edit continuous --title "Nexora Continuous" --notes "$BODY"
-          gh release upload continuous --clobber \
-            amxx-addons.zip manifest.json manifest-v7a.json \
-            incremental/arm64-v8a/*.so incremental-v7a/armeabi-v7a/*.so
+          shopt -s nullglob
+          FILES=(amxx-addons.zip manifest.json manifest-v7a.json build-meta.json incremental/arm64-v8a/*.so incremental-v7a/armeabi-v7a/*.so compiler-assets/*)
           if [ "${{ steps.build_type.outputs.needs_apk }}" = "true" ]; then
-            gh release upload continuous --clobber \
-              version.txt android/app/build/outputs/apk/release/*.apk
+            FILES+=(version.txt android/app/build/outputs/apk/release/*.apk)
           fi
+          gh release upload continuous --clobber "${FILES[@]}"
 
       - name: Release
         if: startsWith(github.ref, 'refs/tags/') && github.ref_name != 'continuous'
@@ -293,7 +426,9 @@ jobs:
             amxx-addons.zip
             manifest.json
             manifest-v7a.json
+            build-meta.json
             version.txt
+            compiler-assets/*
             incremental/arm64-v8a/*.so
             incremental-v7a/armeabi-v7a/*.so
             ${{ steps.build_type.outputs.needs_apk == 'true' && 'android/app/build/outputs/apk/release/*.apk' || '' }}

@@ -51,6 +51,10 @@ android {
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17
         targetCompatibility = JavaVersion.VERSION_17
+        // Backports java.* APIs (e.g. java.util.Base64, API 26+) down to
+        // minSdk for ALL code incl. libraries (apksig). Definitive fix for
+        // NoClassDefFoundError on Android 7.
+        isCoreLibraryDesugaringEnabled = true
     }
 
     buildFeatures {
@@ -71,6 +75,7 @@ kotlin {
 
 dependencies {
     implementation(project(":patcherlib"))
+    coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:2.1.4")
 
     implementation("androidx.core:core-ktx:1.13.1")
     implementation("androidx.activity:activity-compose:1.9.2")

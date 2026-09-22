@@ -1207,6 +1207,32 @@ class PatcherViewModel(app: Application) : AndroidViewModel(app) {
     private val preparedCompilerPath: String
         get() = File(getApplication<Application>().filesDir, "compiler/amxxpc").absolutePath
 
+    /** ELF e_machine of a binary, or null if unreadable / not an ELF. */
+    private fun elfMachine(file: File): Int? = try {
+        file.inputStream().use { ins ->
+            val hdr = ByteArray(20)
+            if (ins.read(hdr) < 20) return null
+            if (!(hdr[0] == 0x7F.toByte() && hdr[1] == 'E'.code.toByte() &&
+                    hdr[2] == 'L'.code.toByte() && hdr[3] == 'F'.code.toByte())
+            ) return null
+            ((hdr[19].toInt() and 0xFF) shl 8) or (hdr[18].toInt() and 0xFF)
+        }
+    } catch (_: Throwable) {
+        null
+    }
+
+    /**
+     * True if [file] is an ELF matching this device's primary ABI
+     * (EM_AARCH64=183 on 64-bit, EM_ARM=40 on 32-bit). Stale/wrong-arch
+     * amxxpc copies (e.g. arm64 binary on an arm32 device) are rejected
+     * instead of executed.
+     */
+    private fun matchesDeviceAbi(file: File): Boolean {
+        val machine = elfMachine(file) ?: return false
+        val want64 = Build.SUPPORTED_ABIS.firstOrNull()?.contains("64") == true
+        return if (want64) machine == 183 else machine == 40
+    }
+
     /**
      * Returns a runnable amxxpc: prefers the copy shipped as native lib
      * (lib/arm64-v8a/libamxxpc.so in the patcher APK → nativeLibraryDir, always
@@ -1224,7 +1250,7 @@ class PatcherViewModel(app: Application) : AndroidViewModel(app) {
                     val compilerDir = File(getApplication<Application>().filesDir, "compiler")
                     compilerDir.mkdirs()
                     val kernelCopy = File(compilerDir, "amxxpc32.so")
-                    if (nativeKernel.exists() && (!kernelCopy.exists() || kernelCopy.length() != nativeKernel.length())) {
+                    if (nativeKernel.exists() && (!kernelCopy.exists() || kernelCopy.length() != nativeKernel.length() || !matchesDeviceAbi(kernelCopy))) {
                         kernelCopy.writeBytes(nativeKernel.readBytes())
                         try { Runtime.getRuntime().exec(arrayOf("chmod", "644", kernelCopy.absolutePath)).waitFor() } catch (_: Throwable) {}
                         kernelCopy.setReadable(true, false)
@@ -1251,30 +1277,41 @@ class PatcherViewModel(app: Application) : AndroidViewModel(app) {
             try {
                 compilerDir.mkdirs()
                 amxxpc.writeBytes(driverBytes)
-                // chmod 755 via shell is more reliable than File.setExecutable alone
-                // (some OEMs / SELinux ignore the Java API). Do both.
-                try { Runtime.getRuntime().exec(arrayOf("chmod", "755", amxxpc.absolutePath)).waitFor() } catch (_: Throwable) {}
-                amxxpc.setExecutable(true, false)
-                amxxpc.setReadable(true, false)
-                bundleFiles.files["compiler/amxxpc32.so"]?.let {
-                    if (it.isNotEmpty()) {
-                        kernel.writeBytes(it)
-                        try { Runtime.getRuntime().exec(arrayOf("chmod", "755", kernel.absolutePath)).waitFor() } catch (_: Throwable) {}
-                        kernel.setReadable(true, false)
-                        // kernel is dlopened, not executed, but needs r+x for some loaders
-                        try { Runtime.getRuntime().exec(arrayOf("chmod", "644", kernel.absolutePath)).waitFor() } catch (_: Throwable) {}
+                // Reject wrong-arch binaries (e.g. arm64 driver from an old
+                // bundle on an arm32 device) instead of executing them.
+                if (!matchesDeviceAbi(amxxpc)) {
+                    amxxpc.delete()
+                } else {
+                    // chmod 755 via shell is more reliable than File.setExecutable alone
+                    // (some OEMs / SELinux ignore the Java API). Do both.
+                    try { Runtime.getRuntime().exec(arrayOf("chmod", "755", amxxpc.absolutePath)).waitFor() } catch (_: Throwable) {}
+                    amxxpc.setExecutable(true, false)
+                    amxxpc.setReadable(true, false)
+                    bundleFiles.files["compiler/amxxpc32.so"]?.let {
+                        if (it.isNotEmpty()) {
+                            kernel.writeBytes(it)
+                            if (!matchesDeviceAbi(kernel)) {
+                                kernel.delete()
+                            } else {
+                                try { Runtime.getRuntime().exec(arrayOf("chmod", "755", kernel.absolutePath)).waitFor() } catch (_: Throwable) {}
+                                kernel.setReadable(true, false)
+                                // kernel is dlopened, not executed, but needs r+x for some loaders
+                                try { Runtime.getRuntime().exec(arrayOf("chmod", "644", kernel.absolutePath)).waitFor() } catch (_: Throwable) {}
+                            }
+                        }
                     }
+                    if (amxxpc.exists()) return amxxpc
                 }
-                return amxxpc
             } catch (_: Throwable) {
                 // extraction failed; fall through to local
             }
         }
         // fallback: a compiler already present in the picked/script folder
+        // (ABI-verified — never execute a wrong-arch binary)
         val root = _scriptRoot.value?.let { File(it) }
         return listOfNotNull(root, fallbackDir)
             .map { File(it, "amxxpc") }
-            .firstOrNull { it.exists() && it.canExecute() }
+            .firstOrNull { it.exists() && it.canExecute() && matchesDeviceAbi(it) }
     }
 
     companion object {
