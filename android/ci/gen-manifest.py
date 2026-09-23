@@ -79,6 +79,7 @@ def collect_entries(libdir: str, abi: str) -> list:
         })
 
     add("libyapb.so", f"lib/{abi}/libyapb.so", False, "YaPB bot plugin")
+    add("libebot.so", f"lib/{abi}/libebot.so", False, "EBOT bot plugin")
 
     client_name = f"libclient_android_{suffix}.so"
     add(client_name, f"lib/{abi}/{client_name}", False, "CS16Client client DLL (crash handler)")
