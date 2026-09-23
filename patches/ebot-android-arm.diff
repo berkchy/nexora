@@ -22,6 +22,24 @@ diff -Naur '--exclude=.git' csebot/include/engine.h ebotw/include/engine.h
  
  #ifndef	UINT_MIN
  #define	UINT_MIN	UINT32_MIN
+diff -Naur '--exclude=.git' csebot/include/glibc.h ebotw/include/glibc.h
+--- a/include/glibc.h	2026-09-23 10:34:33.935998170 +0300
++++ b/include/glibc.h	2026-09-23 11:59:50.067994510 +0300
+@@ -3,6 +3,9 @@
+ #ifndef WIN32
+ #define _FORTIFY_SOURCE 0
+ #define D__NO_ISOC23__
++// No .symver pinning on Android: bionic has no GLIBC versions, and the
++// pinned references would fail to link (undefined symbol: xxx@GLIBC_*).
++#if !defined(__ANDROID__)
+ __asm__(".symver fputs,fputs@GLIBC_2.0");
+ __asm__(".symver abort,abort@GLIBC_2.0");
+ __asm__(".symver sprintf,sprintf@GLIBC_2.0");
+@@ -53,3 +56,4 @@
+ __asm__(".symver __cxa_atexit,__cxa_atexit@GLIBC_2.1.3");
+ __asm__(".symver __cxa_finalize,__cxa_finalize@GLIBC_2.1.3");
+ #endif
++#endif // !__ANDROID__ (symver pins are glibc-only)
 diff -Naur '--exclude=.git' csebot/include/runtime.h ebotw/include/runtime.h
 --- a/include/runtime.h	2026-09-23 10:34:33.935998170 +0300
 +++ b/include/runtime.h	2026-09-23 11:18:02.879996304 +0300
