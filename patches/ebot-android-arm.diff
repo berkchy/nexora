@@ -1,3 +1,14 @@
+diff -Naur '--exclude=.git' csebot/include/core.h ebotw/include/core.h
+--- a/include/core.h	2026-09-23 10:34:33.931998170 +0300
++++ b/include/core.h	2026-09-24 00:05:38.668488965 +0300
+@@ -716,6 +716,7 @@
+ 
+ 	Path m_waypoint{}; // current waypoint
+ 	float m_waypointTime{0.0f}; // avg reach time
++	float m_thinkLogTimer{0.0f}; // think-log throttle (diagnostic)
+ 	PathManager m_navNode{}; // pointer to current node from path
+ 
+ 	bool m_checkFall{false}; // check bot fall
 diff -Naur '--exclude=.git' csebot/include/engine.h ebotw/include/engine.h
 --- a/include/engine.h	2026-09-23 10:34:33.935998170 +0300
 +++ b/include/engine.h	2026-09-23 11:34:09.055995612 +0300
@@ -69,6 +80,52 @@ diff -Naur '--exclude=.git' csebot/include/runtime.h ebotw/include/runtime.h
  
  namespace Math
  {
+diff -Naur '--exclude=.git' csebot/source/basecode.cpp ebotw/source/basecode.cpp
+--- a/source/basecode.cpp	2026-09-23 10:34:33.939998170 +0300
++++ b/source/basecode.cpp	2026-09-24 00:05:38.740488965 +0300
+@@ -1417,6 +1417,42 @@
+ 
+ void Bot::MoveAction(void)
+ {
++	// Diagnostic think log (file only, never console): what each bot wants,
++	// throttled to one line per bot every 2 seconds, 2MB rotation.
++	if (engine->GetTime() >= m_thinkLogTimer)
++	{
++		m_thinkLogTimer = engine->GetTime() + 2.0f;
++
++		char logPath[1024];
++		FormatBuffer(logPath, "%s/addons/ebot/logs/think.log", GetModName());
++
++		FILE* probe = fopen(logPath, "rb");
++		if (probe)
++		{
++			fseek(probe, 0L, SEEK_END);
++			const bool tooBig = ftell(probe) > 2 * 1024 * 1024;
++			fclose(probe);
++			if (tooBig)
++				remove(logPath);
++		}
++
++		FILE* log = fopen(logPath, "at");
++		if (log)
++		{
++			const char* enemyName = (m_hasEnemiesNear && !FNullEnt(m_nearestEnemy)) ? GetEntityName(m_nearestEnemy) : "none";
++			fprintf(log, "[%.1f] %s wp=%d nav=[%d..%d]x%d dest=(%.0f,%.0f,%.0f) enemy=%s edist=%.0f wpn=%d proc=%d spd=%.0f\n",
++				engine->GetTime(), GetEntityName(GetEntity()),
++				static_cast<int>(m_currentWaypointIndex),
++				m_navNode.IsEmpty() ? -1 : static_cast<int>(m_navNode.First()),
++				m_navNode.IsEmpty() ? -1 : static_cast<int>(m_navNode.Last()),
++				static_cast<int>(m_navNode.Length()),
++				m_destOrigin.x, m_destOrigin.y, m_destOrigin.z,
++				enemyName ? enemyName : "none", m_enemyDistance, m_currentWeapon,
++				static_cast<int>(m_currentProcess), m_moveSpeed);
++			fclose(log);
++		}
++	}
++
+ 	if (m_buttons & IN_JUMP)
+ 		m_jumpTime = engine->GetTime();
+ 
 diff -Naur '--exclude=.git' csebot/source/bot_query_hook_linux.cpp ebotw/source/bot_query_hook_linux.cpp
 --- a/source/bot_query_hook_linux.cpp	2026-09-23 10:34:33.939998170 +0300
 +++ b/source/bot_query_hook_linux.cpp	2026-09-23 11:19:19.059996249 +0300
