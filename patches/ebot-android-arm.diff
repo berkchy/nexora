@@ -158,3 +158,24 @@ diff -Naur '--exclude=.git' csebot/source/clib.cpp ebotw/source/clib.cpp
 +	return tanf(value);
 +}
 +#endif
+diff -Naur '--exclude=.git' csebot/source/waypoint.cpp ebotw/source/waypoint.cpp
+--- a/source/waypoint.cpp	2026-09-23 10:34:33.947998170 +0300
++++ b/source/waypoint.cpp	2026-09-23 13:29:32.715990660 +0300
+@@ -24,6 +24,8 @@
+ 
+ #include "../include/core.h"
+ #include <cstddef>
++#include <cerrno>
++#include <cstring>
+ #include <sys/stat.h>
+ #include "../include/tinythread.h"
+ 
+@@ -2897,7 +2899,7 @@
+ 			AddLogEntry(Log::Memory, "unexpected memory error -> not enough memory (%s free byte required)", sizeof(Path) * g_numWaypoints);
+ 	}
+ 	else
+-		AddLogEntry(Log::Error, "Error writing '%s' waypoint file: file cannot be created!", GetMapName());
++		AddLogEntry(Log::Error, "Error writing '%s' waypoint file: cannot create '%s' (errno %d: %s)", GetMapName(), waypointFilePath, errno, strerror(errno));
+ }
+ 
+ const char* Waypoint::CheckSubfolderFile(void)
