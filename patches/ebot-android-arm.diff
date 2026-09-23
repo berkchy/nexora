@@ -191,7 +191,7 @@ diff -Naur '--exclude=.git' csebot/source/support.cpp ebotw/source/support.cpp
  bool IsValidPlayer(edict_t* ent)
 diff -Naur '--exclude=.git' csebot/source/waypoint.cpp ebotw/source/waypoint.cpp
 --- a/source/waypoint.cpp	2026-09-23 10:34:33.947998170 +0300
-+++ b/source/waypoint.cpp	2026-09-23 14:21:10.191988445 +0300
++++ b/source/waypoint.cpp	2026-09-23 23:02:41.308834891 +0300
 @@ -24,6 +24,8 @@
  
  #include "../include/core.h"
@@ -201,7 +201,36 @@ diff -Naur '--exclude=.git' csebot/source/waypoint.cpp ebotw/source/waypoint.cpp
  #include <sys/stat.h>
  #include "../include/tinythread.h"
  
-@@ -2833,6 +2835,10 @@
+@@ -2654,6 +2656,28 @@
+ 
+ 						g_numWaypoints = header.pointNumber;
+ 					}
++					else
++					{
++						// SyPB-format pack: 56-byte nodes (extra u16 right
++						// before gravity). Convert on the fly so foreign
++						// packs load instead of falling back to the analyzer.
++						const int sypbStride = sizeof(Path) + 2;
++						CPtr<uint8_t> raw(new(std::nothrow) uint8_t[header.pointNumber * sypbStride]);
++						if (raw.IsAllocated() && Compressor::Uncompress(pathtofl, sizeof(WaypointHeader), &raw[0], header.pointNumber * sypbStride) != -1)
++						{
++							for (i = 0; i < header.pointNumber; i++)
++							{
++								memcpy(&path[i], &raw[i * sypbStride], 50);
++								memcpy(&path[i].gravity, &raw[i * sypbStride + 52], sizeof(float));
++								Sort(i, path[i].index);
++								m_paths.Push(path[i]);
++								AddToBucket(path[i].origin, i);
++							}
++
++							g_numWaypoints = header.pointNumber;
++							snprintf(m_infoBuffer, sizeof(m_infoBuffer), "Using Converted Waypoint File By: %s", header.author);
++						}
++					}
+ 				}
+ 				else
+ 					AddLogEntry(Log::Memory, "unexpected memory error -> not enough memory (%s free byte required)", sizeof(Path) * header.pointNumber);
+@@ -2833,6 +2857,10 @@
  		return;
  	}
  
@@ -212,7 +241,7 @@ diff -Naur '--exclude=.git' csebot/source/waypoint.cpp ebotw/source/waypoint.cpp
  	WaypointHeader header;
  	cmemset(header.header, 0, sizeof(header.header));
  	cmemset(header.mapName, 0, sizeof(header.mapName));
-@@ -2897,7 +2903,7 @@
+@@ -2897,7 +2925,7 @@
  			AddLogEntry(Log::Memory, "unexpected memory error -> not enough memory (%s free byte required)", sizeof(Path) * g_numWaypoints);
  	}
  	else
