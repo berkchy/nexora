@@ -1,0 +1,142 @@
+diff -Naur '--exclude=.git' csebot/include/engine.h ebotw/include/engine.h
+--- a/include/engine.h	2026-09-23 10:34:33.935998170 +0300
++++ b/include/engine.h	2026-09-23 11:34:09.055995612 +0300
+@@ -26,7 +26,11 @@
+ #define MULTIPLE_INHERITANCE
+ #endif
+ 
+-// Maximum and minimum representable values
++// Maximum and minimum representable values (MSVC compat: system headers
++// already provide correct values on Linux/Android, and ebot's LONG-based
++// ones are even wrong on LP64 — plus UINT64_MAX here uses undeclared
++// uint64 and poisons libc++ headers that use the system macro).
++#ifdef _WIN32
+ #define	INT8_MAX	SCHAR_MAX
+ #define	INT16_MAX	 SHRT_MAX
+ #define	INT32_MAX	 LONG_MAX
+@@ -46,6 +50,7 @@
+ #define	UINT16_MIN	0
+ #define	UINT32_MIN	0
+ #define	UINT64_MIN	0
++#endif // _WIN32 shims above; non-Windows uses system <stdint.h>/<limits.h>
+ 
+ #ifndef	UINT_MIN
+ #define	UINT_MIN	UINT32_MIN
+diff -Naur '--exclude=.git' csebot/include/runtime.h ebotw/include/runtime.h
+--- a/include/runtime.h	2026-09-23 10:34:33.935998170 +0300
++++ b/include/runtime.h	2026-09-23 11:18:02.879996304 +0300
+@@ -662,6 +662,7 @@
+ 	}
+ };
+ 
++#if defined(__SSE__) || (defined(_M_IX86_FP) && _M_IX86_FP >= 1) || defined(__x86_64__) || defined(_M_X64)
+ #include <xmmintrin.h>
+ inline float GetVectorDistanceSSE(const Vector vec1, const Vector vec2)
+ {
+@@ -671,6 +672,17 @@
+ 	sum = _mm_add_ss(sum, _mm_shuffle_ps(sum, sum, 0x55));
+ 	return _mm_cvtss_f32(_mm_sqrt_ss(sum));
+ }
++#else
++// No SSE (e.g. ARM): scalar fallback, same result.
++#include <math.h>
++inline float GetVectorDistanceSSE(const Vector vec1, const Vector vec2)
++{
++	const float dx = vec1.x - vec2.x;
++	const float dy = vec1.y - vec2.y;
++	const float dz = vec1.z - vec2.z;
++	return sqrtf(dx * dx + dy * dy + dz * dz);
++}
++#endif
+ 
+ namespace Math
+ {
+diff -Naur '--exclude=.git' csebot/source/bot_query_hook_linux.cpp ebotw/source/bot_query_hook_linux.cpp
+--- a/source/bot_query_hook_linux.cpp	2026-09-23 10:34:33.939998170 +0300
++++ b/source/bot_query_hook_linux.cpp	2026-09-23 11:19:19.059996249 +0300
+@@ -14,6 +14,25 @@
+ #include "core.h"
+ #include "bot_query_hook.h"
+ 
++#if defined(__arm__) || defined(__aarch64__)
++// ARM (e.g. Android): x86 opcode patching is impossible; passthrough to
++// libc. The query-hook feature stays inert (its cvar defaults to off).
++ssize_t call_original_sendto(int socket, const void* message, size_t length, int flags, const struct sockaddr* dest_addr, socklen_t dest_len)
++{
++	return ::sendto(socket, message, length, flags, dest_addr, dest_len);
++}
++
++bool hook_sendto_function(void)
++{
++	return false;
++}
++
++bool unhook_sendto_function(void)
++{
++	return true;
++}
++#else
++
+ #define PAGE_SHIFT 12
+ #define PAGE_SIZE (1UL << PAGE_SHIFT)
+ #define PAGE_MASK (~(PAGE_SIZE-1))
+@@ -149,3 +168,5 @@
+ }
+ 
+ #endif /*!_WIN32*/
++
++#endif // ARM passthrough vs x86 hook
+diff -Naur '--exclude=.git' csebot/source/clib.cpp ebotw/source/clib.cpp
+--- a/source/clib.cpp	2026-09-23 10:34:33.939998170 +0300
++++ b/source/clib.cpp	2026-09-23 11:18:03.227996303 +0300
+@@ -1,5 +1,6 @@
+ #include "../include/core.h"
+ 
++#if defined(__SSE__) || defined(__x86_64__) || defined(_M_X64) || (defined(_M_IX86_FP) && _M_IX86_FP >= 1)
+ #define USE_SSE2
+ #include "../include/sse_mathfun.h"
+ #include "../include/sse_mathfun_extension.h"
+@@ -43,3 +44,43 @@
+ {
+ 	return _mm_cvtss_f32(tan_ps(_mm_load_ss(&value)));
+ }
++#else
++// No SSE (e.g. ARM): plain libm fallbacks.
++#include <math.h>
++
++float csqrtf(const float value)
++{
++	return sqrtf(value);
++}
++
++float crsqrtf(const float value)
++{
++	return 1.0f / sqrtf(value);
++}
++
++float ccosf(const float value)
++{
++	return cosf(value);
++}
++
++float csinf(const float value)
++{
++	return sinf(value);
++}
++
++void csincosf(const float radians, float& sine, float& cosine)
++{
++	sine = sinf(radians);
++	cosine = cosf(radians);
++}
++
++float catan2f(const float x, const float y)
++{
++	return atan2f(x, y);
++}
++
++float ctanf(const float value)
++{
++	return tanf(value);
++}
++#endif

@@ -76,6 +76,7 @@ vendored_from() {
 # metamod-p stays only as the header source used to compile the AMXX core
 # (its meta_api.h ABI suffices); the actual runtime gamemod is metamod-fwgs.
 vendored_from "$REPO_ROOT/3rdparty/mm-p" "$SRC/metamod-p"
+vendored_from "$REPO_ROOT/3rdparty/ebot" "$SRC/ebot"
 # Runtime metamod: FWGS/metamod-fwgs (CMake), Xash3D-explicit, produces
 # libmetamod_android_arm64.so.
 fetch metamod-fwgs "https://github.com/FWGS/metamod-fwgs.git" yes
@@ -118,6 +119,7 @@ apply_patch "$PATCHES/amxmodx-gamesig-rtld.patch"       "$SRC/amxmodx"
 apply_patch "$PATCHES/amxmodx-interface-android.diff"   "$SRC/amxmodx"
 apply_patch "$PATCHES/amxmodx-ham-float64.patch"       "$SRC/amxmodx"
 apply_patch "$PATCHES/amxmodx-fakemeta-intvec-64.patch" "$SRC/amxmodx"
+apply_patch "$PATCHES/ebot-android-arm.diff" "$SRC/ebot"
 apply_patch "$PATCHES/amxmodx-cbase-bit32-guard.diff"  "$SRC/amxmodx"
 apply_patch "$PATCHES/amxmodx-ham-trampoline-arm64.patch"  "$SRC/amxmodx"
 apply_patch "$PATCHES/amxmodx-cbase-pev-fallback.patch"     "$SRC/amxmodx"
@@ -912,6 +914,33 @@ cmake --build "$YAPBBUILD" -j"$(nproc)"
 YAPB_SO=$(find "$YAPBBUILD" -name "libyapb.so" -o -name "yapb.so" | head -1)
 cp "$YAPB_SO" "$OUT/lib/$ABI/libyapb.so"
 echo "   yapb -> $(ls -l "$OUT/lib/$ABI/libyapb.so" | awk '{print $5}') bytes"
+
+# ------------------------------------------------------------------- ebot
+# EBOT Counter-Strike bot — metamod plugin (vendored from 3rdparty/ebot,
+# Android/ARM patches in patches/ebot-android-arm.diff). Direct-compile
+# style like reapi (upstream CMake is PC/x86-oriented).
+echo "== building ebot =="
+EBOT=$SRC/ebot
+mkdir -p "$TMP/mod-ebot"
+EBOT_BASEFLAGS="-std=c++11 -O2 -fPIC -fpermissive -w \
+  -D_LINUX -DLINUX \
+  -fno-rtti -fvisibility=hidden -fvisibility-inlines-hidden \
+  -I$EBOT/include -I$EBOT/source"
+EBOT_SRCS=""
+for f in "$EBOT"/source/*.cpp "$EBOT"/source/ssm/*.cpp; do
+  [ -e "$f" ] || continue
+  case "$(basename "$f")" in
+    bot_query_hook_win32.cpp) continue ;;
+  esac
+  bn="$(basename "$(dirname "$f")")-$(basename "$f" .cpp)"
+  "$CXX" $EBOT_BASEFLAGS -c "$f" -o "$TMP/mod-ebot/$bn.o"
+  EBOT_SRCS="$EBOT_SRCS $TMP/mod-ebot/$bn.o"
+done
+"$CXX" -shared -o "$OUT/lib/$ABI/libebot.so" $EBOT_SRCS \
+  -static-libstdc++ -static-libgcc \
+  -Wl,--whole-archive "$SYSROOT_LIB/libc++_static.a" -Wl,--no-whole-archive \
+  "$SYSROOT_LIB/libc++abi.a" -ldl -lm
+echo "   ebot -> $(ls -l "$OUT/lib/$ABI/libebot.so" | awk '{print $5}') bytes"
 
 # ----------------------------------------------------------------- client (crash handler)
 # CS16Client client DLL (vcs16/cl_dll) — built with crash handler, bundled as libclient
