@@ -1179,7 +1179,24 @@ class PatcherViewModel(app: Application) : AndroidViewModel(app) {
         // Ensure compiler dir is in LD_LIBRARY_PATH so driver finds amxxpc32.so
         // (driver does dlopen("amxxpc32.so") / dlopen("./amxxpc32.so"))
         val compilerDir = amxxpc.parentFile
-        val pb = ProcessBuilder(cmd).directory(scriptDir).redirectErrorStream(true)
+        // Run with CWD = the driver's own directory: the driver probes
+        // "./amxxpc32.so" FIRST, so this pins it to the kernel sitting next
+        // to the driver itself instead of a stale copy next to the scripts
+        // (which segfaults the driver silently before its banner flushes).
+        // All args below are absolute, so CWD is irrelevant otherwise.
+        val workDir = if (compilerDir != null && compilerDir.isDirectory) compilerDir else scriptDir
+        // Pre-flight: a missing kernel would kill the driver with zero
+        // output — report it plainly instead.
+        val kernelBesideDriver = if (compilerDir != null) File(compilerDir, "amxxpc32.so") else null
+        if (kernelBesideDriver == null || !kernelBesideDriver.exists()) {
+            error(
+                "Compiler kernel missing next to the driver.\n" +
+                    "Driver: ${amxxpc.absolutePath} (${amxxpc.length()} bytes)\n" +
+                    "Expected kernel: ${kernelBesideDriver?.absolutePath ?: "(unknown)"}\n" +
+                    "Reinstall the app or re-download the bundle, then retry."
+            )
+        }
+        val pb = ProcessBuilder(cmd).directory(workDir).redirectErrorStream(true)
         if (compilerDir != null && compilerDir.isDirectory) {
             val oldLd = pb.environment()["LD_LIBRARY_PATH"]
             pb.environment()["LD_LIBRARY_PATH"] = compilerDir.absolutePath + if (!oldLd.isNullOrEmpty()) ":$oldLd" else ""
