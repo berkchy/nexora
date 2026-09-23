@@ -158,6 +158,37 @@ diff -Naur '--exclude=.git' csebot/source/clib.cpp ebotw/source/clib.cpp
 +	return tanf(value);
 +}
 +#endif
+diff -Naur '--exclude=.git' csebot/source/support.cpp ebotw/source/support.cpp
+--- a/source/support.cpp	2026-09-23 10:34:33.943998170 +0300
++++ b/source/support.cpp	2026-09-23 21:44:42.460838238 +0300
+@@ -637,7 +637,26 @@
+ 
+ bool IsZombieEntity(edict_t* ent)
+ {
+-	return GetTeam(ent) == Team::Terrorist;
++	if (GetTeam(ent) == Team::Terrorist)
++		return true;
++
++	// Zombie Plague keeps the human team on infected players, so team alone
++	// can't spot them: fall back to the player model name (ZP zombie models
++	// carry "zombie" in the path). Human models never match.
++	if (FNullEnt(ent))
++		return false;
++
++	const char* model = STRING(ent->v.model);
++	if (IsNullString(model))
++		return false;
++
++	char lowered[128];
++	size_t i = 0;
++	for (; i < sizeof(lowered) - 1 && model[i] != '\0'; ++i)
++		lowered[i] = static_cast<char>(ctolower(static_cast<unsigned char>(model[i])));
++	lowered[i] = '\0';
++
++	return cstrstr(lowered, "zombie") != nullptr;
+ }
+ 
+ bool IsValidPlayer(edict_t* ent)
 diff -Naur '--exclude=.git' csebot/source/waypoint.cpp ebotw/source/waypoint.cpp
 --- a/source/waypoint.cpp	2026-09-23 10:34:33.947998170 +0300
 +++ b/source/waypoint.cpp	2026-09-23 14:21:10.191988445 +0300
