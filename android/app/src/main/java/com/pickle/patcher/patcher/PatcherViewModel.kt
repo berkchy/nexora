@@ -1189,20 +1189,30 @@ class PatcherViewModel(app: Application) : AndroidViewModel(app) {
         // All args below are absolute, so CWD is irrelevant otherwise.
         val workDir = if (compilerDir != null && compilerDir.isDirectory) compilerDir else scriptDir
         // Pre-flight: a missing kernel would kill the driver with zero
-        // output — report it plainly instead.
+        // output — report it plainly instead. The kernel may sit next to
+        // the driver or in filesDir/compiler (which is on LD_LIBRARY_PATH).
         val kernelBesideDriver = if (compilerDir != null) File(compilerDir, "amxxpc32.so") else null
-        if (kernelBesideDriver == null || !kernelBesideDriver.exists()) {
+        val filesKernel = File(compilerHome(), "amxxpc32.so")
+        val kernelFound = (kernelBesideDriver != null && kernelBesideDriver.exists()) ||
+            (filesKernel.exists() && matchesDeviceAbi(filesKernel))
+        if (!kernelFound) {
             error(
-                "Compiler kernel missing next to the driver.\n" +
+                "Compiler kernel missing.\n" +
                     "Driver: ${amxxpc.absolutePath} (${amxxpc.length()} bytes)\n" +
-                    "Expected kernel: ${kernelBesideDriver?.absolutePath ?: "(unknown)"}\n" +
+                    "Looked in: ${kernelBesideDriver?.absolutePath ?: "(unknown)"} and ${filesKernel.absolutePath}\n" +
                     "Reinstall the app or re-download the bundle, then retry."
             )
         }
         val pb = ProcessBuilder(cmd).directory(workDir).redirectErrorStream(true)
-        if (compilerDir != null && compilerDir.isDirectory) {
+        // Loader search path: driver's own dir first, then filesDir/compiler
+        // (provisioned kernel lives there when the APK lacks it).
+        val ldDirs = listOfNotNull(
+            compilerDir?.takeIf { it.isDirectory }?.absolutePath,
+            compilerHome().takeIf { it.isDirectory }?.absolutePath,
+        ).distinct()
+        if (ldDirs.isNotEmpty()) {
             val oldLd = pb.environment()["LD_LIBRARY_PATH"]
-            pb.environment()["LD_LIBRARY_PATH"] = compilerDir.absolutePath + if (!oldLd.isNullOrEmpty()) ":$oldLd" else ""
+            pb.environment()["LD_LIBRARY_PATH"] = (ldDirs + listOfNotNull(oldLd?.takeIf { it.isNotEmpty() })).joinToString(":")
         }
         // Last-chance chmod if file lost exec bit (e.g. after reboot)
         if (!amxxpc.canExecute()) {
@@ -1261,18 +1271,18 @@ class PatcherViewModel(app: Application) : AndroidViewModel(app) {
         return if (want64) machine == 183 else machine == 40
     }
 
-    private fun compilerDir(): File = File(getApplication<Application>().filesDir, "compiler")
+    private fun compilerHome(): File = File(getApplication<Application>().filesDir, "compiler")
 
     private fun readCompilerStamp(): String? = try {
-        File(compilerDir(), ".stamp").takeIf { it.exists() }?.readText()?.trim()
+        File(compilerHome(), ".stamp").takeIf { it.exists() }?.readText()?.trim()
     } catch (_: Throwable) {
         null
     }
 
     private fun writeCompilerStamp(s: String) {
         try {
-            compilerDir().mkdirs()
-            File(compilerDir(), ".stamp").writeText(s)
+            compilerHome().mkdirs()
+            File(compilerHome(), ".stamp").writeText(s)
         } catch (_: Throwable) {}
     }
 
@@ -1303,7 +1313,7 @@ class PatcherViewModel(app: Application) : AndroidViewModel(app) {
                 // before its banner flushes (silent "Compile failed"), so the
                 // pair is version-stamped and reinstalled atomically.
                 try {
-                    val dir = compilerDir()
+                    val dir = compilerHome()
                     dir.mkdirs()
                     val kernelCopy = File(dir, "amxxpc32.so")
                     val stamp = "native:${appVersionCode()}:${if (nativeKernel.exists()) nativeKernel.length() else -1}"
@@ -1313,6 +1323,28 @@ class PatcherViewModel(app: Application) : AndroidViewModel(app) {
                         try { Runtime.getRuntime().exec(arrayOf("chmod", "644", kernelCopy.absolutePath)).waitFor() } catch (_: Throwable) {}
                         kernelCopy.setReadable(true, false)
                         writeCompilerStamp(stamp)
+                    }
+                    // Old APKs ship the driver without the kernel next to it:
+                    // provision filesDir from bundle bytes (the loader finds
+                    // it via LD_LIBRARY_PATH set at exec time).
+                    if (!nativeKernel.exists() && !matchesDeviceAbi(kernelCopy)) {
+                        val kb = try {
+                            (loadedBundle ?: bundleProvider.loadCachedBundle())
+                                ?.files?.get("compiler/amxxpc32.so")
+                        } catch (_: Throwable) {
+                            null
+                        }
+                        if (kb != null && kb.isNotEmpty()) {
+                            kernelCopy.delete()
+                            kernelCopy.writeBytes(kb)
+                            if (matchesDeviceAbi(kernelCopy)) {
+                                try { Runtime.getRuntime().exec(arrayOf("chmod", "644", kernelCopy.absolutePath)).waitFor() } catch (_: Throwable) {}
+                                kernelCopy.setReadable(true, false)
+                                writeCompilerStamp("bundled-kernel:${kb.size}")
+                            } else {
+                                kernelCopy.delete()
+                            }
+                        }
                     }
                 } catch (_: Throwable) {}
                 return nativeAmxxpc
