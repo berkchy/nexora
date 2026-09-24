@@ -501,7 +501,6 @@ class PatcherViewModel(app: Application) : AndroidViewModel(app) {
                 name == "libamxmodx.so" -> "AMX Mod X core"
                 name == "libmetamod.so" || name.startsWith("libyapb_android_") -> "Metamod HL1"
                 name == "libyapb.so" -> "YaPB bot plugin"
-                name == "libebot.so" -> "EBOT bot plugin"
                 name == "libclient_android_$suffix.so" -> "CS16Client client DLL"
                 name == "libmenu_android_$suffix.so" -> "CS16Client main menu"
                 name == "libcs_android_arm64.so" -> "ReGameDLL game DLL (first-spawn fix)"
@@ -544,7 +543,6 @@ class PatcherViewModel(app: Application) : AndroidViewModel(app) {
             name == "libamxmodx.so" -> "amxx"
             name == "libmetamod.so" || name.startsWith("libyapb_android_") -> "metamod"
             name == "libyapb.so" -> "yapb"
-            name == "libebot.so" -> "ebot"
             name.startsWith("libclient_android_") -> "client"
             name.startsWith("libmenu_android_") -> "menu"
             name.startsWith("libcs_android_") -> "game"
@@ -556,7 +554,7 @@ class PatcherViewModel(app: Application) : AndroidViewModel(app) {
     /** Components included in the current patch, derived from the loaded bundle. */
     fun patchComponents(): List<PatchComponent> {
         val b = loadedBundle ?: return emptyList()
-        val order = listOf("amxx", "metamod", "yapb", "ebot", "client", "menu", "modules", "game", "other")
+        val order = listOf("amxx", "metamod", "yapb", "client", "menu", "modules", "game", "other")
         return b.manifest.entries
             .groupBy { componentKeyFor(it.target) }
             .mapNotNull { (key, entries) ->
@@ -564,7 +562,6 @@ class PatcherViewModel(app: Application) : AndroidViewModel(app) {
                     "amxx" -> "AMX Mod X core"
                     "metamod" -> "Metamod HL1"
                     "yapb" -> "YaPB bot plugin"
-                    "ebot" -> "EBOT bot plugin"
                     "client" -> "CS16Client client DLL"
                     "menu" -> "CS16Client main menu"
                     "game" -> "ReGameDLL game DLL"

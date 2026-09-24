@@ -10,8 +10,3 @@
 	path = 3rdparty/mm-p
 	url = https://github.com/berkchy/mm-p.git
 	branch = main
-[submodule "3rdparty/ebot"]
-	path = 3rdparty/ebot
-	url = https://github.com/EfeDursun125/CS-EBOT.git
-	branch = main
-	shallow = true
