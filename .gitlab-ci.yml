@@ -45,7 +45,7 @@ build-release:
       export LC_ALL=C.UTF-8
       export GRADLE_USER_HOME="$CI_PROJECT_DIR/.gradle-home"
       WS="$CI_PROJECT_DIR"
-      GH_REPO="berkchy/nexora"
+      export GH_REPO="berkchy/nexora"
 
       ############################################################
       # Preconditions — fail fast before spending 30+ min building
@@ -155,7 +155,7 @@ build-release:
         if [ -n "$NATIVE_SHA" ]; then
           META_UP=$(echo "$META_JSON" | python3 -c "import json,sys; print(json.dumps(json.load(sys.stdin).get('upstreams',{}),sort_keys=True))" 2>/dev/null || echo "")
           CUR_UP=$(echo "$UP_JSON" | python3 -c "import json,sys; print(json.dumps(json.load(sys.stdin),sort_keys=True))" 2>/dev/null || echo "")
-          DIFF_OUT=$(git diff --name-only "$NATIVE_SHA" HEAD -- android/ci patches vcs16 3rdparty .github/workflows 2>/dev/null || echo "DIFF-FAILED")
+          DIFF_OUT=$(git diff --name-only "$NATIVE_SHA" HEAD -- android/ci patches vcs16 3rdparty .github/workflows .gitlab-ci.yml 2>/dev/null || echo "DIFF-FAILED")
           if [ "$DIFF_OUT" != "DIFF-FAILED" ] && [ -z "$DIFF_OUT" ] && [ -n "$META_UP" ] && [ "$META_UP" = "$CUR_UP" ]; then
             SKIP_NATIVE=true
             NATIVE_SHA_OUT=$NATIVE_SHA
