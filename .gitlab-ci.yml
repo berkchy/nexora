@@ -57,6 +57,20 @@ build-release:
       export GH_TOKEN
 
       ############################################################
+      # Release write preflight — a read-only PAT only fails at the
+      # upload step, after the whole build is spent.
+      ############################################################
+      if [ "$CI_COMMIT_TAG" = "continuous" ]; then
+        RID=$(gh api "/repos/$GH_REPO/releases/tags/continuous" --jq .id 2>/dev/null || true)
+        if [ -n "$RID" ]; then
+          if ! gh api --method PATCH "/repos/$GH_REPO/releases/$RID" -f tag_name=continuous >/dev/null 2>&1; then
+            echo "ERROR: GH_TOKEN cannot write the $GH_REPO continuous release (needs Contents read+write)."
+            exit 1
+          fi
+        fi
+      fi
+
+      ############################################################
       # Tooling: everything the ubuntu:22.04 image is missing
       ############################################################
       echo "== installing base tooling =="
