@@ -208,8 +208,10 @@ build-release:
         echo "restored arm64 libs: $N64"
         [ "$N64" -ge 10 ] || { echo "ERROR: restore failed: too few arm64 libs"; exit 1; }
         [ -f "$WS/build-out/lib/arm64-v8a/libamxmodx.so" ] || { echo "ERROR: restore failed: no arm64 libamxmodx"; exit 1; }
+        [ -f "$WS/build-out/lib/arm64-v8a/libcs_android_arm64.so" ] || { echo "ERROR: restore failed: no arm64 libcs"; exit 1; }
         [ -f "$WS/build-out/compiler/arm64-v8a/amxxpc" ] || { echo "ERROR: restore failed: no compiler"; exit 1; }
         [ -f "$WS/build-out/lib/armeabi-v7a/libamxmodx.so" ] || touch "$WS/v7a-missing"
+        [ -f "$WS/build-out/lib/armeabi-v7a/libcs_android_armv7l.so" ] || touch "$WS/v7a-missing"
       fi
 
       ############################################################
@@ -217,23 +219,38 @@ build-release:
       ############################################################
       set -e
       RGDLL="$WS/rgdll-src"
-      rm -rf "$RGDLL" "$WS/rgdll-build"
+      rm -rf "$RGDLL"
       git clone --depth 1 --branch fix/first-spawn-equip \
         https://github.com/berkchy/ReGameDLL_CS.git "$RGDLL"
-      cmake -S "$RGDLL" -B "$WS/rgdll-build" \
-        -DCMAKE_TOOLCHAIN_FILE="$ANDROID_NDK_HOME/build/cmake/android.toolchain.cmake" \
-        -DCMAKE_C_COMPILER_LAUNCHER="${CCACHE:-}" \
-        -DCMAKE_CXX_COMPILER_LAUNCHER="${CCACHE:-}" \
-        -DANDROID_ABI=arm64-v8a \
-        -DANDROID_PLATFORM=android-21 \
-        -DXASH_COMPAT=ON \
-        -DCMAKE_BUILD_TYPE=Release
-      cmake --build "$WS/rgdll-build" --target regamedll --parallel 2
-      SO="$WS/rgdll-build/regamedll/libcs_android_arm64.so"
-      test -f "$SO" || { echo "ERROR: libcs_android_arm64.so was not produced"; exit 1; }
-      mkdir -p "$WS/build-out/lib/arm64-v8a"
-      cp "$SO" "$WS/build-out/lib/arm64-v8a/libcs_android_arm64.so"
-      ls -l "$WS/build-out/lib/arm64-v8a/libcs_android_arm64.so"
+      for ABI in arm64-v8a armeabi-v7a; do
+        case "$ABI" in
+          arm64-v8a) NAME=libcs_android_arm64.so ;;
+          armeabi-v7a) NAME=libcs_android_armv7l.so ;;
+        esac
+        BUILD="$WS/rgdll-build-$ABI"
+        SO="$BUILD/regamedll/$NAME"
+        if cmake -S "$RGDLL" -B "$BUILD" \
+            -DCMAKE_TOOLCHAIN_FILE="$ANDROID_NDK_HOME/build/cmake/android.toolchain.cmake" \
+            -DCMAKE_C_COMPILER_LAUNCHER="${CCACHE:-}" \
+            -DCMAKE_CXX_COMPILER_LAUNCHER="${CCACHE:-}" \
+            -DANDROID_ABI="$ABI" \
+            -DANDROID_PLATFORM=android-21 \
+            -DXASH_COMPAT=ON \
+            -DCMAKE_BUILD_TYPE=Release &&
+           cmake --build "$BUILD" --target regamedll --parallel 2 &&
+           [ -f "$SO" ]; then
+          mkdir -p "$WS/build-out/lib/$ABI"
+          cp "$SO" "$WS/build-out/lib/$ABI/$NAME"
+          ls -l "$WS/build-out/lib/$ABI/$NAME"
+          continue
+        fi
+        if [ "$ABI" = "arm64-v8a" ]; then
+          echo "ERROR: $NAME was not produced (required)"
+          exit 1
+        fi
+        echo "WARNING: $NAME was not produced — v7a bundle will be dropped"
+        touch "$WS/v7a-missing"
+      done
 
       ############################################################
       # Package release bundles

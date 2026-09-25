@@ -84,7 +84,7 @@ def collect_entries(libdir: str, abi: str) -> list:
     add(client_name, f"lib/{abi}/{client_name}", False, "CS16Client client DLL (crash handler)")
 
     # ReGameDLL game DLL, bundled as libcs. Shipped from the berkchy fork branch
-    # fix/first-spawn-equip (arm64 only); skipped silently when not present, then
+    # fix/first-spawn-equip; skipped silently when not present, then
     # the patcher falls back to patching the base APK's libcs in place.
     libcs_name = "libcs_android_" + suffix + ".so"
     add(libcs_name, f"lib/{abi}/{libcs_name}", False, "ReGameDLL game DLL (first-spawn fix)")

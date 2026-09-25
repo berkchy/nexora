@@ -217,8 +217,10 @@ jobs:
           echo "restored arm64 libs: $N64"
           [ "$N64" -ge 10 ] || { echo "::error::restore failed: too few arm64 libs"; exit 1; }
           [ -f "$BO/lib/arm64-v8a/libamxmodx.so" ] || { echo "::error::restore failed: no arm64 libamxmodx"; exit 1; }
+          [ -f "$BO/lib/arm64-v8a/libcs_android_arm64.so" ] || { echo "::error::restore failed: no arm64 libcs"; exit 1; }
           [ -f "$BO/compiler/arm64-v8a/amxxpc" ] || { echo "::error::restore failed: no compiler"; exit 1; }
           [ -f "$BO/lib/armeabi-v7a/libamxmodx.so" ] || touch "$GITHUB_WORKSPACE/v7a-missing"
+          [ -f "$BO/lib/armeabi-v7a/libcs_android_armv7l.so" ] || touch "$GITHUB_WORKSPACE/v7a-missing"
 
       - name: Build ReGameDLL libcs (first-spawn fix)
         if: steps.build_type.outputs.skip_native != 'true'
@@ -227,24 +229,43 @@ jobs:
           set -euo pipefail
           # libcs is bundled from the berkchy/ReGameDLL_CS fork branch carrying the
           # first-spawn fix; built standalone with the NDK already installed above.
+          # Both ABIs are built: shipping v7a amxmodx modules without a matching
+          # v7a gamedll would leave the base APK's unpatched libcs in place.
+          # arm64-v8a is required; armeabi-v7a is best-effort like the cross-compile
+          # above, and a failure drops the whole v7a bundle.
           RGDLL="$GITHUB_WORKSPACE/rgdll-src"
-          rm -rf "$RGDLL" "$GITHUB_WORKSPACE/rgdll-build"
+          rm -rf "$RGDLL"
           git clone --depth 1 --branch fix/first-spawn-equip \
             https://github.com/berkchy/ReGameDLL_CS.git "$RGDLL"
-          cmake -S "$RGDLL" -B "$GITHUB_WORKSPACE/rgdll-build" \
-            -DCMAKE_TOOLCHAIN_FILE="$ANDROID_NDK_HOME/build/cmake/android.toolchain.cmake" \
-            -DCMAKE_C_COMPILER_LAUNCHER="${CCACHE:-}" \
-            -DCMAKE_CXX_COMPILER_LAUNCHER="${CCACHE:-}" \
-            -DANDROID_ABI=arm64-v8a \
-            -DANDROID_PLATFORM=android-21 \
-            -DXASH_COMPAT=ON \
-            -DCMAKE_BUILD_TYPE=Release
-          cmake --build "$GITHUB_WORKSPACE/rgdll-build" --target regamedll --parallel 2
-          SO="$GITHUB_WORKSPACE/rgdll-build/regamedll/libcs_android_arm64.so"
-          test -f "$SO" || { echo "::error::libcs_android_arm64.so was not produced"; exit 1; }
-          mkdir -p "$GITHUB_WORKSPACE/build-out/lib/arm64-v8a"
-          cp "$SO" "$GITHUB_WORKSPACE/build-out/lib/arm64-v8a/libcs_android_arm64.so"
-          ls -l "$GITHUB_WORKSPACE/build-out/lib/arm64-v8a/libcs_android_arm64.so"
+          for ABI in arm64-v8a armeabi-v7a; do
+            case "$ABI" in
+              arm64-v8a) NAME=libcs_android_arm64.so ;;
+              armeabi-v7a) NAME=libcs_android_armv7l.so ;;
+            esac
+            BUILD="$GITHUB_WORKSPACE/rgdll-build-$ABI"
+            SO="$BUILD/regamedll/$NAME"
+            if cmake -S "$RGDLL" -B "$BUILD" \
+                -DCMAKE_TOOLCHAIN_FILE="$ANDROID_NDK_HOME/build/cmake/android.toolchain.cmake" \
+                -DCMAKE_C_COMPILER_LAUNCHER="${CCACHE:-}" \
+                -DCMAKE_CXX_COMPILER_LAUNCHER="${CCACHE:-}" \
+                -DANDROID_ABI="$ABI" \
+                -DANDROID_PLATFORM=android-21 \
+                -DXASH_COMPAT=ON \
+                -DCMAKE_BUILD_TYPE=Release &&
+               cmake --build "$BUILD" --target regamedll --parallel 2 &&
+               [ -f "$SO" ]; then
+              mkdir -p "$GITHUB_WORKSPACE/build-out/lib/$ABI"
+              cp "$SO" "$GITHUB_WORKSPACE/build-out/lib/$ABI/$NAME"
+              ls -l "$GITHUB_WORKSPACE/build-out/lib/$ABI/$NAME"
+              continue
+            fi
+            if [ "$ABI" = "arm64-v8a" ]; then
+              echo "::error::$NAME was not produced (required)"
+              exit 1
+            fi
+            echo "::warning::$NAME was not produced — v7a bundle will be dropped"
+            touch "$GITHUB_WORKSPACE/v7a-missing"
+          done
 
       - name: Package release bundles
         shell: bash
