@@ -53,11 +53,14 @@ jobs:
             NEEDS_APK=true
             HAS_MARKER="true"
             echo "APP_VERSION_NAME=continuous-r${GITHUB_RUN_NUMBER}" >> "$GITHUB_ENV"
-            echo "APP_VERSION_CODE=${GITHUB_RUN_NUMBER}" >> "$GITHUB_ENV"
+            # Epoch seconds: monotonic across CI providers (run numbers and
+            # GitLab pipeline IIDs are independent counters → downgrade block).
+            echo "APP_VERSION_CODE=$(date -u +%s)" >> "$GITHUB_ENV"
             echo "APK_NAME=nexora_continuous.apk" >> "$GITHUB_ENV"
             echo "BUNDLE_VERSION=continuous-r${GITHUB_RUN_NUMBER}" >> "$GITHUB_ENV"
           else
             echo "APP_VERSION_NAME=${GITHUB_REF_NAME}" >> "$GITHUB_ENV"
+            echo "APP_VERSION_CODE=$(date -u +%s)" >> "$GITHUB_ENV"
             echo "APK_NAME=nexora_v${GITHUB_REF_NAME#v}.apk" >> "$GITHUB_ENV"
           fi
           # Escape multiline for GitHub Actions output

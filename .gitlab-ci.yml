@@ -1,0 +1,435 @@
+# GitLab CI port of .github/workflows/build-and-release.yml (tag-triggered).
+#
+# Distribution stays on GitHub: the pipeline builds here and uploads all
+# release assets to the berkchy/nexora "continuous" GitHub release, so the
+# in-app updater is unchanged. Required CI/CD variable (Settings > CI/CD):
+#   GH_TOKEN  — fine-grained PAT with contents:read+write on berkchy/nexora
+# Optional:
+#   DISCORD_WEBHOOK — same payload as the GitHub workflow
+#
+# versionName/versionCode: versionCode = epoch seconds so the code is
+# monotonically increasing across BOTH CI providers (GitHub run numbers and
+# GitLab pipeline IIDs are independent counters and would collide/downgrade).
+image: ubuntu:22.04
+
+stages:
+  - release
+
+variables:
+  # Enough history for the native skip guard's `git diff NATIVE_SHA..HEAD`.
+  GIT_DEPTH: "50"
+  # Fallback ccache key when android/ci/build-amxx.sh changes (parity with
+  # the GitHub restore-keys prefix).
+  CACHE_FALLBACK_KEY: "ccache-ndk-r25c"
+
+build-release:
+  stage: release
+  interruptible: true
+  rules:
+    - if: $CI_COMMIT_TAG =~ /^v/
+    - if: $CI_COMMIT_TAG == "continuous"
+  cache:
+    - key:
+        files:
+          - android/ci/build-amxx.sh
+      paths:
+        - .ccache/
+    - key:
+        files:
+          - android/gradle/wrapper/gradle-wrapper.properties
+      paths:
+        - .gradle-home/
+  script:
+    - |
+      set -e
+      export LC_ALL=C.UTF-8
+      export GRADLE_USER_HOME="$CI_PROJECT_DIR/.gradle-home"
+      WS="$CI_PROJECT_DIR"
+      GH_REPO="berkchy/nexora"
+
+      ############################################################
+      # Preconditions — fail fast before spending 30+ min building
+      ############################################################
+      if [ -z "${GH_TOKEN:-}" ]; then
+        echo "ERROR: GH_TOKEN CI/CD variable is not set — cannot upload release assets."
+        exit 1
+      fi
+      export GH_TOKEN
+
+      ############################################################
+      # Tooling: everything the ubuntu:22.04 image is missing
+      ############################################################
+      echo "== installing base tooling =="
+      apt-get update -qq
+      DEBIAN_FRONTEND=noninteractive apt-get install -y -qq \
+        ca-certificates curl wget git unzip zip jq xz-utils file \
+        python3 cmake ninja-build ccache pkg-config build-essential \
+        openjdk-17-jdk-headless
+      # GitHub CLI (release upload/download)
+      curl -fsSL -o /tmp/gh.deb \
+        https://github.com/cli/cli/releases/download/v2.62.0/gh_2.62.0_linux_amd64.deb
+      apt-get install -y -qq /tmp/gh.deb
+      export JAVA_HOME=/usr/lib/jvm/java-17-openjdk-amd64
+
+      echo "== Android SDK (fresh cmdline-tools; preinstalled ones are too old) =="
+      CMDT=commandlinetools-linux-11076708_latest.zip
+      curl -fsSL -o "/tmp/$CMDT" "https://dl.google.com/android/repository/$CMDT"
+      export ANDROID_HOME="$HOME/android-sdk"
+      rm -rf "$ANDROID_HOME/cmdline-tools"
+      mkdir -p "$ANDROID_HOME/cmdline-tools"
+      unzip -qo "/tmp/$CMDT" -d /tmp/cmdt
+      mv /tmp/cmdt/cmdline-tools "$ANDROID_HOME/cmdline-tools/latest"
+      SDKM="$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager"
+      yes | "$SDKM" --sdk_root="$ANDROID_HOME" --licenses >/dev/null 2>&1 || true
+      "$SDKM" --sdk_root="$ANDROID_HOME" --install \
+        "ndk;25.2.9519653" "platform-tools" "platforms;android-36" "build-tools;35.0.0"
+      export ANDROID_NDK_HOME="$ANDROID_HOME/ndk/25.2.9519653"
+      test -d "$ANDROID_HOME/platforms/android-36"
+      test -d "$ANDROID_HOME/build-tools/35.0.0"
+      test -d "$ANDROID_NDK_HOME"
+
+      echo "== ccache =="
+      export CCACHE="$(command -v ccache || true)"
+      if [ -n "$CCACHE" ]; then
+        export CCACHE_DIR="$WS/.ccache"
+        export CCACHE_MAXSIZE=1G
+        export CCACHE_COMPILERTYPE=clang
+        export CCACHE_SLOPPINESS=time_macros
+        export CCACHE_BASEDIR="$WS"
+        ccache --zero-stats || true
+      fi
+
+      ############################################################
+      # Detect build type (parity with the GitHub "Detect build type" step)
+      ############################################################
+      MSG=$(git log -1 --pretty=%s)
+      echo "Commit message: $MSG"
+      LOWER=$(echo "$MSG" | tr '[:upper:]' '[:lower:]')
+      NEEDS_APK=false
+      HAS_MARKER=false
+      if echo "$LOWER" | grep -q '\[android build\]' || echo "$LOWER" | grep -q '\[version build\]'; then
+        NEEDS_APK=true
+      fi
+      if echo "$LOWER" | grep -qE '\[bundle build\]|\[android build\]|\[version build\]'; then
+        HAS_MARKER=true
+      fi
+      BUNDLE_VERSION="$CI_COMMIT_TAG"
+      if [ "$CI_COMMIT_TAG" = "continuous" ]; then
+        NEEDS_APK=true
+        HAS_MARKER=true
+        APP_VERSION_NAME="continuous-gl${CI_PIPELINE_IID}"
+        BUNDLE_VERSION="$APP_VERSION_NAME"
+        APK_NAME="nexora_continuous.apk"
+      else
+        APP_VERSION_NAME="$CI_COMMIT_TAG"
+        APK_NAME="nexora_v${CI_COMMIT_TAG#v}.apk"
+      fi
+      # Monotonic across CI providers (GitHub run_number stays far below this
+      # until 2038; see android/app/build.gradle.kts versionCode comment).
+      APP_VERSION_CODE=$(date -u +%s)
+      export NEEDS_APK HAS_MARKER BUNDLE_VERSION APP_VERSION_NAME APP_VERSION_CODE APK_NAME
+
+      ############################################################
+      # Native skip guard (reuse previous .so set when native inputs unchanged)
+      ############################################################
+      SKIP_NATIVE=false
+      NATIVE_SHA_OUT=$(git rev-parse HEAD)
+      UP_AMXX=$(git ls-remote https://github.com/alliedmodders/amxmodx.git HEAD 2>/dev/null | cut -f1)
+      UP_MM=$(git ls-remote https://github.com/FWGS/metamod-fwgs.git HEAD 2>/dev/null | cut -f1)
+      UP_REAPI=$(git ls-remote https://github.com/rehlds/ReAPI.git HEAD 2>/dev/null | cut -f1)
+      UP_YAPB=$(git ls-remote https://github.com/yapb/yapb.git HEAD 2>/dev/null | cut -f1)
+      UP_RGDLL=$(git ls-remote https://github.com/berkchy/ReGameDLL_CS.git fix/first-spawn-equip 2>/dev/null | cut -f1)
+      UP_JSON=$(python3 -c "import json; print(json.dumps({'amxmodx':'$UP_AMXX','metamod':'$UP_MM','reapi':'$UP_REAPI','yapb':'$UP_YAPB','regamedll':'$UP_RGDLL'}))")
+      if [ "$CI_COMMIT_TAG" = "continuous" ] && [ -n "$UP_AMXX" ]; then
+        META_JSON=$(curl -fsSL --max-time 30 "https://github.com/${GH_REPO}/releases/download/continuous/build-meta.json" 2>/dev/null || true)
+        NATIVE_SHA=$(echo "$META_JSON" | python3 -c "import json,sys; print(json.load(sys.stdin).get('native_sha',''))" 2>/dev/null || true)
+        if [ -n "$NATIVE_SHA" ]; then
+          git fetch --depth 1 origin "$NATIVE_SHA" 2>/dev/null || NATIVE_SHA=""
+        fi
+        if [ -n "$NATIVE_SHA" ]; then
+          META_UP=$(echo "$META_JSON" | python3 -c "import json,sys; print(json.dumps(json.load(sys.stdin).get('upstreams',{}),sort_keys=True))" 2>/dev/null || echo "")
+          CUR_UP=$(echo "$UP_JSON" | python3 -c "import json,sys; print(json.dumps(json.load(sys.stdin),sort_keys=True))" 2>/dev/null || echo "")
+          DIFF_OUT=$(git diff --name-only "$NATIVE_SHA" HEAD -- android/ci patches vcs16 3rdparty .github/workflows 2>/dev/null || echo "DIFF-FAILED")
+          if [ "$DIFF_OUT" != "DIFF-FAILED" ] && [ -z "$DIFF_OUT" ] && [ -n "$META_UP" ] && [ "$META_UP" = "$CUR_UP" ]; then
+            SKIP_NATIVE=true
+            NATIVE_SHA_OUT=$NATIVE_SHA
+          fi
+        fi
+      fi
+      export SKIP_NATIVE NATIVE_SHA_OUT UPSTREAMS_JSON="$UP_JSON"
+      echo "Native skip: $SKIP_NATIVE (native_sha: $NATIVE_SHA_OUT)"
+
+      ############################################################
+      # Cross-compile core + modules + plugins (both ABIs)
+      ############################################################
+      if [ "$SKIP_NATIVE" != "true" ]; then
+        for ABI in arm64-v8a armeabi-v7a; do
+          if RELEASE_VERSION="$BUNDLE_VERSION" bash ./android/ci/build-amxx.sh "$WS/src" "$ANDROID_NDK_HOME" \
+              "$WS/build-out" "" "$ABI"; then
+            echo "OK $ABI"
+            ls -l "$WS/build-out/lib/$ABI" 2>/dev/null || true
+          else
+            if [ "$ABI" = "arm64-v8a" ]; then
+              echo "ERROR: arm64-v8a cross-compile failed (required)"
+              exit 1
+            fi
+            echo "WARNING: armeabi-v7a cross-compile failed — v7a bundle will be skipped"
+            touch "$WS/v7a-missing"
+          fi
+        done
+        if [ -n "${CCACHE:-}" ]; then ccache --show-stats || true; fi
+      else
+        ########################################################
+        # Restore native outputs from the previous GitHub release
+        ########################################################
+        set -eo pipefail
+        mkdir -p /tmp/prevso \
+          "$WS/build-out/lib/arm64-v8a" \
+          "$WS/build-out/lib/armeabi-v7a" \
+          "$WS/build-out/compiler/arm64-v8a" \
+          "$WS/build-out/compiler/armeabi-v7a" \
+          "$WS/build-out/plugins"
+        cd /tmp/prevso
+        gh release download continuous --repo "$GH_REPO" \
+          --pattern 'arm64-v8a__*' --pattern 'armeabi-v7a__*' --pattern 'compiler-*' \
+          --clobber
+        shopt -s nullglob
+        for f in *; do
+          case "$f" in
+            compiler-arm64-v8a__*) cp "$f" "$WS/build-out/compiler/arm64-v8a/${f#compiler-arm64-v8a__}" ;;
+            compiler-armeabi-v7a__*) cp "$f" "$WS/build-out/compiler/armeabi-v7a/${f#compiler-armeabi-v7a__}" ;;
+            arm64-v8a__*) cp "$f" "$WS/build-out/lib/arm64-v8a/${f#arm64-v8a__}" ;;
+            armeabi-v7a__*) cp "$f" "$WS/build-out/lib/armeabi-v7a/${f#armeabi-v7a__}" ;;
+          esac
+        done
+        cd "$WS"
+        set -e
+        N64=$(ls "$WS/build-out/lib/arm64-v8a" | wc -l)
+        echo "restored arm64 libs: $N64"
+        [ "$N64" -ge 10 ] || { echo "ERROR: restore failed: too few arm64 libs"; exit 1; }
+        [ -f "$WS/build-out/lib/arm64-v8a/libamxmodx.so" ] || { echo "ERROR: restore failed: no arm64 libamxmodx"; exit 1; }
+        [ -f "$WS/build-out/compiler/arm64-v8a/amxxpc" ] || { echo "ERROR: restore failed: no compiler"; exit 1; }
+        [ -f "$WS/build-out/lib/armeabi-v7a/libamxmodx.so" ] || touch "$WS/v7a-missing"
+      fi
+
+      ############################################################
+      # Build ReGameDLL libcs (first-spawn fix)
+      ############################################################
+      set -e
+      RGDLL="$WS/rgdll-src"
+      rm -rf "$RGDLL" "$WS/rgdll-build"
+      git clone --depth 1 --branch fix/first-spawn-equip \
+        https://github.com/berkchy/ReGameDLL_CS.git "$RGDLL"
+      cmake -S "$RGDLL" -B "$WS/rgdll-build" \
+        -DCMAKE_TOOLCHAIN_FILE="$ANDROID_NDK_HOME/build/cmake/android.toolchain.cmake" \
+        -DCMAKE_C_COMPILER_LAUNCHER="${CCACHE:-}" \
+        -DCMAKE_CXX_COMPILER_LAUNCHER="${CCACHE:-}" \
+        -DANDROID_ABI=arm64-v8a \
+        -DANDROID_PLATFORM=android-21 \
+        -DXASH_COMPAT=ON \
+        -DCMAKE_BUILD_TYPE=Release
+      cmake --build "$WS/rgdll-build" --target regamedll --parallel 2
+      SO="$WS/rgdll-build/regamedll/libcs_android_arm64.so"
+      test -f "$SO" || { echo "ERROR: libcs_android_arm64.so was not produced"; exit 1; }
+      mkdir -p "$WS/build-out/lib/arm64-v8a"
+      cp "$SO" "$WS/build-out/lib/arm64-v8a/libcs_android_arm64.so"
+      ls -l "$WS/build-out/lib/arm64-v8a/libcs_android_arm64.so"
+
+      ############################################################
+      # Package release bundles
+      ############################################################
+      RELEASE_VERSION="$BUNDLE_VERSION" python3 ./android/ci/gen-manifest.py \
+        arm64-v8a \
+        "$WS/build-out/lib/arm64-v8a" \
+        "$WS/incremental" \
+        --plugins-dir "$WS/build-out/plugins"
+      mv "$WS/incremental/manifest.json" "$WS/manifest.json"
+
+      if [ ! -f "$WS/v7a-missing" ] && \
+          [ -f "$WS/build-out/lib/armeabi-v7a/libamxmodx.so" ]; then
+        RELEASE_VERSION="$BUNDLE_VERSION" python3 ./android/ci/gen-manifest.py \
+          armeabi-v7a \
+          "$WS/build-out/lib/armeabi-v7a" \
+          "$WS/incremental-v7a"
+        mv "$WS/incremental-v7a/manifest.json" "$WS/manifest-v7a.json"
+      fi
+
+      cd "$WS"
+      zip -r amxx-addons.zip addons/ -x '*.git*'
+
+      # build-meta.json: lets the next run's skip guard know which commit +
+      # upstream SHAs the native outputs correspond to.
+      python3 - "$WS/build-meta.json" <<'PY'
+      import json, os, subprocess, sys
+      out = sys.argv[1]
+      commit = subprocess.run(['git', 'rev-parse', 'HEAD'],
+                              capture_output=True, text=True).stdout.strip()
+      try:
+          upstreams = json.loads(os.environ.get('UPSTREAMS_JSON', '{}'))
+      except Exception:
+          upstreams = {}
+      native_sha = os.environ.get('NATIVE_SHA_OUT') or commit
+      json.dump({"commit": commit, "native_sha": native_sha,
+                 "upstreams": upstreams}, open(out, 'w'))
+      print(open(out).read())
+      PY
+
+      mkdir -p "$WS/compiler-assets"
+      cf="$WS/build-out/compiler"
+      [ -f "$cf/arm64-v8a/amxxpc" ] && cp "$cf/arm64-v8a/amxxpc" "$WS/compiler-assets/compiler-arm64-v8a__amxxpc"
+      [ -f "$cf/arm64-v8a/amxxpc32.so" ] && cp "$cf/arm64-v8a/amxxpc32.so" "$WS/compiler-assets/compiler-arm64-v8a__amxxpc32.so"
+      if [ ! -f "$WS/v7a-missing" ]; then
+        [ -f "$cf/armeabi-v7a/amxxpc" ] && cp "$cf/armeabi-v7a/amxxpc" "$WS/compiler-assets/compiler-armeabi-v7a__amxxpc"
+        [ -f "$cf/armeabi-v7a/amxxpc32.so" ] && cp "$cf/armeabi-v7a/amxxpc32.so" "$WS/compiler-assets/compiler-armeabi-v7a__amxxpc32.so"
+      fi
+      ls "$WS/compiler-assets" || true
+
+      ############################################################
+      # Build the patcher APK
+      ############################################################
+      if [ "$NEEDS_APK" = "true" ]; then
+        mkdir -p android/app/src/main/assets/keystore
+        cp android/debug/patcher-release.p12 android/app/src/main/assets/keystore/debug.p12
+        cp android/debug/debug_key.pem android/app/src/main/assets/keystore/debug_key.pem
+        cp android/debug/debug_cert.pem android/app/src/main/assets/keystore/debug_cert.pem
+
+        mkdir -p android/app/src/main/jniLibs/arm64-v8a
+        cp "$WS/build-out/compiler/arm64-v8a/amxxpc" android/app/src/main/jniLibs/arm64-v8a/libamxxpc.so
+        cp "$WS/build-out/compiler/arm64-v8a/amxxpc32.so" android/app/src/main/jniLibs/arm64-v8a/libamxxpc32.so
+        chmod +x android/app/src/main/jniLibs/arm64-v8a/libamxxpc.so
+        if [ ! -f "$WS/v7a-missing" ] && \
+            [ -f "$WS/build-out/compiler/armeabi-v7a/amxxpc" ]; then
+          mkdir -p android/app/src/main/jniLibs/armeabi-v7a
+          cp "$WS/build-out/compiler/armeabi-v7a/amxxpc" android/app/src/main/jniLibs/armeabi-v7a/libamxxpc.so
+          cp "$WS/build-out/compiler/armeabi-v7a/amxxpc32.so" android/app/src/main/jniLibs/armeabi-v7a/libamxxpc32.so
+          chmod +x android/app/src/main/jniLibs/armeabi-v7a/libamxxpc.so
+        fi
+        ls -lh android/app/src/main/jniLibs/arm64-v8a/
+
+        (cd android && ./gradlew --no-daemon :app:assembleRelease --stacktrace)
+
+        cd android/app/build/outputs/apk/release
+        APK=$(ls *.apk 2>/dev/null | head -1 || true)
+        if [ -n "$APK" ]; then
+          mv "$APK" "${APK_NAME:-nexora.apk}"
+          echo "Renamed: ${APK_NAME:-nexora.apk}"
+        fi
+        echo "${APP_VERSION_NAME:-unknown}" > "$WS/version.txt"
+        cat "$WS/version.txt"
+        cd "$WS"
+      fi
+
+      ############################################################
+      # Release (rolling continuous) → GitHub release assets
+      ############################################################
+      if [ "$CI_COMMIT_TAG" = "continuous" ]; then
+        if ! gh release view continuous >/dev/null 2>&1; then
+          gh release create continuous \
+            --title "Nexora Continuous" \
+            --notes "Nexora Continuous build"
+        fi
+        if [ "$NEEDS_APK" = "true" ]; then
+          PRESERVE='^$'
+        else
+          PRESERVE='^(nexora_continuous\.apk|version\.txt)$'
+        fi
+        gh release view continuous --json assets | jq -r '.assets[] | .name' | while read -r name; do
+          [ -z "$name" ] && continue
+          if echo "$name" | grep -qE "$PRESERVE"; then
+            echo "Keeping: $name"
+          else
+            echo "Deleting: $name"
+            gh release delete-asset continuous "$name" -y || true
+          fi
+        done
+        BODY="Nexora Continuous build ${APP_VERSION_NAME:-}
+      Commit: ${MSG}
+      Run: ${CI_PIPELINE_URL}
+      Built: $(date -u +%Y-%m-%dT%H:%M:%SZ)"
+        gh release edit continuous --title "Nexora Continuous" --notes "$BODY"
+        shopt -s nullglob
+        FILES=(amxx-addons.zip manifest.json manifest-v7a.json build-meta.json incremental/arm64-v8a/*.so incremental-v7a/armeabi-v7a/*.so compiler-assets/*)
+        if [ "$NEEDS_APK" = "true" ]; then
+          FILES+=(version.txt android/app/build/outputs/apk/release/*.apk)
+        fi
+        gh release upload continuous --clobber "${FILES[@]}"
+      else
+        # Version tag (v*) — parity with softprops/action-gh-release.
+        shopt -s nullglob
+        FILES=(amxx-addons.zip manifest.json manifest-v7a.json build-meta.json
+               incremental/arm64-v8a/*.so incremental-v7a/armeabi-v7a/*.so
+               compiler-assets/*)
+        if [ "$NEEDS_APK" = "true" ]; then
+          FILES+=(version.txt android/app/build/outputs/apk/release/*.apk)
+        fi
+        EXISTING=$(gh release view "$CI_COMMIT_TAG" >/dev/null 2>&1 && echo yes || echo no)
+        if [ "$EXISTING" = "no" ]; then
+          gh release create "$CI_COMMIT_TAG" --title "$CI_COMMIT_TAG" --notes "$MSG" || true
+        fi
+        gh release upload "$CI_COMMIT_TAG" --clobber "${FILES[@]}" || true
+      fi
+
+      ############################################################
+      # Notify Discord (optional)
+      ############################################################
+      if [ -n "${DISCORD_WEBHOOK:-}" ]; then
+        VERSION="$CI_COMMIT_TAG"
+        APK_FILE="nexora_v${VERSION#v}.apk"
+        if [ "$CI_COMMIT_TAG" = "continuous" ]; then
+          VERSION="${APP_VERSION_NAME:-continuous}"
+          APK_FILE="nexora_continuous.apk"
+        fi
+        REPO="$GH_REPO"
+        COMMIT_MSG=$(echo "$MSG" | head -c 500)
+        HAS_MARKER="$HAS_MARKER"
+        RELEASE_URL="https://github.com/${REPO}/releases/tag/${CI_COMMIT_TAG}"
+        if compgen -G "android/app/build/outputs/apk/release/*.apk" >/dev/null; then
+          APK_COUNT=$(ls android/app/build/outputs/apk/release/*.apk | wc -l)
+        else
+          APK_COUNT=0
+        fi
+        if [ "$APK_COUNT" -gt 0 ]; then
+          TITLE="Nexora v${VERSION} released"
+          if [ "$CI_COMMIT_TAG" = "continuous" ]; then
+            TITLE="Nexora Continuous build ${VERSION}"
+          fi
+          STATUS_FIELD=":white_check_mark: App update ready"
+          TYPE_FIELD="App + libs"
+          APK_URL="https://github.com/${REPO}/releases/download/${CI_COMMIT_TAG}/${APK_FILE}"
+          APK_FIELD=", { \"name\": \"Download\", \"value\": \"[${APK_FILE}](${APK_URL})\", \"inline\": true }"
+        elif [ "$HAS_MARKER" = "true" ]; then
+          TITLE="Nexora v${VERSION} libs & plugins update"
+          STATUS_FIELD=":white_check_mark: Libs & plugins updated"
+          TYPE_FIELD="Bundle (libs & plugins)"
+          APK_FIELD=""
+        else
+          TITLE="Nexora v${VERSION} update info"
+          STATUS_FIELD=":information_source: Update posted"
+          TYPE_FIELD="Update info"
+          APK_FIELD=""
+        fi
+        BODY=$(cat <<EOF
+        {
+          "embeds": [{
+            "title": "${TITLE}",
+            "description": "$COMMIT_MSG",
+            "color": 5763719,
+            "url": "${RELEASE_URL}",
+            "thumbnail": { "url": "attachment://thumbnail.jpg" },
+            "image": { "url": "attachment://image.jpg" },
+            "fields": [
+              { "name": "Status", "value": "${STATUS_FIELD}", "inline": true },
+              { "name": "Version", "value": "${VERSION}", "inline": true },
+              { "name": "Type", "value": "${TYPE_FIELD}", "inline": true }${APK_FIELD}
+            ]
+          }]
+        }
+      EOF
+      )
+        curl -fsSL -F "payload_json=$BODY" \
+          -F "thumbnail=@.github/assets/thumbnail.jpg" \
+          -F "image=@.github/assets/image.jpg" \
+          "$DISCORD_WEBHOOK" 2>&1 >/dev/null || { echo "Failed to send Discord webhook"; exit 0; }
+      fi
+
+      echo "== done: ${APP_VERSION_NAME} =="
