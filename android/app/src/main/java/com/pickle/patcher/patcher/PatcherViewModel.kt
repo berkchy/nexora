@@ -610,8 +610,14 @@ class PatcherViewModel(app: Application) : AndroidViewModel(app) {
                 val target = File(_installPath.value)
                 val count = unzipInto(zip, target)
                 patchMetamodConfig(target, _abi.value)
+                val gamedllPatched = disableArm64GamedataOverride(target, _abi.value)
                 _addons.value = AddonsState.Done(
-                    "Installed ${count} addons files into ${target.path}"
+                    buildString {
+                        append("Installed $count addons files into ${target.path}")
+                        if (gamedllPatched) {
+                            append("\narm64 gamedata override disabled for this ABI")
+                        }
+                    }
                 )
                 scanAddonsStatus()
             } catch (t: Throwable) {
@@ -681,6 +687,24 @@ class PatcherViewModel(app: Application) : AndroidViewModel(app) {
             configFile.parentFile?.mkdirs()
             configFile.writeText("$gamedllLine\n")
         }
+    }
+
+    private fun disableArm64GamedataOverride(gameDir: File, abi: String): Boolean {
+        if (abi == "arm64-v8a") return false
+        val customDir = File(gameDir, "addons/amxmodx/data/gamedata/common.games/custom")
+        val files = customDir.listFiles() ?: return false
+        var renamed = false
+        for (file in files) {
+            if (!file.isFile || !file.name.endsWith(".txt")) continue
+            val text = try {
+                file.readText()
+            } catch (_: Throwable) {
+                continue
+            }
+            if (!text.contains("ARM64 offset overrides")) continue
+            if (file.renameTo(File(file.parentFile, file.name + ".arm64-only"))) renamed = true
+        }
+        return renamed
     }
 
     fun startPatch(selectedComponentKeys: Set<String>? = null) {
@@ -1478,6 +1502,7 @@ class PatcherViewModel(app: Application) : AndroidViewModel(app) {
             if (installed > 0) {
                 _addons.value = AddonsState.Done("Auto-installed $installed addon files")
             }
+            disableArm64GamedataOverride(gameDir, _abi.value)
             scanAddonsStatus()
         }
     }
