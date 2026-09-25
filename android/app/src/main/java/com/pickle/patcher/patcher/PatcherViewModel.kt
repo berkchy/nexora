@@ -116,6 +116,9 @@ class PatcherViewModel(app: Application) : AndroidViewModel(app) {
             loadedBundle = null
             _bundle.value = BundleState.None
         }
+        viewModelScope.launch(Dispatchers.IO) {
+            disableArm64GamedataOverride(File(_installPath.value), abi)
+        }
         scanLibs(autoLoad = true)
     }
 
@@ -747,6 +750,7 @@ class PatcherViewModel(app: Application) : AndroidViewModel(app) {
 
         viewModelScope.launch(Dispatchers.IO) {
             _patch.value = PatchUiState.Running(ApkPatcher.Step.ANALYZE, 0f)
+            disableArm64GamedataOverride(File(_installPath.value), selAbi)
             try {
                 val report = ApkPatcher.patch(
                     ApkPatcher.PatchRequest(src, out, effectiveBundle, keystore, keepAbi = selAbi),
