@@ -117,7 +117,7 @@ class PatcherViewModel(app: Application) : AndroidViewModel(app) {
             _bundle.value = BundleState.None
         }
         viewModelScope.launch(Dispatchers.IO) {
-            disableArm64GamedataOverride(File(_installPath.value), abi)
+            applyGamedataAbiPolicy(File(_installPath.value), abi)
         }
         scanLibs(autoLoad = true)
     }
@@ -613,12 +613,18 @@ class PatcherViewModel(app: Application) : AndroidViewModel(app) {
                 val target = File(_installPath.value)
                 val count = unzipInto(zip, target)
                 patchMetamodConfig(target, _abi.value)
-                val gamedllPatched = disableArm64GamedataOverride(target, _abi.value)
+                val gamedataToggled = applyGamedataAbiPolicy(target, _abi.value)
                 _addons.value = AddonsState.Done(
                     buildString {
                         append("Installed $count addons files into ${target.path}")
-                        if (gamedllPatched) {
-                            append("\narm64 gamedata override disabled for this ABI")
+                        if (gamedataToggled) {
+                            append(
+                                if (_abi.value == "arm64-v8a") {
+                                    "\narm64 gamedata override enabled"
+                                } else {
+                                    "\narm64 gamedata override disabled for this ABI"
+                                }
+                            )
                         }
                     }
                 )
@@ -692,22 +698,35 @@ class PatcherViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
-    private fun disableArm64GamedataOverride(gameDir: File, abi: String): Boolean {
-        if (abi == "arm64-v8a") return false
+    /**
+     * offsets-cstrike-replugged.txt holds byte offsets measured from the arm64
+     * gamedll and overrides the "linux" column AMXX uses for every platform.
+     * arm64 needs it (its gamedll CRC does not match the shipped gamedata);
+     * a 32-bit gamedll must not see it, so it is renamed out of the *.txt scan
+     * there and put back when the install is arm64 again.
+     */
+    private fun applyGamedataAbiPolicy(gameDir: File, abi: String): Boolean {
         val customDir = File(gameDir, "addons/amxmodx/data/gamedata/common.games/custom")
         val files = customDir.listFiles() ?: return false
-        var renamed = false
+        var changed = false
         for (file in files) {
-            if (!file.isFile || !file.name.endsWith(".txt")) continue
+            if (!file.isFile) continue
+            if (abi == "arm64-v8a") {
+                if (!file.name.endsWith(GAMEDATA_DISABLED_SUFFIX)) continue
+                val restored = File(file.parentFile, file.name.removeSuffix(GAMEDATA_DISABLED_SUFFIX))
+                if (file.renameTo(restored)) changed = true
+                continue
+            }
+            if (!file.name.endsWith(".txt")) continue
             val text = try {
                 file.readText()
             } catch (_: Throwable) {
                 continue
             }
             if (!text.contains("ARM64 offset overrides")) continue
-            if (file.renameTo(File(file.parentFile, file.name + ".arm64-only"))) renamed = true
+            if (file.renameTo(File(file.parentFile, file.name + GAMEDATA_DISABLED_SUFFIX))) changed = true
         }
-        return renamed
+        return changed
     }
 
     fun startPatch(selectedComponentKeys: Set<String>? = null) {
@@ -750,7 +769,7 @@ class PatcherViewModel(app: Application) : AndroidViewModel(app) {
 
         viewModelScope.launch(Dispatchers.IO) {
             _patch.value = PatchUiState.Running(ApkPatcher.Step.ANALYZE, 0f)
-            disableArm64GamedataOverride(File(_installPath.value), selAbi)
+            applyGamedataAbiPolicy(File(_installPath.value), selAbi)
             try {
                 val report = ApkPatcher.patch(
                     ApkPatcher.PatchRequest(src, out, effectiveBundle, keystore, keepAbi = selAbi),
@@ -1454,6 +1473,8 @@ class PatcherViewModel(app: Application) : AndroidViewModel(app) {
         const val GAME_CZERO = "czero"
         /** ABIs the patcher can build for, in priority order. */
         val SUPPORTED_ABIS = listOf("arm64-v8a", "armeabi-v7a")
+        /** Suffix that keeps the arm64-only gamedata override out of AMXX's *.txt scan. */
+        const val GAMEDATA_DISABLED_SUFFIX = ".arm64-only"
         /** Releases (tags + patcher APK) are published here by CI. */
         const val APP_RELEASE_REPO = "berkchy/nexora"
         /**
@@ -1506,7 +1527,7 @@ class PatcherViewModel(app: Application) : AndroidViewModel(app) {
             if (installed > 0) {
                 _addons.value = AddonsState.Done("Auto-installed $installed addon files")
             }
-            disableArm64GamedataOverride(gameDir, _abi.value)
+            applyGamedataAbiPolicy(gameDir, _abi.value)
             scanAddonsStatus()
         }
     }
