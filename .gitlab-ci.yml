@@ -100,6 +100,12 @@ build-release:
       fi
 
       ############################################################
+      # Submodules (vcs16, 3rdparty/hlsdk, 3rdparty/mm-p)
+      ############################################################
+      echo "== submodules =="
+      git submodule update --init --recursive
+
+      ############################################################
       # Detect build type (parity with the GitHub "Detect build type" step)
       ############################################################
       MSG=$(git log -1 --pretty=%s)
