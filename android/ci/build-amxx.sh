@@ -101,6 +101,10 @@ apply_patch() {
 apply_patch "$PATCHES/amxmodx-pawncc-64bit.patch"        "$SRC/amxmodx"
 apply_patch "$PATCHES/amxmodx-pawncc-64bit-literalpool.patch" "$SRC/amxmodx"
 apply_patch "$PATCHES/amxmodx-libpawnc-console.patch"      "$SRC/amxmodx"
+# bionic printf eats the 'L' modifier for %Lx (integer conversions), so cell64
+# varargs shift by 4 bytes and insert_dbgsymbol's "%s" reads an integer as a
+# pointer -> SIGSEGV on arm32 (arm64 8-byte slots mask the shift).
+apply_patch "$PATCHES/amxmodx-libpc300-sclist-llx.patch"   "$SRC/amxmodx"
 apply_patch "$PATCHES/amxmodx-android-load-CModule.patch" "$SRC/amxmodx"
 apply_patch "$PATCHES/amxmodx-android-load-modules.patch" "$SRC/amxmodx"
 apply_patch "$PATCHES/amxmodx-CDetour-cell.diff"          "$SRC/amxmodx"

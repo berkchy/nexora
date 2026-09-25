@@ -1,0 +1,17 @@
+diff --git a/compiler/libpc300/sclist.c b/compiler/libpc300/sclist.c
+index e4d3606..08e7a52 100755
+--- a/compiler/libpc300/sclist.c
++++ b/compiler/libpc300/sclist.c
+@@ -545,10 +545,10 @@ SC_FUNC stringlist *insert_dbgsymbol(symbol *sym)
+               symname,sym->codeaddr,code_idx,sym->ident,sym->vclass);
+ #elif PAWN_CELL_SIZE==64
+     if (sym->ident==iFUNCTN)
+-      sprintf(string,"S:%08Lx %x:%s %08Lx %08Lx %x %x",(LONGCAST)sym->addr,sym->tag,
++      sprintf(string,"S:%08llx %x:%s %08llx %08llx %x %x",(LONGCAST)sym->addr,sym->tag,
+               symname,sym->addr,sym->codeaddr,sym->ident,sym->vclass);
+     else
+-      sprintf(string,"S:%08Lx %x:%s %08Lx %08Lx %x %x",(LONGCAST)sym->addr,sym->tag,
++      sprintf(string,"S:%08llx %x:%s %08llx %08llx %x %x",(LONGCAST)sym->addr,sym->tag,
+               symname,sym->codeaddr,code_idx,sym->ident,sym->vclass);
+ #endif
+     if (sym->ident==iARRAY || sym->ident==iREFARRAY) {
