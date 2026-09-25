@@ -1,0 +1,2 @@
+# keep: git cannot track empty dirs; this entry makes addons/amxmodx/plugins/
+# exist after the Addons-tab extract (amxx compiled plugins live here).

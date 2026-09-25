@@ -270,7 +270,7 @@ jobs:
 
           # Addons zip
           cd "$GITHUB_WORKSPACE"
-          zip -r amxx-addons.zip addons/ -x '*.git*'
+          zip -r amxx-addons.zip addons/ -x '*.gitignore' '*.git/*'
 
           # build-meta.json: lets the next run's skip guard know which commit
           # + upstream SHAs the native outputs correspond to.

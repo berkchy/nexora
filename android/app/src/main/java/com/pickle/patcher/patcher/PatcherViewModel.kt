@@ -633,12 +633,17 @@ class PatcherViewModel(app: Application) : AndroidViewModel(app) {
         var count = 0
         java.util.zip.ZipFile(zip).use { zf ->
             zf.entries().asSequence().forEach { entry ->
-                if (entry.isDirectory) return@forEach
                 val name = entry.name
                 if (name.isBlank()) return@forEach
                 val out = File(target, name)
                 if (!out.canonicalPath.startsWith(target.canonicalPath + File.separator)) {
                     throw IOException("Unsafe path in addons zip: $name")
+                }
+                if (entry.isDirectory) {
+                    // Create empty dirs too (e.g. addons/amxmodx/plugins/) —
+                    // skipping them leaves amxx without its plugins folder.
+                    out.mkdirs()
+                    return@forEach
                 }
                 // User-edited config files are extracted only when missing — a
                 // fresh download must never clobber the user's own settings.
