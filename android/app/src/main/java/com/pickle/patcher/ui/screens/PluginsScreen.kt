@@ -56,10 +56,13 @@ import androidx.compose.ui.text.font.FontStyle
 import com.pickle.patcher.ui.theme.Gray99
 import androidx.compose.foundation.layout.size
 import androidx.compose.ui.text.input.OffsetMapping
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.layout.imePadding
 
 private val EditorFont = FontFamily.Monospace
-private val EditorSize = 12.sp
-private val EditorLineHeight = 17.sp
+private val EditorSize = 13.sp
+private val EditorLineHeight = 19.sp
 
 /**
  * INI highlighting for the plugin config editor: comments, sections, keys and
@@ -145,7 +148,7 @@ fun PluginsScreen(vm: PatcherViewModel) {
     val dirty by vm.iniDirty.collectAsState()
     val savedAt by vm.iniSavedAt.collectAsState()
     var selected by remember { mutableStateOf<File?>(null) }
-    val context = androidx.compose.ui.platform.LocalContext.current
+    val pageScroll = rememberScrollState()
 
     LaunchedEffect(Unit) { vm.loadPluginInis() }
     LaunchedEffect(inis) {
@@ -162,6 +165,8 @@ fun PluginsScreen(vm: PatcherViewModel) {
     Column(
         modifier = Modifier
             .fillMaxSize()
+            .verticalScroll(pageScroll)
+            .imePadding()
             .padding(horizontal = 16.dp, vertical = 12.dp),
     ) {
         Text("Plugins", style = MaterialTheme.typography.headlineMedium)
@@ -200,9 +205,7 @@ fun PluginsScreen(vm: PatcherViewModel) {
             Surface(
                 shape = RoundedCornerShape(12.dp),
                 color = Gray99,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .weight(1f),
+                modifier = Modifier.fillMaxWidth(),
             ) {
                 Row(Modifier.padding(horizontal = 8.dp, vertical = 8.dp)) {
                     // line-number gutter
