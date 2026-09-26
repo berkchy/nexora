@@ -55,6 +55,8 @@ import java.io.File
 import androidx.compose.foundation.clickable
 import androidx.compose.ui.text.font.FontStyle
 import com.pickle.patcher.ui.theme.Gray99
+import androidx.compose.foundation.layout.size
+import androidx.compose.ui.text.input.OffsetMapping
 
 private val EditorFont = FontFamily.Monospace
 private val EditorSize = 12.sp
@@ -123,7 +125,7 @@ private fun highlightIni(text: String): AnnotatedString = buildAnnotatedString {
 
 private class IniHighlight : VisualTransformation {
     override fun filter(text: AnnotatedString): TransformedText =
-        TransformedText(highlightIni(text.text), androidx.compose.ui.text.OffsetMapping.Identity)
+        TransformedText(highlightIni(text.text), OffsetMapping.Identity)
 }
 
 @Composable

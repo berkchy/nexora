@@ -59,6 +59,8 @@ import androidx.compose.material.icons.filled.Close
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.AlertDialog
 import com.pickle.patcher.ui.theme.Gray30
+import androidx.compose.ui.text.style.TextOverflow
+import com.pickle.patcher.ui.theme.Gray60
 
 @Composable
 fun CompilerScreen(vm: PatcherViewModel) {
