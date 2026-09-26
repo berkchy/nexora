@@ -23,7 +23,6 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.CheckCircle
-import androidx.compose.material.icons.filled.CreateNewFolder
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material3.Icon
@@ -53,8 +52,13 @@ import com.pickle.patcher.ui.theme.AlertRed
 import com.pickle.patcher.ui.theme.Gray40
 import com.pickle.patcher.ui.theme.Gray80
 import com.pickle.patcher.ui.theme.Gray90
-import com.pickle.patcher.ui.theme.SuccessGreen
-import com.pickle.patcher.ui.theme.White
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.material.icons.filled.ErrorOutline
+import androidx.compose.material.icons.filled.ContentCopy
+import androidx.compose.material.icons.filled.Close
+import androidx.compose.material3.TextButton
+import androidx.compose.material3.AlertDialog
+import com.pickle.patcher.ui.theme.Gray30
 
 @Composable
 fun CompilerScreen(vm: PatcherViewModel) {
@@ -67,6 +71,8 @@ fun CompilerScreen(vm: PatcherViewModel) {
     var showPermissionRationale by remember { mutableStateOf(false) }
     val outputRoot by vm.outputRoot.collectAsState()
     var pickForOutput by remember { mutableStateOf(false) }
+    val failures = (compile as? CompileState.Done)?.failures ?: emptyMap()
+    var stampError by remember { mutableStateOf<Pair<String, String>?>(null) }
 
     val context = LocalContext.current
 
@@ -129,26 +135,14 @@ fun CompilerScreen(vm: PatcherViewModel) {
 
         Spacer(Modifier.height(20.dp))
 
-        SectionHeader("SCRIPTS FOLDER")
         AppCard {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Text(
-                    scriptRoot ?: "No folder selected.",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = if (scriptRoot != null) Accent else Gray40,
-                    modifier = Modifier.weight(1f),
-                )
-                if (scriptRoot != null) {
-                    IconButton(onClick = { vm.refreshScripts() }, modifier = Modifier.size(32.dp)) {
-                        Icon(Icons.Filled.Refresh, "Refresh", modifier = Modifier.size(18.dp), tint = Gray40)
-                    }
-                }
-            }
-            Spacer(Modifier.height(8.dp))
-            PrimaryButton(
-                text = if (scriptRoot != null) "Change" else "Select folder",
-                onClick = { pickForOutput = false; requestStorageAndPickFolder() },
-                icon = { Icon(Icons.Filled.CreateNewFolder, null, modifier = Modifier.size(18.dp)) },
+            CompactPathRow(
+                label = "Scripts",
+                path = scriptRoot,
+                empty = "No folder selected",
+                action = if (scriptRoot != null) "Change" else "Pick",
+                onAction = { pickForOutput = false; requestStorageAndPickFolder() },
+                onRefresh = if (scriptRoot != null) ({ vm.refreshScripts() }) else null,
             )
 
             if (showPermissionRationale) {
@@ -157,7 +151,7 @@ fun CompilerScreen(vm: PatcherViewModel) {
                     shape = RoundedCornerShape(8.dp),
                     color = AlertRed.copy(alpha = 0.1f),
                 ) {
-                    Column(modifier = Modifier.padding(10.dp)) {
+                    Column(Modifier.padding(10.dp)) {
                         Text(
                             "Storage permission is required.",
                             style = MaterialTheme.typography.titleSmall,
@@ -186,31 +180,15 @@ fun CompilerScreen(vm: PatcherViewModel) {
 
         Spacer(Modifier.height(16.dp))
 
-        SectionHeader("OUTPUT FOLDER")
         AppCard {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Text(
-                    outputRoot ?: "Default: <scripts>/compiled",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = if (outputRoot != null) Accent else Gray40,
-                    modifier = Modifier.weight(1f),
-                )
-            }
-            Spacer(Modifier.height(8.dp))
-            Row {
-                PrimaryButton(
-                    text = if (outputRoot != null) "Change" else "Select folder",
-                    onClick = { pickForOutput = true; requestStorageAndPickFolder() },
-                    icon = { Icon(Icons.Filled.CreateNewFolder, null, modifier = Modifier.size(18.dp)) },
-                )
-                if (outputRoot != null) {
-                    Spacer(Modifier.width(8.dp))
-                    SecondaryButton(
-                        text = "Default",
-                        onClick = { vm.clearOutputRoot() },
-                    )
-                }
-            }
+            CompactPathRow(
+                label = "Output",
+                path = outputRoot,
+                empty = "addons/amxmodx/plugins",
+                action = if (outputRoot != null) "Change" else "Pick",
+                onAction = { pickForOutput = true; requestStorageAndPickFolder() },
+                onReset = if (outputRoot != null) ({ vm.clearOutputRoot() }) else null,
+            )
         }
 
         Spacer(Modifier.height(16.dp))
@@ -246,12 +224,18 @@ fun CompilerScreen(vm: PatcherViewModel) {
                 // Inner scroll box (like LIBS): keeps the COMPILE card
                 // reachable even with 100+ plugins.
                 Column(
-                    modifier = Modifier.fillMaxWidth().heightIn(max = 264.dp).verticalScroll(listScroll),
+                    modifier = Modifier.fillMaxWidth().heightIn(max = 168.dp).verticalScroll(listScroll),
                 ) {
                     scripts.forEach { s ->
-                        ScriptRow(s, s.path in selected) {
-                            selected = if (s.path in selected) selected - s.path else selected + s.path
-                        }
+                        ScriptRow(
+                            source = s,
+                            selected = s.path in selected,
+                            error = failures[s.path],
+                            onClick = {
+                                selected = if (s.path in selected) selected - s.path else selected + s.path
+                            },
+                            onErrorClick = { err -> stampError = s.path to err },
+                        )
                     }
                 }
             }
@@ -288,6 +272,10 @@ fun CompilerScreen(vm: PatcherViewModel) {
             }
         }
 
+        stampError?.let { (name, message) ->
+            ErrorDialog(name = name.substringAfterLast('/'), message = message) { stampError = null }
+        }
+
         when (val c = compile) {
             is CompileState.Compiling -> {
                 Spacer(Modifier.height(12.dp))
@@ -311,32 +299,143 @@ fun CompilerScreen(vm: PatcherViewModel) {
 }
 
 @Composable
-private fun ScriptRow(s: SmaSource, selected: Boolean, onClick: () -> Unit) {
+private fun ScriptRow(
+    source: SmaSource,
+    selected: Boolean,
+    error: String?,
+    onClick: () -> Unit,
+    onErrorClick: (String) -> Unit,
+) {
     Surface(
-        modifier = Modifier.fillMaxWidth().padding(vertical = 2.dp).clickable(onClick = onClick),
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 2.dp)
+            .clickable(onClick = onClick),
         shape = RoundedCornerShape(8.dp),
         color = if (selected) Gray80 else Gray90,
     ) {
         Row(
-            modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp).fillMaxWidth(),
+            modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp).fillMaxWidth(),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            Column(modifier = Modifier.weight(1f)) {
-                Text(s.name, style = MaterialTheme.typography.titleSmall)
-                Text(
-                    if (s.hasInclude) "include/ ✓" else "no include/",
-                    style = MaterialTheme.typography.labelSmall,
-                    color = if (s.hasInclude) SuccessGreen else Gray40,
-                )
-            }
-            if (selected) {
+            Text(
+                source.name,
+                style = MaterialTheme.typography.bodySmall,
+                color = if (error != null) AlertRed else MaterialTheme.typography.titleSmall.color,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.weight(1f),
+            )
+            if (error != null) {
+                IconButton(
+                    onClick = { onErrorClick(error) },
+                    modifier = Modifier.size(26.dp),
+                ) {
+                    Icon(
+                        Icons.Filled.ErrorOutline,
+                        contentDescription = "Compile error",
+                        tint = AlertRed,
+                        modifier = Modifier.size(16.dp),
+                    )
+                }
+            } else if (selected) {
                 Icon(
                     Icons.Filled.CheckCircle, null,
-                    tint = Accent, modifier = Modifier.size(18.dp),
+                    tint = Accent, modifier = Modifier.size(16.dp),
                 )
             }
         }
     }
+}
+
+@Composable
+private fun CompactPathRow(
+    label: String,
+    path: String?,
+    empty: String,
+    action: String,
+    onAction: () -> Unit,
+    onRefresh: (() -> Unit)? = null,
+    onReset: (() -> Unit)? = null,
+) {
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        Text(
+            label,
+            style = MaterialTheme.typography.labelLarge,
+            color = Gray40,
+        )
+        Spacer(Modifier.width(10.dp))
+        Text(
+            path?.substringAfterLast('/') ?: empty,
+            style = MaterialTheme.typography.bodySmall,
+            color = if (path != null) Accent else Gray60,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+            modifier = Modifier.weight(1f),
+        )
+        if (onRefresh != null) {
+            IconButton(onClick = onRefresh, modifier = Modifier.size(28.dp)) {
+                Icon(
+                    Icons.Filled.Refresh,
+                    "Refresh",
+                    modifier = Modifier.size(15.dp),
+                    tint = Gray40,
+                )
+            }
+        }
+        if (onReset != null) {
+            IconButton(onClick = onReset, modifier = Modifier.size(28.dp)) {
+                Icon(
+                    Icons.Filled.Close,
+                    "Use default",
+                    modifier = Modifier.size(15.dp),
+                    tint = Gray40,
+                )
+            }
+        }
+        Spacer(Modifier.width(4.dp))
+        TextButton(
+            onClick = onAction,
+            contentPadding = PaddingValues(horizontal = 10.dp, vertical = 2.dp),
+            modifier = Modifier.height(28.dp),
+        ) {
+            Text(action, style = MaterialTheme.typography.labelLarge, color = Accent)
+        }
+    }
+}
+
+@Composable
+private fun ErrorDialog(name: String, message: String, onDismiss: () -> Unit) {
+    val context = LocalContext.current
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(name, color = AlertRed, maxLines = 1, overflow = TextOverflow.Ellipsis) },
+        text = {
+            Text(
+                message,
+                style = MaterialTheme.typography.bodySmall.copy(fontFamily = FontFamily.Monospace),
+                color = Gray30,
+            )
+        },
+        confirmButton = {
+            TextButton(onClick = onDismiss) { Text("Close", color = Gray60) }
+        },
+        dismissButton = {
+            TextButton(onClick = {
+                val clip = context.getSystemService(android.content.ClipboardManager::class.java)
+                clip?.setPrimaryClip(
+                    android.content.ClipData.newPlainText(name, message)
+                )
+            }) {
+                Icon(
+                    Icons.Filled.ContentCopy,
+                    contentDescription = "Copy error",
+                    tint = Accent,
+                    modifier = Modifier.size(18.dp),
+                )
+            }
+        },
+    )
 }
 
 @Composable

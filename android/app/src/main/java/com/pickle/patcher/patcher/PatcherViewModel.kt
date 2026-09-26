@@ -96,7 +96,7 @@ data class LibInfo(
 sealed interface CompileState {
     data object Idle : CompileState
     data class Compiling(val source: String) : CompileState
-    data class Done(val log: String) : CompileState
+    data class Done(val log: String, val failures: Map<String, String> = emptyMap()) : CompileState
     data class Failed(val message: String) : CompileState
 }
 
@@ -1208,6 +1208,49 @@ class PatcherViewModel(app: Application) : AndroidViewModel(app) {
     private val _pluginInis = MutableStateFlow<List<PluginIniFile>>(emptyList())
     val pluginInis: StateFlow<List<PluginIniFile>> = _pluginInis.asStateFlow()
 
+    private val _iniText = MutableStateFlow("")
+    val iniText: StateFlow<String> = _iniText.asStateFlow()
+    private val _iniDirty = MutableStateFlow(false)
+    val iniDirty: StateFlow<Boolean> = _iniDirty.asStateFlow()
+    private val _iniSavedAt = MutableStateFlow(0L)
+    val iniSavedAt: StateFlow<Long> = _iniSavedAt.asStateFlow()
+
+    fun openPluginIni(file: File) {
+        viewModelScope.launch(Dispatchers.IO) {
+            _iniText.value = try {
+                if (file.exists()) file.readText() else ""
+            } catch (t: Throwable) {
+                "# could not read ${file.name}\n"
+            }
+            _iniDirty.value = false
+        }
+    }
+
+    fun editIniText(text: String) {
+        _iniText.value = text
+        _iniDirty.value = true
+    }
+
+    fun savePluginIni(file: File) {
+        val text = _iniText.value
+        viewModelScope.launch(Dispatchers.IO) {
+            val ok = try {
+                file.parentFile?.mkdirs()
+                file.writeText(text)
+                true
+            } catch (_: Throwable) {
+                false
+            }
+            if (ok) {
+                _iniDirty.value = false
+                _iniSavedAt.value = System.currentTimeMillis()
+                loadPluginInis()
+            }
+        }
+    }
+
+    fun revertPluginIni(file: File) = openPluginIni(file)
+
     fun loadPluginInis() {
         viewModelScope.launch(Dispatchers.IO) {
             val configs = File(File(_installPath.value), "addons/amxmodx/configs")
@@ -1424,6 +1467,7 @@ class PatcherViewModel(app: Application) : AndroidViewModel(app) {
         viewModelScope.launch(Dispatchers.IO) {
             val total = sources.size
             val log = StringBuilder()
+            val failures = LinkedHashMap<String, String>()
             var failed = 0
             // Script Folder holds the folder the user picked for plugins
             // (e.g. .../amxmodx/scripting). Log files live in exactly
@@ -1460,13 +1504,14 @@ class PatcherViewModel(app: Application) : AndroidViewModel(app) {
                         )
                     } catch (_: Throwable) {}
                 }
-                if (!ok) failed++
+                if (!ok) {
+                    failed++
+                    failures[source.path] = body.trim().ifEmpty { "Compile failed." }
+                }
             }
             val okCount = total - failed
             val summary = "\n=== $okCount ok, $failed failed ==="
-            _compile.value =
-                if (failed == 0) CompileState.Done(log.toString() + summary)
-                else CompileState.Failed(log.toString() + summary)
+            _compile.value = CompileState.Done(log.toString() + summary, failures)
         }
     }
 
