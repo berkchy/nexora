@@ -1,12 +1,12 @@
 diff --git a/amxmodx/meta_api.cpp b/amxmodx/meta_api.cpp
-index a4936a3..9c8be6e 100755
+index a4936a3..e20e7c3 100755
 --- a/amxmodx/meta_api.cpp
 +++ b/amxmodx/meta_api.cpp
 @@ -1663,6 +1663,7 @@ C_DLLEXPORT	int	Meta_Attach(PLUG_LOADTIME now, META_FUNCTIONS *pFunctionTable, m
  	g_coloredmenus = ColoredMenus(g_mod_name.chars()); // whether or not to use colored menus
  
  	// ###### Print short GPL
-+	ALERT(at_logged, "[NX] boot 20 attach-enter\n");
++	print_srvconsole("[NX] boot 20 attach-enter\n");
  	print_srvconsole("\n   AMX Mod X version %s Copyright (c) 2004-2015 AMX Mod X Development Team \n"
  					 "   AMX Mod X comes with ABSOLUTELY NO WARRANTY; for details type `amxx gpl'.\n", AMXX_VERSION);
  	print_srvconsole("   This is free software and you are welcome to redistribute it under \n"
@@ -14,23 +14,23 @@ index a4936a3..9c8be6e 100755
  	}
  
  	// ###### Initialize logging here
-+	ALERT(at_logged, "[NX] boot 22 coreini-done\n");
++	print_srvconsole("[NX] boot 22 coreini-done\n");
  	g_log_dir = get_localinfo("amxx_logs", "addons/amxmodx/logs");
  	g_log.SetLogType("amxx_logging");
  
  	// ###### Now attach metamod modules
  	// This will also call modules Meta_Query and Meta_Attach functions
-+	ALERT(at_logged, "[NX] boot 24 logtype-done\n");
++	print_srvconsole("[NX] boot 24 logtype-done\n");
  	loadModules(get_localinfo("amxx_modules", "addons/amxmodx/configs/modules.ini"), now);
-+	ALERT(at_logged, "[NX] boot 26 modules-done\n");
++	print_srvconsole("[NX] boot 26 modules-done\n");
  
  	GET_HOOK_TABLES(PLID, &g_pEngTable, NULL, NULL);
  
  	FlagMan.SetFile("cmdaccess.ini");
  
-+	ALERT(at_logged, "[NX] boot 27 startupcfg-done\n");
++	print_srvconsole("[NX] boot 27 startupcfg-done\n");
  	ConfigManager.OnAmxxStartup();
-+	ALERT(at_logged, "[NX] boot 29 attach-done\n");
++	print_srvconsole("[NX] boot 29 attach-done\n");
  
  	if (RehldsApi_Init())
  	{
