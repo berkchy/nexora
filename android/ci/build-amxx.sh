@@ -135,6 +135,9 @@ apply_patch "$PATCHES/amxmodx-xash-disconnect-forwards.patch"  "$SRC/amxmodx"
 # server console with ALERT: arch-independent and visible in engine.log.
 apply_patch "$PATCHES/amxmodx-spawn-progress.patch"        "$SRC/amxmodx"
 apply_patch "$PATCHES/amxmodx-boot-progress.patch"          "$SRC/amxmodx"
+# Routes assert() failures into the server console as well: without this the
+# shim only writes to stderr (logcat), so a crash arrives with no message.
+apply_patch "$PATCHES/amxmodx-assert-report.patch"        "$SRC/amxmodx"
 # ARM flush-to-zero: disable FZ bit so denormalized floats (used by pev/set_pev
 # vector round-trip) are preserved instead of being flushed to zero.
 AMXX_FM="$SRC/amxmodx/modules/fakemeta/fakemeta_amxx.cpp"
