@@ -8,6 +8,7 @@ import androidx.compose.animation.AnimatedContentTransitionScope
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -68,6 +69,7 @@ import com.pickle.patcher.ui.screens.CompilerScreen
 import com.pickle.patcher.ui.screens.PluginsScreen
 import com.pickle.patcher.ui.screens.CrashLogScreen
 import com.pickle.patcher.ui.screens.PatchScreen
+import com.pickle.patcher.ui.IntroOverlay
 import com.pickle.patcher.ui.theme.NexoraTheme
 import com.pickle.patcher.ui.theme.Gray40
 import com.pickle.patcher.ui.theme.Gray60
@@ -86,7 +88,10 @@ class MainActivity : ComponentActivity() {
                     vm.autoInstallAddons()
                     vm.scanAddonsStatus()
                 }
-                PatcherApp(vm)
+                Box(Modifier.fillMaxSize()) {
+                    PatcherApp(vm)
+                    IntroOverlay()
+                }
             }
         }
     }
