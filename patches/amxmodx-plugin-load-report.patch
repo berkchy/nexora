@@ -1,0 +1,34 @@
+diff --git a/amxmodx/modules.cpp b/amxmodx/modules.cpp
+index 7f8219c..7013f25 100644
+--- a/amxmodx/modules.cpp
++++ b/amxmodx/modules.cpp
+@@ -112,7 +112,7 @@ static binlogfuncs_t logfuncs =
+ };
+ #endif
+ 
+-int load_amxscript_internal(AMX *amx, void **program, const char *filename, char *error, size_t maxLength, int debug)
++static int load_amxscript_internal_impl(AMX *amx, void **program, const char *filename, char *error, size_t maxLength, int debug)
+ {
+ 	*error = 0;
+ 	size_t bufSize;
+@@ -356,6 +356,20 @@ int load_amxscript_internal(AMX *amx, void **program, const char *filename, char
+ 	return (amx->error = AMX_ERR_NONE);
+ }
+ 
++// Wraps the reader so every attempt lands in engine.log: the amxx log can
++// be disabled or fail to open, and a plugin that dies while loading used to
++// leave nothing behind at all.
++int load_amxscript_internal(AMX *amx, void **program, const char *filename, char *error, size_t maxLength, int debug)
++{
++	print_srvconsole("[NX] plugin 40 reading %s\n", filename);
++	int rc = load_amxscript_internal_impl(amx, program, filename, error, maxLength, debug);
++	if (rc == AMX_ERR_NONE)
++		print_srvconsole("[NX] plugin 41 loaded %s\n", filename);
++	else
++		print_srvconsole("[NX] plugin 42 FAILED %s: %s (amx error %d)\n", filename, error, rc);
++	return rc;
++}
++
+ int load_amxscript_ex(AMX *amx, void **program, const char *filename, char *error, size_t maxLength, int debug)
+ {
+ 	return load_amxscript_internal(amx, program, filename, error, maxLength, debug);
