@@ -38,7 +38,6 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.TransformedText
 import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.text.style.TextAlign
-import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.pickle.patcher.patcher.PatcherViewModel
@@ -66,59 +65,70 @@ private val EditorLineHeight = 17.sp
  * INI highlighting for the plugin config editor: comments, sections, keys and
  * values get their own colours, and a commented plugin name stays readable so
  * it is obvious which entry is switched off.
+ *
+ * The text is copied verbatim — only styles are attached — so the visual
+ * transformation keeps a 1:1 offset mapping. Rebuilding the line (trimming,
+ * collapsing spaces around '=') changes the length and Compose rejects the
+ * identity mapping, which crashes the editor.
  */
 private fun highlightIni(text: String): AnnotatedString = buildAnnotatedString {
-    text.split("\n").forEachIndexed { index, line ->
-        if (index > 0) append("\n")
-        val trimmed = line.trimStart()
-        val indent = line.length - trimmed.length
-        if (indent > 0) append(" ".repeat(indent))
-        when {
-            trimmed.isEmpty() -> Unit
-            trimmed.startsWith(";") -> {
-                val name = trimmed.removePrefix(";").trim()
-                if (name.isEmpty() || name.startsWith(";") || name.endsWith(";")) {
-                    withStyle(SpanStyle(color = Gray60, fontStyle = FontStyle.Italic)) {
-                        append(trimmed)
-                    }
-                } else {
-                    withStyle(SpanStyle(color = Gray60, fontStyle = FontStyle.Italic)) {
-                        append(";")
-                    }
-                    withStyle(SpanStyle(color = Tertiary)) { append(name) }
-                    val rest = trimmed.removePrefix(";").removePrefix(name)
-                    if (rest.isNotEmpty()) {
-                        withStyle(SpanStyle(color = Gray60, fontStyle = FontStyle.Italic)) {
-                            append(rest)
-                        }
+    var pos = 0
+    while (pos <= text.length) {
+        val lineEnd = text.indexOf('\n', pos).let { if (it < 0) text.length else it }
+        val line = text.substring(pos, lineEnd)
+
+        var first = 0
+        while (first < line.length && line[first] == ' ') first++
+
+        fun style(from: Int, to: Int, span: SpanStyle) {
+            if (to > from) addStyle(span, pos + from, pos + to)
+        }
+
+        if (first < line.length) {
+            when {
+                line[first] == ';' -> {
+                    style(first, line.length, SpanStyle(color = Gray60, fontStyle = FontStyle.Italic))
+                    // keep the name after ';' readable so an off plugin is obvious
+                    var nameStart = first + 1
+                    if (nameStart < line.length && line[nameStart] == ' ') nameStart++
+                    var nameEnd = nameStart
+                    while (nameEnd < line.length && line[nameEnd] != ' ' && line[nameEnd] != ';') nameEnd++
+                    if (nameEnd > nameStart && line.getOrNull(nameEnd) != ';') {
+                        style(first + 1, nameStart, SpanStyle(color = Gray60, fontStyle = FontStyle.Italic))
+                        style(nameStart, nameEnd, SpanStyle(color = Tertiary))
                     }
                 }
-            }
-            trimmed.startsWith("[") -> withStyle(SpanStyle(color = Accent, fontWeight = FontWeight.Bold)) {
-                append(trimmed)
-            }
-            else -> {
-                val eq = line.indexOf('=')
-                val semi = line.indexOf(';')
-                if (eq > 0) {
-                    val valueEnd = if (semi > eq) semi else line.length
-                    append(line.substring(0, eq).trimEnd())
-                    withStyle(SpanStyle(color = Gray70)) { append(" = ") }
-                    val value = line.substring(eq + 1, valueEnd).trim()
-                    withStyle(
-                        SpanStyle(
-                            color = if (value.endsWith(".amxx")) SuccessGreen else Secondary,
+                line[first] == '[' -> {
+                    style(first, line.length, SpanStyle(color = Accent, fontWeight = FontWeight.Bold))
+                }
+                else -> {
+                    val eq = line.indexOf('=')
+                    if (eq > 0) {
+                        val semi = line.indexOf(';', eq + 1)
+                        val valueEnd = if (semi > eq) semi else line.length
+                        style(first, eq, SpanStyle(color = White))
+                        style(eq, eq + 1, SpanStyle(color = Gray70))
+                        var valueStart = eq + 1
+                        while (valueStart < valueEnd && line[valueStart] == ' ') valueStart++
+                        val value = line.substring(valueStart, valueEnd)
+                        style(
+                            valueStart,
+                            valueEnd,
+                            SpanStyle(color = if (value.endsWith(".amxx")) SuccessGreen else Secondary),
                         )
-                    ) { append(value) }
-                    if (semi > eq) {
-                        withStyle(SpanStyle(color = Gray60, fontStyle = FontStyle.Italic)) {
-                            append(line.substring(semi))
+                        if (semi > eq) {
+                            style(semi, line.length, SpanStyle(color = Gray60, fontStyle = FontStyle.Italic))
                         }
                     }
-                } else {
-                    append(trimmed)
                 }
             }
+        }
+        append(line)
+        if (lineEnd < text.length) {
+            append('\n')
+            pos = lineEnd + 1
+        } else {
+            pos = text.length + 1
         }
     }
 }

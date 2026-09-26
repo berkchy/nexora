@@ -368,10 +368,10 @@ private fun CompactPathRow(
         )
         Spacer(Modifier.width(10.dp))
         Text(
-            path?.substringAfterLast('/') ?: empty,
-            style = MaterialTheme.typography.bodySmall,
+            path ?: empty,
+            style = MaterialTheme.typography.bodySmall.copy(fontSize = 11.sp),
             color = if (path != null) Accent else Gray60,
-            maxLines = 1,
+            maxLines = 3,
             overflow = TextOverflow.Ellipsis,
             modifier = Modifier.weight(1f),
         )
