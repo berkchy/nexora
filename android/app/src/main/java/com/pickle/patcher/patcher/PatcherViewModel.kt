@@ -118,6 +118,10 @@ class PatcherViewModel(app: Application) : AndroidViewModel(app) {
         }
         viewModelScope.launch(Dispatchers.IO) {
             applyGamedataAbiPolicy(File(_installPath.value), abi)
+            // Installed libraries live in libs/<abi>/, so an ABI that was
+            // already set up rebuilds its bundle from disk instead of being
+            // asked to download one it already has.
+            if (loadedBundle == null) useCachedBundle()
         }
         scanLibs(autoLoad = true)
     }
@@ -157,7 +161,7 @@ class PatcherViewModel(app: Application) : AndroidViewModel(app) {
     private var loadedBundle: Bundle? = null
     private var lastReport: ApkPatcher.PatchReport? = null
 
-    val hasCachedBundle: Boolean get() = bundleProvider.hasCachedBundle()
+    val hasCachedBundle: Boolean get() = bundleProvider.hasCachedBundle(_abi.value)
 
     val repo = "berkchy/nexora"
 
@@ -283,8 +287,8 @@ class PatcherViewModel(app: Application) : AndroidViewModel(app) {
             scanLibs()
             return
         }
-        // Fallback: try legacy cached bundle zip
-        val b = bundleProvider.loadCachedBundle()
+        // Fallback: the cached bundle for this ABI
+        val b = bundleProvider.loadCachedBundle(abi)
         if (b != null) {
             loadedBundle = b
             _bundle.value = BundleState.Ready("Cached", b.manifest.entries.size, b.manifest.version)
@@ -1378,7 +1382,7 @@ class PatcherViewModel(app: Application) : AndroidViewModel(app) {
                     // it via LD_LIBRARY_PATH set at exec time).
                     if (!nativeKernel.exists() && !matchesDeviceAbi(kernelCopy)) {
                         val kb = try {
-                            (loadedBundle ?: bundleProvider.loadCachedBundle())
+                            (loadedBundle ?: bundleProvider.loadCachedBundle(_abi.value))
                                 ?.files?.get("compiler/amxxpc32.so")
                         } catch (_: Throwable) {
                             null
@@ -1408,7 +1412,7 @@ class PatcherViewModel(app: Application) : AndroidViewModel(app) {
         val kernel = File(compilerDir, "amxxpc32.so")
 
         val bundleFiles = try {
-            loadedBundle ?: bundleProvider.loadCachedBundle()
+            loadedBundle ?: bundleProvider.loadCachedBundle(_abi.value)
         } catch (_: Throwable) {
             null
         }
@@ -1513,7 +1517,7 @@ class PatcherViewModel(app: Application) : AndroidViewModel(app) {
             val gameDir = File(_installPath.value)
             if (!gameDir.exists()) return@launch
 
-            val bundle = loadedBundle ?: bundleProvider.loadCachedBundle() ?: return@launch
+            val bundle = loadedBundle ?: bundleProvider.loadCachedBundle(_abi.value) ?: return@launch
             var installed = 0
             for (entry in bundle.manifest.entries) {
                 if (!entry.target.startsWith("addons/")) continue
@@ -1573,7 +1577,7 @@ class PatcherViewModel(app: Application) : AndroidViewModel(app) {
             val gameDir = File(_installPath.value)
             val addonsDir = File(gameDir, "addons")
 
-            val bundle = loadedBundle ?: bundleProvider.loadCachedBundle()
+            val bundle = loadedBundle ?: bundleProvider.loadCachedBundle(_abi.value)
             val expected = mutableSetOf<String>()
             if (bundle != null) {
                 for (entry in bundle.manifest.entries) {

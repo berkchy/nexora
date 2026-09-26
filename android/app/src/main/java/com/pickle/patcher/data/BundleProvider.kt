@@ -14,11 +14,24 @@ class BundleProvider(private val context: Context) {
     /** Where downloaded release bundles are stored. */
     fun cacheDir(): File = File(context.cacheDir, "patcher")
 
-    fun cachedBundleFile(): File = File(cacheDir(), "amxx-bundle.zip")
+    /**
+     * One cache slot per ABI: a bundle only carries one architecture, and
+     * switching the target ABI in the app would otherwise overwrite the
+     * previously downloaded one and make an already installed ABI look like
+     * it still needs a download.
+     */
+    fun cachedBundleFile(abi: String): File = File(cacheDir(), "amxx-bundle-$abi.zip")
 
-    fun hasCachedBundle(): Boolean = cachedBundleFile().exists()
+    /** Pre per-ABI cache; kept so an upgrade can still read the old slot. */
+    private fun legacyBundleFile(): File = File(cacheDir(), "amxx-bundle.zip")
 
-    fun loadCachedBundle(): Bundle? = loadFrom(cachedBundleFile())
+    fun hasCachedBundle(abi: String): Boolean = cachedBundleFile(abi).exists()
+
+    fun loadCachedBundle(abi: String): Bundle? {
+        loadFrom(cachedBundleFile(abi))?.let { return it }
+        val legacy = loadFrom(legacyBundleFile()) ?: return null
+        return if (legacy.manifest.abi.isBlank() || legacy.manifest.abi == abi) legacy else null
+    }
 
     fun loadFrom(file: File): Bundle? = try {
         Bundle.fromZip(file.readBytes())
