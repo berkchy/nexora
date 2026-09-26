@@ -88,6 +88,7 @@ object ZipRepacker {
         exclude: ExcludeRule = ExcludeRule.DEFAULT,
         pruneAbiExcept: String? = null,
         progress: ((Long, Long) -> Unit)? = null,
+        onEntry: ((index: Int, total: Int, name: String, kind: String) -> Unit)? = null,
     ): Result {
         val src = ZipRaw.open(source) ?: throw IOException("Source APK could not be parsed")
         val srcLen = source.length()
@@ -182,6 +183,7 @@ object ZipRepacker {
                 var done = 0
                 val patchedLibs = ArrayList<String>()
                 for (entry in keptEntries) {
+                    onEntry?.invoke(done, total, entry.name, "keep")
                     if (entry.name == LIBCS_ENTRY) {
                         val content = src.readContent(entry)
                         val patched = patchLibCs(content)
@@ -231,6 +233,7 @@ object ZipRepacker {
                 // add bundle entries
                 val added = ArrayList<String>()
                 for (be in bundle.manifest.entries) {
+                    onEntry?.invoke(done, total, be.target, "add")
                     var content = bundle.resolveEntry(be) ?: continue
                     val stored = be.method == BundleManifest.Compression.STORED
                     added.add(be.target)

@@ -10,6 +10,20 @@ object ApkPatcher {
 
     enum class Step { ANALYZE, INJECT, ALIGN, SIGN, VERIFY }
 
+    /**
+     * One progress tick: which stage, how far in total, and the concrete item
+     * being worked on. The UI renders the counters and the live console from
+     * this, so it never has to guess a label from a float.
+     */
+    data class Progress(
+        val step: Step,
+        val fraction: Float,
+        val detail: String = "",
+        val index: Int = 0,
+        val total: Int = 0,
+        val kind: String = "",
+    )
+
     data class PatchRequest(
         val sourceApk: File,
         val outputApk: File,
@@ -45,18 +59,18 @@ object ApkPatcher {
 
     fun patch(
         request: PatchRequest,
-        onStep: (Step, Float) -> Unit = { _, _ -> },
+        onProgress: (Progress) -> Unit = {},
     ): PatchReport {
         val t0 = System.nanoTime()
 
-        onStep(Step.ANALYZE, 0.02f)
+        onProgress(Progress(Step.ANALYZE, 0.02f, "reading source archive"))
         val src = ZipRaw.open(request.sourceApk)
             ?: throw IllegalArgumentException("Source APK could not be parsed: ${request.sourceApk}")
         val sourceEntries = src.entries.size
         src.close()
         val arscBefore = ZipRaw.open(request.sourceApk)?.entries?.get("resources.arsc")
 
-        onStep(Step.INJECT, 0.1f)
+        onProgress(Progress(Step.INJECT, 0.1f, "writing entries"))
         var progressLast = 0L
         val repack = ZipRepacker.repack(
             source = request.sourceApk,
@@ -66,12 +80,15 @@ object ApkPatcher {
             pruneAbiExcept = request.keepAbi,
             progress = { done, total ->
                 val p = 0.1f + 0.5f * (done.toFloat() / total.toFloat())
-                onStep(Step.INJECT, p.coerceIn(0.1f, 0.6f))
                 progressLast = done
+            },
+            onEntry = { index, total, name, kind ->
+                val p = 0.1f + 0.5f * (index.toFloat() / total.coerceAtLeast(1).toFloat())
+                onProgress(Progress(Step.INJECT, p.coerceIn(0.1f, 0.6f), name, index + 1, total, kind))
             },
         )
 
-        onStep(Step.ALIGN, 0.62f)
+        onProgress(Progress(Step.ALIGN, 0.62f, "aligning stored entries"))
         val arsc = ZipRaw.open(request.outputApk)?.entries?.get("resources.arsc")
         val arscStored = arsc != null && arsc.method == 0
         val arscAligned = arsc != null && (arsc.dataOffset % 4) == 0L
@@ -90,7 +107,7 @@ object ApkPatcher {
         }
         out?.close()
 
-        onStep(Step.SIGN, 0.68f)
+        onProgress(Progress(Step.SIGN, 0.68f, "signing v1 + v2"))
         val tmpSigned = File("${request.outputApk.path}.tmp")
         val outcome = ApkSignerTool.sign(request.outputApk, tmpSigned, request.keystore, request.minSdk)
         if (request.outputApk.exists()) request.outputApk.delete()
@@ -99,9 +116,9 @@ object ApkPatcher {
             tmpSigned.delete()
         }
 
-        onStep(Step.VERIFY, 0.9f)
+        onProgress(Progress(Step.VERIFY, 0.9f, "verifying signature"))
         val seconds = (System.nanoTime() - t0) / 1_000_000_000.0
-        onStep(Step.VERIFY, 1.0f)
+        onProgress(Progress(Step.VERIFY, 1.0f, "verified"))
 
         return PatchReport(
             sourceName = request.sourceApk.name,

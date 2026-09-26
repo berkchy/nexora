@@ -3,12 +3,16 @@ package com.pickle.patcher.ui.screens
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.togetherWith
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -22,6 +26,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
@@ -185,40 +190,17 @@ private fun SourceCard(vm: PatcherViewModel) {
 @Composable
 private fun BundleCard(vm: PatcherViewModel) {
     val bundleState by vm.bundle.collectAsState()
-    val abi by vm.abi.collectAsState()
-    val sourceAbis = vm.sourceAbis
+    val abiStatus by vm.abiStatus.collectAsState()
 
     AppCard {
-        // ABI selector — integrated into bundle card
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Text(
-                "ABI",
-                style = MaterialTheme.typography.titleSmall,
-                color = Gray40,
-            )
-            Spacer(Modifier.width(12.dp))
-            Row(
-                modifier = Modifier.weight(1f),
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-            ) {
-                vm.supportedAbis.forEach { a ->
-                    FilterChip(
-                        selected = a == abi,
-                        onClick = { vm.setAbi(a) },
-                        enabled = sourceAbis.isEmpty() || a in sourceAbis,
-                        label = { Text(displayAbi(a)) },
-                    )
-                }
-            }
-        }
-        if (sourceAbis.isNotEmpty()) {
-            Spacer(Modifier.height(4.dp))
-            Text(
-                "Source: ${sourceAbis.joinToString(", ")}",
-                style = MaterialTheme.typography.bodySmall,
-                color = Gray60,
-            )
-        }
+        TargetCard(
+            status = abiStatus,
+            onSelect = { vm.setAbi(it) },
+            onGet = { abiToGet ->
+                vm.setAbi(abiToGet)
+                vm.fetchAndDownloadBundle()
+            },
+        )
 
         Spacer(Modifier.height(12.dp))
 
@@ -438,6 +420,119 @@ private fun libTypeDesc(name: String): String = when {
 }
 
 @Composable
+private fun TargetCard(
+    status: List<PatcherViewModel.AbiStatus>,
+    onSelect: (String) -> Unit,
+    onGet: (String) -> Unit,
+) {
+    Column {
+        Text(
+            "Target",
+            style = MaterialTheme.typography.titleSmall,
+            color = Gray40,
+        )
+        Spacer(Modifier.height(6.dp))
+        status.forEachIndexed { i, st ->
+            AbiRow(
+                status = st,
+                onSelect = { onSelect(st.abi) },
+                onGet = { onGet(st.abi) },
+            )
+            if (i < status.lastIndex) Spacer(Modifier.height(6.dp))
+        }
+    }
+}
+
+@Composable
+private fun AbiRow(
+    status: PatcherViewModel.AbiStatus,
+    onSelect: () -> Unit,
+    onGet: () -> Unit,
+) {
+    val borderColor by animateColorAsState(
+        targetValue = if (status.selected) Accent.copy(alpha = 0.55f) else Gray70.copy(alpha = 0.5f),
+        animationSpec = tween(180),
+        label = "abiBorder",
+    )
+    Surface(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(12.dp))
+            .border(1.dp, borderColor, RoundedCornerShape(12.dp))
+            .clickable(enabled = status.inSource) { onSelect() },
+        shape = RoundedCornerShape(12.dp),
+        color = if (status.selected) Accent.copy(alpha = 0.06f) else Color.Transparent,
+    ) {
+        Row(
+            modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            // radio dot: the only selection affordance, no buttons
+            Box(
+                modifier = Modifier.size(14.dp),
+                contentAlignment = Alignment.Center,
+            ) {
+                if (status.selected) {
+                    Box(
+                        Modifier
+                            .size(12.dp)
+                            .clip(CircleShape)
+                            .background(Accent)
+                    )
+                } else {
+                    Box(
+                        Modifier
+                            .size(12.dp)
+                            .clip(CircleShape)
+                            .border(1.dp, Gray60, CircleShape)
+                    )
+                }
+            }
+            Spacer(Modifier.width(12.dp))
+            Column(Modifier.weight(1f)) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(
+                        text = displayAbi(status.abi),
+                        style = MaterialTheme.typography.titleSmall,
+                        color = if (status.inSource) White else Gray60,
+                    )
+                    Spacer(Modifier.width(8.dp))
+                    Text(
+                        text = if (status.abi == "arm64-v8a") "64-bit" else "32-bit",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = Gray60,
+                    )
+                }
+                Spacer(Modifier.height(2.dp))
+                Text(
+                    text = when {
+                        !status.inSource -> "Not in source APK"
+                        status.downloading -> "Downloading ${(status.downloadPercent * 100).toInt()}%"
+                        status.installed -> "Installed \u00b7 ${status.libCount} libs"
+                        else -> "No libraries yet"
+                    },
+                    style = MaterialTheme.typography.bodySmall,
+                    color = when {
+                        status.installed -> SuccessGreen
+                        status.downloading -> Accent
+                        status.inSource -> Gray40
+                        else -> Gray60
+                    },
+                )
+            }
+            if (status.inSource && !status.installed && !status.downloading) {
+                Text(
+                    text = if (status.selected) "Download" else "Get",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = Accent,
+                    modifier = Modifier.clickable { onGet() },
+                )
+            }
+        }
+    }
+}
+
+@Composable
 private fun PatchCard(vm: PatcherViewModel) {
     val state by vm.patch.collectAsState()
     val bundle = vm.bundle.collectAsState().value
@@ -465,7 +560,7 @@ private fun PatchCard(vm: PatcherViewModel) {
                 }
             }
             is PatchUiState.Running -> {
-                PatchSteps(s.step, s.progress)
+                PatchSteps(s)
             }
             is PatchUiState.Done -> {
                 PatchResult(s.report, onInstall = { context.startActivity(vm.installIntent()) })
@@ -606,33 +701,78 @@ private fun PatchComponentsDialog(
 }
 
 @Composable
-private fun PatchSteps(step: ApkPatcher.Step, progress: Float) {
-    val steps = listOf(
-        ApkPatcher.Step.ANALYZE to "Analyze",
-        ApkPatcher.Step.INJECT to "Inject",
-        ApkPatcher.Step.ALIGN to "Align",
-        ApkPatcher.Step.SIGN to "Sign",
-        ApkPatcher.Step.VERIFY to "Verify",
-    )
-    val currentIndex = steps.indexOfFirst { it.first == step }
+private val PatchStepLabels = listOf(
+    ApkPatcher.Step.ANALYZE to "Analyze",
+    ApkPatcher.Step.INJECT to "Inject",
+    ApkPatcher.Step.ALIGN to "Align",
+    ApkPatcher.Step.SIGN to "Sign",
+    ApkPatcher.Step.VERIFY to "Verify",
+)
 
-    Column {
-        steps.forEachIndexed { i, (_, label) ->
-            val st = when {
-                i < currentIndex -> StepState.DONE
-                i == currentIndex -> StepState.ACTIVE
-                else -> StepState.PENDING
-            }
-            StepRow(
-                title = label,
-                detail = if (st == StepState.ACTIVE) "${(progress * 100).toInt()}%" else "",
-                state = st,
-            )
-            if (i < steps.lastIndex) Spacer(Modifier.height(4.dp))
-        }
-        Spacer(Modifier.height(8.dp))
-        AppProgressBar(progress)
+@Composable
+private fun PatchSteps(state: PatchUiState.Running) {
+    val steps = PatchStepLabels
+    val currentIndex = steps.indexOfFirst { it.first == state.step }
+    val entries = state.counters["entries"].orEmpty()
+    val libs = state.counters["libs"].orEmpty()
+    val ringLabel = when (state.step) {
+        ApkPatcher.Step.ANALYZE -> "analyze"
+        ApkPatcher.Step.INJECT -> "inject"
+        ApkPatcher.Step.ALIGN -> "align"
+        ApkPatcher.Step.SIGN -> "sign"
+        ApkPatcher.Step.VERIFY -> "verify"
     }
+
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        RingProgress(fraction = state.progress, label = ringLabel)
+        Spacer(Modifier.width(14.dp))
+        Column(Modifier.weight(1f)) {
+            Text(
+                text = steps.getOrNull(currentIndex)?.second ?: "",
+                style = MaterialTheme.typography.titleMedium,
+                color = White,
+            )
+            Spacer(Modifier.height(2.dp))
+            Text(
+                text = state.detail.ifBlank { "working…" },
+                style = MaterialTheme.typography.bodySmall,
+                color = Accent,
+                maxLines = 2,
+                overflow = TextOverflow.Ellipsis,
+            )
+            if (entries.isNotEmpty() || libs.isNotEmpty()) {
+                Spacer(Modifier.height(6.dp))
+                Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                    if (entries.isNotEmpty()) {
+                        StatPill("entries", entries)
+                    }
+                    if (libs.isNotEmpty()) {
+                        StatPill("libs", libs)
+                    }
+                }
+            }
+        }
+    }
+
+    Spacer(Modifier.height(12.dp))
+
+    steps.forEachIndexed { i, (_, label) ->
+        val st = when {
+            i < currentIndex -> StepState.DONE
+            i == currentIndex -> StepState.ACTIVE
+            else -> StepState.PENDING
+        }
+        val detail = when (st) {
+            StepState.ACTIVE -> state.detail
+            StepState.DONE -> "done"
+            else -> ""
+        }
+        StepRow(title = label, detail = detail, state = st)
+        if (i < steps.lastIndex) Spacer(Modifier.height(4.dp))
+    }
+
+    Spacer(Modifier.height(10.dp))
+    MiniConsole(lines = state.log)
 }
 
 @Composable

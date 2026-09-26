@@ -45,12 +45,22 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.text.font.FontFamily
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.sp
 import androidx.compose.ui.unit.dp
 import com.pickle.patcher.ui.theme.Accent
 import com.pickle.patcher.ui.theme.Gray40
 import com.pickle.patcher.ui.theme.Gray60
 import com.pickle.patcher.ui.theme.Gray70
 import com.pickle.patcher.ui.theme.Gray85
+import com.pickle.patcher.ui.theme.Gray99
 import com.pickle.patcher.ui.theme.SuccessGreen
 import com.pickle.patcher.ui.theme.White
 
@@ -326,5 +336,108 @@ fun AppProgressBar(fraction: Float, modifier: Modifier = Modifier) {
             style = MaterialTheme.typography.labelSmall,
             color = Gray40,
         )
+    }
+}
+
+
+/**
+ * Circular progress with the percentage in the middle. Used by the patch
+ * screen so the whole run has one anchor instead of a bar that only grows.
+ */
+@Composable
+fun RingProgress(
+    fraction: Float,
+    modifier: Modifier = Modifier,
+    diameter: androidx.compose.ui.unit.Dp = 92.dp,
+    strokeWidth: androidx.compose.ui.unit.Dp = 8.dp,
+    label: String = "",
+) {
+    val animated by animateFloatAsState(
+        targetValue = fraction.coerceIn(0f, 1f),
+        animationSpec = tween(220),
+        label = "ring",
+    )
+    Box(modifier = modifier.size(diameter), contentAlignment = Alignment.Center) {
+        Canvas(Modifier.size(diameter)) {
+            val stroke = strokeWidth.toPx()
+            val inset = stroke / 2f
+            val arcSize = Size(size.width - stroke, size.height - stroke)
+            drawArc(
+                color = Gray70,
+                startAngle = -90f,
+                sweepAngle = 360f,
+                useCenter = false,
+                topLeft = Offset(inset, inset),
+                size = arcSize,
+                style = Stroke(width = stroke, cap = StrokeCap.Round),
+            )
+            if (animated > 0f) {
+                drawArc(
+                    color = Accent,
+                    startAngle = -90f,
+                    sweepAngle = 360f * animated,
+                    useCenter = false,
+                    topLeft = Offset(inset, inset),
+                    size = arcSize,
+                    style = Stroke(width = stroke, cap = StrokeCap.Round),
+                )
+            }
+        }
+        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+            Text(
+                text = "${(animated * 100).toInt()}%",
+                color = White,
+                fontSize = 20.sp,
+                fontWeight = FontWeight.SemiBold,
+            )
+            if (label.isNotEmpty()) {
+                Text(text = label, color = Gray40, fontSize = 10.sp)
+            }
+        }
+    }
+}
+
+/**
+ * Ten-line live console. Keeps the tail of the log visible while the run is
+ * going, and stays scrollable so the user can read what already scrolled by.
+ */
+@Composable
+fun MiniConsole(
+    lines: List<String>,
+    modifier: Modifier = Modifier,
+    visibleLines: Int = 10,
+) {
+    val scroll = rememberScrollState()
+    Surface(
+        modifier = modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(12.dp),
+        color = Gray99,
+    ) {
+        Column(
+            modifier = Modifier
+                .height((visibleLines * 16 + 16).dp)
+                .verticalScroll(scroll)
+                .padding(vertical = 8.dp, horizontal = 10.dp),
+        ) {
+            if (lines.isEmpty()) {
+                Text(
+                    text = "waiting…",
+                    color = Gray60,
+                    fontSize = 11.sp,
+                    fontFamily = FontFamily.Monospace,
+                )
+            }
+            lines.forEach { line ->
+                Text(
+                    text = line,
+                    color = if (line.startsWith("+")) Accent else Gray30,
+                    fontSize = 11.sp,
+                    lineHeight = 16.sp,
+                    fontFamily = FontFamily.Monospace,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            }
+        }
     }
 }

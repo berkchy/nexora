@@ -49,7 +49,7 @@ object Cli {
 
         val report = ApkPatcher.patch(
             ApkPatcher.PatchRequest(source, out, bundle, signer),
-            onStep = { step, p -> println("  step ${step.name} ${(p * 100).toInt()}%") },
+            onProgress = { t -> println("  step ${t.step.name} ${(t.fraction * 100).toInt()}% ${t.detail}") },
         )
         println("OK  verified=${report.verification?.verified}")
         println("    removed=${report.removedEntries.size} added=${report.addedEntries.size} kept=${report.keptCount}")

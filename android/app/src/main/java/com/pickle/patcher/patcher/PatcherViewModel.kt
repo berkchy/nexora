@@ -62,7 +62,15 @@ sealed interface AddonsState {
 
 sealed interface PatchUiState {
     data object Idle : PatchUiState
-    data class Running(val step: ApkPatcher.Step, val progress: Float) : PatchUiState
+    data class Running(
+        val step: ApkPatcher.Step,
+        val progress: Float,
+        val detail: String = "",
+        val index: Int = 0,
+        val total: Int = 0,
+        val log: List<String> = emptyList(),
+        val counters: Map<String, String> = emptyMap(),
+    ) : PatchUiState
     data class Done(val report: ApkPatcher.PatchReport) : PatchUiState
     data class Failed(val message: String) : PatchUiState
 }
@@ -122,12 +130,52 @@ class PatcherViewModel(app: Application) : AndroidViewModel(app) {
             // already set up rebuilds its bundle from disk instead of being
             // asked to download one it already has.
             if (loadedBundle == null) useCachedBundle()
+            refreshAbiStatus()
         }
         scanLibs(autoLoad = true)
     }
 
     private val _addons = MutableStateFlow<AddonsState>(AddonsState.None)
     val addons: StateFlow<AddonsState> = _addons.asStateFlow()
+
+    /** Per-ABI state so the target card can show every option's status at once. */
+    data class AbiStatus(
+        val abi: String,
+        val inSource: Boolean,
+        val libCount: Int,
+        val hasBundle: Boolean,
+        val selected: Boolean,
+        val downloading: Boolean,
+        val downloadPercent: Float,
+    ) {
+        val installed: Boolean get() = hasBundle && libCount > 0
+    }
+
+    private val _abiStatus = MutableStateFlow<List<AbiStatus>>(emptyList())
+    val abiStatus: StateFlow<List<AbiStatus>> = _abiStatus.asStateFlow()
+    private var downloadingAbi: String? = null
+
+    fun refreshAbiStatus() {
+        val sourceAbis = _source.value?.abis ?: emptyList()
+        val selected = _abi.value
+        _abiStatus.value = supportedAbis.map { a ->
+            val dir = File(libsDir, a)
+            val count = if (dir.isDirectory) {
+                dir.listFiles()?.count { it.isFile && it.name.endsWith(".so") } ?: 0
+            } else 0
+            AbiStatus(
+                abi = a,
+                inSource = sourceAbis.isEmpty() || a in sourceAbis,
+                libCount = count,
+                hasBundle = count > 0 || bundleProvider.hasCachedBundle(a) || loadedBundle?.manifest?.abi == a,
+                selected = a == selected,
+                downloading = downloadingAbi == a,
+                downloadPercent = if (downloadingAbi == a) {
+                    (_bundle.value as? BundleState.Downloading)?.percent ?: 0f
+                } else 0f,
+            )
+        }
+    }
 
     private val _libs = MutableStateFlow<List<LibInfo>>(emptyList())
     val libs: StateFlow<List<LibInfo>> = _libs.asStateFlow()
@@ -265,6 +313,7 @@ class PatcherViewModel(app: Application) : AndroidViewModel(app) {
                 if (_abi.value !in supported) setAbi(supported.first())
                 _source.value = SourceInfo(name, out.length(), info.entryCount, supported)
                 _receivedSource.value = out
+                refreshAbiStatus()
             } catch (t: Throwable) {
                 _patch.value = PatchUiState.Failed("Could not copy source APK: ${t.message}")
             }
@@ -285,6 +334,7 @@ class PatcherViewModel(app: Application) : AndroidViewModel(app) {
             loadedBundle = b
             _bundle.value = BundleState.Loaded
             scanLibs()
+            refreshAbiStatus()
             return
         }
         // Fallback: the cached bundle for this ABI
@@ -411,6 +461,8 @@ class PatcherViewModel(app: Application) : AndroidViewModel(app) {
 
     fun fetchAndDownloadBundle() {
         if (_bundle.value is BundleState.Downloading) return
+        downloadingAbi = _abi.value
+        refreshAbiStatus()
         viewModelScope.launch(Dispatchers.IO) {
             _bundle.value = BundleState.Downloading(0.04f)
             try {
@@ -474,7 +526,9 @@ class PatcherViewModel(app: Application) : AndroidViewModel(app) {
                     "Updated ${diff.toDownload.size} files", b.manifest.entries.size, b.manifest.version
                 )
                 loadedBundle = b
+                downloadingAbi = null
                 scanLibs()
+                refreshAbiStatus()
             } catch (t: Throwable) {
                 // Offline fallback: if there are already libs on disk, load them.
                 val files = IncrementalUpdateManager.loadBundleFileMap(libsDir, _abi.value)
@@ -486,6 +540,8 @@ class PatcherViewModel(app: Application) : AndroidViewModel(app) {
                 } else {
                     _bundle.value = BundleState.DownloadError(t.message ?: "Unknown error")
                 }
+                downloadingAbi = null
+                refreshAbiStatus()
             }
         }
     }
@@ -733,6 +789,28 @@ class PatcherViewModel(app: Application) : AndroidViewModel(app) {
         return changed
     }
 
+    /** One console line per meaningful event; null keeps the console quiet. */
+    private fun logLine(tick: ApkPatcher.Progress): String? {
+        val detail = tick.detail
+        val leaf = detail.substringAfterLast('/')
+        return when {
+            tick.kind == "add" -> "+ $leaf"
+            tick.kind == "keep" && (detail.startsWith("lib/") || detail.startsWith("addons/")) -> "  $leaf"
+            tick.kind.isEmpty() && detail.isNotBlank() -> "\u2192 ${tick.step.name.lowercase()} \u00b7 $detail"
+            else -> null
+        }
+    }
+
+    /** Deterministic per-stage counters, carried forward between ticks. */
+    private fun stepCounters(
+        tick: ApkPatcher.Progress,
+        prev: PatchUiState.Running?,
+    ): Map<String, String> {
+        val libs = (prev?.counters?.get("libs")?.toIntOrNull() ?: 0) + if (tick.kind == "add") 1 else 0
+        val entries = if (tick.total > 0) "${tick.index}/${tick.total}" else ""
+        return mapOf("libs" to libs.toString(), "entries" to entries)
+    }
+
     fun startPatch(selectedComponentKeys: Set<String>? = null) {
         val src = _receivedSource.value ?: return
         val b = loadedBundle ?: return
@@ -777,8 +855,19 @@ class PatcherViewModel(app: Application) : AndroidViewModel(app) {
             try {
                 val report = ApkPatcher.patch(
                     ApkPatcher.PatchRequest(src, out, effectiveBundle, keystore, keepAbi = selAbi),
-                    onStep = { step, p ->
-                        _patch.value = PatchUiState.Running(step, p)
+                    onProgress = { tick ->
+                        val prev = _patch.value as? PatchUiState.Running
+                        val log = prev?.log.orEmpty()
+                        val line = logLine(tick)
+                        _patch.value = PatchUiState.Running(
+                            step = tick.step,
+                            progress = tick.fraction,
+                            detail = tick.detail,
+                            index = tick.index,
+                            total = tick.total,
+                            log = if (line != null) (log + line).takeLast(120) else log,
+                            counters = stepCounters(tick, prev),
+                        )
                     },
                 )
                 lastReport = report
