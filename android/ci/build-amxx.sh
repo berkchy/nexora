@@ -129,6 +129,11 @@ apply_patch "$PATCHES/amxmodx-fun-strip-user-weapons.diff"  "$SRC/amxmodx"
 # Xash3D has no SV_DropClient detour (symbol hidden + ABI differs), so deliver
 # client_disconnected/client_remove from the engine pfnClientDisconnect path.
 apply_patch "$PATCHES/amxmodx-xash-disconnect-forwards.patch"  "$SRC/amxmodx"
+# Map-spawn progress markers ([NX] spawn NN / serveractivate). The arm32
+# SIGABRT lands somewhere between the "Mapchange" log line and the first
+# plugin output, and amxx's own log can be disabled, so print straight to the
+# server console with ALERT: arch-independent and visible in engine.log.
+apply_patch "$PATCHES/amxmodx-spawn-progress.patch"        "$SRC/amxmodx"
 # ARM flush-to-zero: disable FZ bit so denormalized floats (used by pev/set_pev
 # vector round-trip) are preserved instead of being flushed to zero.
 AMXX_FM="$SRC/amxmodx/modules/fakemeta/fakemeta_amxx.cpp"

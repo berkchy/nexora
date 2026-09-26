@@ -1,0 +1,98 @@
+diff --git a/amxmodx/meta_api.cpp b/amxmodx/meta_api.cpp
+index a4936a3..1f19a30 100755
+--- a/amxmodx/meta_api.cpp
++++ b/amxmodx/meta_api.cpp
+@@ -397,6 +397,7 @@ int	C_Spawn(edict_t *pent)
+ 	g_forwards.clear();
+ 
+ 	g_log.MapChange();
++	ALERT(at_logged, "[NX] spawn 01 mapchange-done\n");
+ 
+ 	// ###### Initialize task manager
+ 	g_tasksMngr.registerTimers(&gpGlobals->time, &mp_timelimit->value, &g_game_timeleft);
+@@ -425,6 +426,7 @@ int	C_Spawn(edict_t *pent)
+ 	get_localinfo("amx_logdir", "addons/amxmodx/logs");
+ 
+ 	FlagMan.LoadFile();
++	ALERT(at_logged, "[NX] spawn 04 flagman-done\n");
+ 
+ 	ArrayHandles.clear();
+ 	TrieHandles.clear();
+@@ -439,7 +441,9 @@ int	C_Spawn(edict_t *pent)
+ 	char configs_dir[256];
+ 
+ 	// ###### Load modules
++	ALERT(at_logged, "[NX] spawn 05 loadModules-start\n");
+ 	loadModules(get_localinfo("amxx_modules", "addons/amxmodx/configs/modules.ini"), PT_ANYTIME);
++	ALERT(at_logged, "[NX] spawn 06 loadModules-done\n");
+ 
+ 	get_localinfo_r("amxx_configsdir", "addons/amxmodx/configs", configs_dir, sizeof(configs_dir)-1);
+ 	g_plugins.CALMFromFile(get_localinfo("amxx_plugins", "addons/amxmodx/configs/plugins.ini"));
+@@ -469,6 +473,7 @@ int	C_Spawn(edict_t *pent)
+ 		STRING(gpGlobals->mapname));
+ 	g_plugins.CALMFromFile(map_pluginsfile_path);
+ 
++	ALERT(at_logged, "[NX] spawn 07 calm-done\n");
+ 	int loaded = countModules(CountModules_Running); // Call after attachModules so all modules don't have pending stat
+ 
+ 	// Set some info about amx version and modules
+@@ -480,7 +485,9 @@ int	C_Spawn(edict_t *pent)
+ 	// ###### Load Vault
+ 	char file[PLATFORM_MAX_PATH];
+ 	g_vault.setSource(build_pathname_r(file, sizeof(file), "%s", get_localinfo("amxx_vault", "addons/amxmodx/configs/vault.ini")));
++	ALERT(at_logged, "[NX] spawn 08 cvars-done\n");
+ 	g_vault.loadVault();
++	ALERT(at_logged, "[NX] spawn 09 vault-done\n");
+ 
+ 	// ###### Init time and freeze tasks
+ 	g_game_timeleft = g_bmod_dod ? 1.0f : 0.0f;
+@@ -507,6 +514,7 @@ int	C_Spawn(edict_t *pent)
+ 		g_plugins.loadPluginsFromFile(prefixed_map_pluginsfile, false);
+ 	}
+ 
++	ALERT(at_logged, "[NX] spawn 10 plugins-loaded\n");
+ 	g_plugins.Finalize();
+ 	g_plugins.InvalidateCache();
+ 
+@@ -528,7 +536,9 @@ int	C_Spawn(edict_t *pent)
+ 	FF_ChangeLevel = registerForward("server_changelevel", ET_STOP, FP_STRING, FP_DONE);
+ 	FF_ClientConnectEx = registerForward("client_connectex", ET_STOP, FP_CELL, FP_STRING, FP_STRING, FP_ARRAY, FP_DONE);
+ 
++	ALERT(at_logged, "[NX] spawn 12 forwards-done\n");
+ 	CoreCfg.OnAmxxInitialized();
++	ALERT(at_logged, "[NX] spawn 13 corecfg-done\n");
+ 
+ #if defined BINLOG_ENABLED
+ 	if (!g_BinLog.Open())
+@@ -540,12 +550,14 @@ int	C_Spawn(edict_t *pent)
+ #endif
+ 
+ 	modules_callPluginsLoaded();
++	ALERT(at_logged, "[NX] spawn 14 modules-pluginsloaded-done\n");
+ 
+ 	TypeConversion.init();
++	ALERT(at_logged, "[NX] spawn 15 typeconv-done\n");
+ 
+ 	// ###### Call precache forward function
+ 	g_dontprecache = false;
+-	executeForwards(FF_PluginPrecache);
++	ALERT(at_logged, "[NX] spawn 16 precache-forward-done\n");
+ 	g_dontprecache = true;
+ 
+ 	for (auto &generic : g_forcegeneric)
+@@ -620,6 +632,7 @@ plugin_init	forward	function from plugins
+ */
+ void C_ServerActivate(edict_t *pEdictList, int edictCount, int clientMax)
+ {
++	ALERT(at_logged, "[NX] serveractivate 20 enter\n");
+ 	int id;
+ 
+ 	for (int i = 0; g_user_msg[i].name;	++i)
+@@ -657,6 +670,7 @@ void C_ServerActivate(edict_t *pEdictList, int edictCount, int clientMax)
+ 
+ void C_ServerActivate_Post(edict_t *pEdictList, int edictCount, int clientMax)
+ {
++	ALERT(at_logged, "[NX] serveractivate-post 30 enter\n");
+ 	if (g_activated)
+ 		RETURN_META(MRES_IGNORED);
+ 
