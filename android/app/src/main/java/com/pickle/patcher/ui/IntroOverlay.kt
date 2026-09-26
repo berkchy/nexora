@@ -52,11 +52,13 @@ private const val FADE_IN_MS = 380
 private const val FADE_OUT_MS = 380
 
 @Composable
-fun IntroOverlay() {
+fun IntroOverlay(playKey: Long = 0L) {
     var visible by remember { mutableStateOf(true) }
     var entered by remember { mutableStateOf(false) }
 
-    LaunchedEffect(Unit) {
+    LaunchedEffect(playKey) {
+        visible = true
+        delay(60)
         entered = true
         delay(HOLD_MS)
         visible = false

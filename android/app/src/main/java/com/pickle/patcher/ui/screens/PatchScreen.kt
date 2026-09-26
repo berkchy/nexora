@@ -86,7 +86,7 @@ private val mbFmt = DecimalFormat("0.0")
 private fun Long.mb(): String = "${mbFmt.format(this / 1048576.0)} MB"
 
 /** Manifest versions like 1.27.x print as v1.27.x; continuous builds print raw. */
-private fun String.toDisplayVersion(): String =
+fun String.toDisplayVersion(): String =
     if (firstOrNull()?.isDigit() == true) "v$this" else this
 
 @Composable
@@ -205,11 +205,43 @@ private fun BundleCard(vm: PatcherViewModel) {
         Spacer(Modifier.height(12.dp))
 
         when (val bs = bundleState) {
-            is BundleState.None -> {
+            is BundleState.Downloading -> {
                 Text(
-                    "A mod bundle is required.",
-                    style = MaterialTheme.typography.bodyMedium,
+                    bs.tagName.ifBlank { "Bundle" },
+                    style = MaterialTheme.typography.titleSmall,
+                    color = Accent,
+                )
+                Spacer(Modifier.height(4.dp))
+                Text(
+                    if (bs.currentFile.isNotBlank()) {
+                        "Downloading ${bs.fileIndex + 1}/${bs.fileTotal} \u00b7 ${bs.currentFile}"
+                    } else {
+                        "Downloading\u2026"
+                    },
+                    style = MaterialTheme.typography.bodySmall,
                     color = Gray40,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+                Spacer(Modifier.height(8.dp))
+                AppProgressBar(bs.percent)
+            }
+            is BundleState.DownloadError -> {
+                BundleSummaryLine(
+                    icon = Icons.Filled.Warning,
+                    tint = AlertRed,
+                    title = "Download failed",
+                    detail = bs.message,
+                )
+                Spacer(Modifier.height(10.dp))
+                SecondaryButton("Retry", onClick = { vm.fetchAndDownloadBundle() })
+            }
+            is BundleState.None -> {
+                BundleSummaryLine(
+                    icon = Icons.Filled.FolderOpen,
+                    tint = Gray40,
+                    title = "No bundle for this target",
+                    detail = "Download the modules for the selected ABI to patch.",
                 )
                 Spacer(Modifier.height(10.dp))
                 PrimaryButton(
@@ -218,66 +250,49 @@ private fun BundleCard(vm: PatcherViewModel) {
                     icon = { Icon(Icons.Filled.Download, null, modifier = Modifier.size(18.dp)) },
                 )
             }
-            is BundleState.Downloading -> {
-                if (bs.tagName.isNotBlank()) {
-                    Text(
-                        bs.tagName,
-                        style = MaterialTheme.typography.titleSmall,
-                        color = Accent,
-                    )
-                    Spacer(Modifier.height(4.dp))
-                }
-                if (bs.currentFile.isNotBlank()) {
-                    Text(
-                        "Downloading ${bs.fileIndex + 1}/${bs.fileTotal}: ${bs.currentFile}",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = Gray40,
-                    )
-                } else {
-                    Text("Downloading…", style = MaterialTheme.typography.bodySmall, color = Gray40)
-                }
-                Spacer(Modifier.height(8.dp))
-                AppProgressBar(bs.percent)
-            }
-            is BundleState.DownloadError -> {
-                Text(bs.message, style = MaterialTheme.typography.bodySmall, color = AlertRed)
-                Spacer(Modifier.height(8.dp))
-                SecondaryButton("Retry", onClick = { vm.fetchAndDownloadBundle() })
-            }
             is BundleState.Loaded -> {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Icon(
-                        Icons.Filled.CheckCircle, null,
-                        tint = SuccessGreen, modifier = Modifier.size(20.dp),
-                    )
-                    Spacer(Modifier.width(8.dp))
-                    Column(modifier = Modifier.weight(1f)) {
-                        Text("Libs loaded", style = MaterialTheme.typography.titleSmall)
-                        Text(
-                            "Ready to patch",
-                            style = MaterialTheme.typography.bodySmall, color = Gray40,
-                        )
-                    }
-                }
+                BundleSummaryLine(
+                    icon = Icons.Filled.CheckCircle,
+                    tint = SuccessGreen,
+                    title = "Ready to patch",
+                    detail = "Libraries from libs/ \u00b7 ${abiStatus.firstOrNull { it.selected }?.libCount ?: 0} files",
+                )
                 Spacer(Modifier.height(8.dp))
                 SecondaryButton("Refresh", onClick = { vm.fetchAndDownloadBundle() })
             }
             is BundleState.Ready -> {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Icon(
-                        Icons.Filled.CheckCircle, null,
-                        tint = SuccessGreen, modifier = Modifier.size(20.dp),
-                    )
-                    Spacer(Modifier.width(8.dp))
-                    Column(modifier = Modifier.weight(1f)) {
-                        Text(bs.bundleName, style = MaterialTheme.typography.titleSmall)
-                        Text(
-                            "${bs.entries} entries  ·  ${bs.version.toDisplayVersion()}",
-                            style = MaterialTheme.typography.bodySmall, color = Gray40,
-                        )
-                    }
-                }
+                BundleSummaryLine(
+                    icon = Icons.Filled.CheckCircle,
+                    tint = SuccessGreen,
+                    title = bs.bundleName,
+                    detail = "${bs.entries} entries \u00b7 ${bs.version.toDisplayVersion()}",
+                )
+                Spacer(Modifier.height(8.dp))
+                SecondaryButton("Refresh", onClick = { vm.fetchAndDownloadBundle() })
             }
+        }
+    }
+}
+
+@Composable
+private fun BundleSummaryLine(
+    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    tint: androidx.compose.ui.graphics.Color,
+    title: String,
+    detail: String,
+) {
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        Icon(icon, null, tint = tint, modifier = Modifier.size(20.dp))
+        Spacer(Modifier.width(10.dp))
+        Column(modifier = Modifier.weight(1f)) {
+            Text(title, style = MaterialTheme.typography.titleSmall, color = White)
+            Text(
+                detail,
+                style = MaterialTheme.typography.bodySmall,
+                color = Gray40,
+                maxLines = 2,
+                overflow = TextOverflow.Ellipsis,
+            )
         }
     }
 }
@@ -533,6 +548,7 @@ private fun AbiRow(
 @Composable
 private fun PatchCard(vm: PatcherViewModel) {
     val state by vm.patch.collectAsState()
+    val log by vm.patchLog.collectAsState()
     val bundle = vm.bundle.collectAsState().value
     val context = LocalContext.current
     val canPatch = vm.source.collectAsState().value != null &&
@@ -562,6 +578,7 @@ private fun PatchCard(vm: PatcherViewModel) {
             }
             is PatchUiState.Done -> {
                 PatchResult(
+                    vm = vm,
                     report = s.report,
                     log = s.log,
                     onInstall = { context.startActivity(vm.installIntent()) },
@@ -573,9 +590,27 @@ private fun PatchCard(vm: PatcherViewModel) {
                 Spacer(Modifier.height(4.dp))
                 Text("Patch failed", style = MaterialTheme.typography.titleMedium)
                 Spacer(Modifier.height(4.dp))
-                Text(s.message, style = MaterialTheme.typography.bodySmall, color = Gray40)
+                Text(
+                    s.message,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = Gray40,
+                )
                 Spacer(Modifier.height(10.dp))
-                SecondaryButton("Try Again", onClick = { vm.reset() })
+                val context = LocalContext.current
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    SecondaryButton("Copy log", onClick = {
+                        val clip = context.getSystemService(android.content.ClipboardManager::class.java)
+                        clip?.setPrimaryClip(
+                            android.content.ClipData.newPlainText(
+                                "nexora patch log",
+                                (listOf(s.message) + log).joinToString("\n"),
+                            )
+                        )
+                    })
+                    SecondaryButton("Try Again", onClick = { vm.reset() })
+                }
+                Spacer(Modifier.height(12.dp))
+                MiniConsole(lines = log)
             }
         }
     }
@@ -584,6 +619,7 @@ private fun PatchCard(vm: PatcherViewModel) {
         val components = remember(vm) { vm.patchComponents() }
         PatchComponentsDialog(
             components = components,
+            summary = vm.patchSummary(),
             onConfirm = { selectedKeys ->
                 showComponents = false
                 vm.startPatch(selectedKeys)
@@ -595,7 +631,8 @@ private fun PatchCard(vm: PatcherViewModel) {
 
 @Composable
 private fun PatchComponentsDialog(
-    components: List<PatcherViewModel.PatchComponent>,
+    components: List<PatchComponent>,
+    summary: PatcherViewModel.PatchSummary?,
     onConfirm: (Set<String>) -> Unit,
     onDismiss: () -> Unit,
 ) {
@@ -605,95 +642,93 @@ private fun PatchComponentsDialog(
 
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("Patch Components") },
+        title = { Text("Patch") },
         text = {
             Column {
-                Row(
+                if (summary != null) {
+                    Surface(
+                        shape = RoundedCornerShape(10.dp),
+                        color = Accent.copy(alpha = 0.07f),
+                        modifier = Modifier.fillMaxWidth(),
+                    ) {
+                        Column(Modifier.padding(10.dp)) {
+                            Text(
+                                "Target ${displayAbi(summary.abi)}",
+                                style = MaterialTheme.typography.titleSmall,
+                                color = Accent,
+                            )
+                            Spacer(Modifier.height(4.dp))
+                            Text(
+                                "${summary.source} \u00b7 ${summary.sourceSize.mb()}\n" +
+                                    "${summary.components} components \u00b7 ${summary.entries} entries\n" +
+                                    "payload ${summary.payloadSize.mb()}",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = Gray40,
+                            )
+                        }
+                    }
+                    Spacer(Modifier.height(10.dp))
+                }
+
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(
+                        "${selected.size}/${components.size} selected",
+                        style = MaterialTheme.typography.labelLarge,
+                        color = Gray40,
+                        modifier = Modifier.weight(1f),
+                    )
+                    TextButton(onClick = {
+                        selected = if (allSelected) emptySet() else allKeys.toSet()
+                    }) {
+                        Text(if (allSelected) "Clear" else "All", color = Accent)
+                    }
+                }
+
+                Column(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .clickable {
-                            selected = if (allSelected) emptySet() else allKeys.toSet()
-                        }
-                        .padding(vertical = 8.dp),
-                    verticalAlignment = Alignment.CenterVertically,
+                        .heightIn(max = 300.dp)
+                        .verticalScroll(rememberScrollState()),
                 ) {
-                    Checkbox(
-                        checked = allSelected,
-                        onCheckedChange = {
-                            selected = if (it) allKeys.toSet() else emptySet()
-                        },
-                    )
-                    Spacer(Modifier.width(8.dp))
-                    Text(
-                        if (allSelected) "All components (${selected.size})" else "Select all",
-                        style = MaterialTheme.typography.titleSmall,
-                    )
-                }
-                if (components.isEmpty()) {
-                    Text(
-                        "No components found in the loaded bundle.",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = Gray40,
-                    )
-                } else {
-                    Column(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .heightIn(max = 320.dp)
-                            .verticalScroll(rememberScrollState()),
-                    ) {
-                        components.forEach { c ->
-                            Row(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .clickable {
-                                        selected = if (c.key in selected) {
-                                            selected - c.key
-                                        } else {
-                                            selected + c.key
-                                        }
-                                    }
-                                    .padding(vertical = 8.dp),
-                                verticalAlignment = Alignment.CenterVertically,
-                            ) {
-                                Checkbox(
-                                    checked = c.key in selected,
-                                    onCheckedChange = { on ->
-                                        selected = if (on) selected + c.key else selected - c.key
-                                    },
-                                )
-                                Spacer(Modifier.width(8.dp))
-                                Column(modifier = Modifier.weight(1f)) {
-                                    Text(
-                                        c.label,
-                                        style = MaterialTheme.typography.bodyMedium,
-                                        color = if (c.key in selected) White else Gray40,
-                                    )
-                                    Text(
-                                        c.description,
-                                        style = MaterialTheme.typography.bodySmall,
-                                        color = Gray40,
-                                        maxLines = 2,
-                                        overflow = TextOverflow.Ellipsis,
-                                    )
+                    components.forEach { c ->
+                        val on = c.key in selected
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clickable {
+                                    selected = if (on) selected - c.key else selected + c.key
                                 }
+                                .padding(vertical = 8.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            Checkbox(
+                                checked = on,
+                                onCheckedChange = { checked ->
+                                    selected = if (checked) selected + c.key else selected - c.key
+                                },
+                            )
+                            Spacer(Modifier.width(8.dp))
+                            Column(Modifier.weight(1f)) {
+                                Text(
+                                    c.label,
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    color = if (on) White else Gray40,
+                                )
+                                Text(
+                                    c.description,
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = Gray40,
+                                    maxLines = 2,
+                                    overflow = TextOverflow.Ellipsis,
+                                )
                             }
                         }
                     }
                 }
-                Spacer(Modifier.height(8.dp))
-                Text(
-                    "Only selected components will be injected into the APK.",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = Gray60,
-                )
             }
         },
         confirmButton = {
-            TextButton(
-                onClick = { onConfirm(selected) },
-                enabled = selected.isNotEmpty(),
-            ) {
+            TextButton(onClick = { onConfirm(selected) }, enabled = selected.isNotEmpty()) {
                 Text("Patch", color = Accent)
             }
         },
@@ -745,7 +780,112 @@ private fun PatchSteps(state: PatchUiState.Running) {
 }
 
 @Composable
+private fun PatchHistoryCard(vm: PatcherViewModel) {
+    val history by vm.patchHistory.collectAsState()
+    if (history.isEmpty()) return
+    AppCard {
+        Text("Patch history", style = MaterialTheme.typography.titleSmall, color = Gray40)
+        Spacer(Modifier.height(6.dp))
+        history.take(5).forEach { h ->
+            Row(
+                modifier = Modifier.fillMaxWidth().padding(vertical = 3.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Box(
+                    Modifier
+                        .size(8.dp)
+                        .clip(CircleShape)
+                        .background(if (h.ok) SuccessGreen else AlertRed)
+                )
+                Spacer(Modifier.width(10.dp))
+                Column(Modifier.weight(1f)) {
+                    Text(
+                        "${displayAbi(h.abi)} \u00b7 ${h.libs} libs \u00b7 ${h.entries} entries",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = White,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                    Text(
+                        h.source,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = Gray60,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                }
+                Text(
+                    SimpleDateFormat("dd.MM HH:mm", Locale.getDefault()).format(Date(h.time)),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = Gray60,
+                )
+            }
+        }
+    }
+    Spacer(Modifier.height(8.dp))
+}
+
+@Composable
+private fun PatchCheckCard(vm: PatcherViewModel) {
+    val check by vm.patchCheck.collectAsState()
+    AppCard {
+        Text("Install check", style = MaterialTheme.typography.titleSmall, color = Gray40)
+        Spacer(Modifier.height(6.dp))
+        when (val c = check) {
+            is PatcherViewModel.PatchCheck.Idle -> {
+                Text(
+                    "Signature, bundled libraries and the last game run.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = Gray40,
+                )
+                Spacer(Modifier.height(8.dp))
+                SecondaryButton("Run check", onClick = { vm.verifyPatchedApk() })
+            }
+            is PatcherViewModel.PatchCheck.Running -> {
+                Text("Checking\u2026", style = MaterialTheme.typography.bodySmall, color = Accent)
+            }
+            is PatcherViewModel.PatchCheck.Result -> {
+                CheckLine("Signature", if (c.signatureOk) "verified (v1=${c.usedV1} v2=${c.usedV2})" else "NOT VERIFIED", c.signatureOk)
+                CheckLine("Bundled libs", "${c.presentLibs}/${c.expectedLibs}", c.presentLibs >= c.expectedLibs && c.expectedLibs > 0)
+                CheckLine("Last game run", c.engineCommit.ifBlank { "engine.log not found" }, c.engineCommit.isNotBlank())
+            }
+            is PatcherViewModel.PatchCheck.Failed -> {
+                Text(c.message, style = MaterialTheme.typography.bodySmall, color = AlertRed)
+                Spacer(Modifier.height(8.dp))
+                SecondaryButton("Retry", onClick = { vm.verifyPatchedApk() })
+            }
+        }
+    }
+}
+
+@Composable
+private fun CheckLine(label: String, value: String, ok: Boolean) {
+    Row(
+        modifier = Modifier.fillMaxWidth().padding(vertical = 3.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Icon(
+            if (ok) Icons.Filled.CheckCircle else Icons.Filled.Warning,
+            null,
+            tint = if (ok) SuccessGreen else AlertRed,
+            modifier = Modifier.size(16.dp),
+        )
+        Spacer(Modifier.width(8.dp))
+        Text(label, style = MaterialTheme.typography.bodySmall, color = Gray40)
+        Spacer(Modifier.width(8.dp))
+        Text(
+            value,
+            style = MaterialTheme.typography.bodySmall,
+            color = if (ok) White else AlertRed,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+        )
+    }
+}
+
+@Composable
 private fun PatchResult(
+    vm: PatcherViewModel,
     report: ApkPatcher.PatchReport,
     log: List<String>,
     onInstall: () -> Unit,
@@ -785,6 +925,10 @@ private fun PatchResult(
             SecondaryButton("Patch again", onClick = onPatchAgain)
             Spacer(Modifier.height(12.dp))
             MiniConsole(lines = log)
+            Spacer(Modifier.height(12.dp))
+            PatchHistoryCard(vm)
+            Spacer(Modifier.height(8.dp))
+            PatchCheckCard(vm)
             Spacer(Modifier.height(6.dp))
             Text(
                 "Replaces the existing AMXX install. Signed with the debug key.",
@@ -794,3 +938,6 @@ private fun PatchResult(
         }
     }
 }
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale

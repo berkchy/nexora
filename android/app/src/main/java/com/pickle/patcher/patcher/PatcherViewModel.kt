@@ -15,9 +15,11 @@ import com.pickle.patcher.data.BundleProvider
 import com.pickle.patcher.data.IncrementalUpdateManager
 import com.pickle.patcher.data.ReleaseRepository
 import com.pickle.patcher.lib.ApkPatcher
+import com.pickle.patcher.lib.ApkSignerTool
 import com.pickle.patcher.lib.Bundle
 import com.pickle.patcher.lib.SigningKeystore
 import com.pickle.patcher.lib.ZipAnalyzer
+import com.pickle.patcher.lib.ZipRaw
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
@@ -153,6 +155,67 @@ class PatcherViewModel(app: Application) : AndroidViewModel(app) {
     ) {
         val installed: Boolean get() = hasBundle && libCount > 0
     }
+
+    data class PatchHistoryEntry(
+        val time: Long,
+        val abi: String,
+        val source: String,
+        val entries: Int,
+        val libs: Int,
+        val verified: Boolean,
+        val ok: Boolean,
+    )
+
+    data class PatchSummary(
+        val abi: String,
+        val source: String,
+        val sourceSize: Long,
+        val components: Int,
+        val entries: Int,
+        val payloadSize: Long,
+    )
+
+    sealed interface PatchCheck {
+        data object Idle : PatchCheck
+        data object Running : PatchCheck
+        data class Result(
+            val signatureOk: Boolean,
+            val usedV1: Boolean,
+            val usedV2: Boolean,
+            val expectedLibs: Int,
+            val presentLibs: Int,
+            val engineCommit: String,
+        ) : PatchCheck
+        data class Failed(val message: String) : PatchCheck
+    }
+
+    private val _patchLog = MutableStateFlow<List<String>>(emptyList())
+    val patchLog: StateFlow<List<String>> = _patchLog.asStateFlow()
+    private val _patchHistory = MutableStateFlow<List<PatchHistoryEntry>>(emptyList())
+    val patchHistory: StateFlow<List<PatchHistoryEntry>> = _patchHistory.asStateFlow()
+    private val _patchCheck = MutableStateFlow<PatchCheck>(PatchCheck.Idle)
+
+    private val _bundleVersion = MutableStateFlow("")
+    val bundleVersion: StateFlow<String> = _bundleVersion.asStateFlow()
+    private val _updateAvailable = MutableStateFlow(false)
+    val updateAvailable: StateFlow<Boolean> = _updateAvailable.asStateFlow()
+
+    /** True once per bundle version, so the intro can replay after an update. */
+    fun shouldReplayIntro(version: String): Boolean {
+        if (version.isBlank()) return false
+        if (_bundleVersion.value != version) {
+            _bundleVersion.value = version
+            val prefs = getApplication<Application>()
+                .getSharedPreferences("patcher_ui", Context.MODE_PRIVATE)
+            val seen = prefs.getString("intro_version", null)
+            if (seen != version) {
+                prefs.edit().putString("intro_version", version).apply()
+                return true
+            }
+        }
+        return false
+    }
+    val patchCheck: StateFlow<PatchCheck> = _patchCheck.asStateFlow()
 
     private val _abiStatus = MutableStateFlow<List<AbiStatus>>(emptyList())
     val abiStatus: StateFlow<List<AbiStatus>> = _abiStatus.asStateFlow()
@@ -336,6 +399,7 @@ class PatcherViewModel(app: Application) : AndroidViewModel(app) {
             val b = buildBundleFromFileMap(files, abi)
             loadedBundle = b
             _bundle.value = BundleState.Loaded
+            _bundleVersion.value = b.manifest.version
             scanLibs()
             refreshAbiStatus()
             return
@@ -530,6 +594,7 @@ class PatcherViewModel(app: Application) : AndroidViewModel(app) {
                 )
                 loadedBundle = b
                 downloadingAbi = null
+                _bundleVersion.value = b.manifest.version
                 scanLibs()
                 refreshAbiStatus()
             } catch (t: Throwable) {
@@ -860,24 +925,27 @@ class PatcherViewModel(app: Application) : AndroidViewModel(app) {
                     ApkPatcher.PatchRequest(src, out, effectiveBundle, keystore, keepAbi = selAbi),
                     onProgress = { tick ->
                         val prev = _patch.value as? PatchUiState.Running
-                        val log = prev?.log.orEmpty()
                         val line = logLine(tick)
+                        val log = (prev?.log.orEmpty() + listOfNotNull(line)).takeLast(200)
+                        _patchLog.value = log
                         _patch.value = PatchUiState.Running(
                             step = tick.step,
                             progress = tick.fraction,
                             detail = tick.detail,
                             index = tick.index,
                             total = tick.total,
-                            log = if (line != null) (log + line).takeLast(120) else log,
+                            log = log,
                             counters = stepCounters(tick, prev),
                         )
                     },
                 )
                 lastReport = report
-                val finished = (_patch.value as? PatchUiState.Running)?.log.orEmpty()
+                val finished = _patchLog.value
                 _patch.value = PatchUiState.Done(report, finished)
+                persistPatchRun(selAbi, report, finished)
             } catch (t: Throwable) {
                 _patch.value = PatchUiState.Failed(t.message ?: "Unknown error")
+                writePatchLog(selAbi, null, _patchLog.value, t.message ?: "Unknown error")
             }
         }
     }
@@ -907,6 +975,109 @@ class PatcherViewModel(app: Application) : AndroidViewModel(app) {
     fun reset() {
         _patch.value = PatchUiState.Idle
         lastReport = null
+        _patchLog.value = emptyList()
+        _patchCheck.value = PatchCheck.Idle
+    }
+
+    private fun persistPatchRun(abi: String, report: ApkPatcher.PatchReport, log: List<String>) {
+        val entry = PatchHistoryEntry(
+            time = System.currentTimeMillis(),
+            abi = abi,
+            source = report.sourceName,
+            entries = report.addedEntries.size,
+            libs = report.moduleLibs.size,
+            verified = report.verification?.verified == true,
+            ok = report.success,
+        )
+        val history = (listOf(entry) + _patchHistory.value).take(20)
+        _patchHistory.value = history
+        try {
+            val file = File(_installPath.value, "patch-history.json")
+            file.writeText(history.joinToString(",", prefix = "[", postfix = "]") { h ->
+                "\"{\"time\":${h.time},\"abi\":\"${h.abi}\",\"source\":\"${h.source}\",\"entries\":${h.entries},\"libs\":${h.libs},\"verified\":${h.verified},\"ok\":${h.ok}}"
+            })
+        } catch (_: Throwable) {
+        }
+        writePatchLog(abi, report, log, null)
+    }
+
+    private fun writePatchLog(
+        abi: String,
+        report: ApkPatcher.PatchReport?,
+        log: List<String>,
+        error: String?,
+    ) {
+        try {
+            val dir = File(_installPath.value)
+            if (!dir.exists()) return
+            val stamp = java.text.SimpleDateFormat("yyyy-MM-dd HH:mm:ss", java.util.Locale.US)
+                .format(java.util.Date())
+            val head = buildString {
+                append("---- patch ").append(stamp).append(" abi=").append(abi).append(" ----\n")
+                if (report != null) {
+                    append("source=").append(report.sourceName)
+                        .append(" entries=").append(report.addedEntries.size)
+                        .append(" libs=").append(report.moduleLibs.size)
+                        .append(" verified=").append(report.verification?.verified).append('\n')
+                }
+                if (error != null) append("error=").append(error).append('\n')
+            }
+            File(dir, "patch.log").appendText(head + log.joinToString("\n") + "\n")
+        } catch (_: Throwable) {
+        }
+    }
+
+    fun patchSummary(): PatchSummary? {
+        val b = loadedBundle ?: return null
+        val src = _receivedSource.value ?: return null
+        val abi = _abi.value
+        val payload = b.files.entries
+            .filter { it.key.contains(abi) || it.key.startsWith("addons/") }
+            .sumOf { it.value.size().toLong() }
+        return PatchSummary(
+            abi = abi,
+            source = src.name,
+            sourceSize = src.length(),
+            components = b.manifest.entries.groupBy { componentKeyFor(it.target) }.size,
+            entries = b.manifest.entries.size,
+            payloadSize = payload,
+        )
+    }
+
+    fun verifyPatchedApk() {
+        val out = outputApk() ?: return
+        if (!out.exists()) {
+            _patchCheck.value = PatchCheck.Failed("patched.apk is missing")
+            return
+        }
+        _patchCheck.value = PatchCheck.Running
+        viewModelScope.launch(Dispatchers.IO) {
+            try {
+                val abi = _abi.value
+                val v = ApkSignerTool.verify(out)
+                val zip = ZipRaw.open(out)
+                val prefix = "lib/$abi/"
+                val present = zip?.entries?.keys?.count { it.startsWith(prefix) && it.endsWith(".so") } ?: 0
+                zip?.close()
+                val expected = loadedBundle?.manifest?.entries?.count { it.target.startsWith(prefix) } ?: present
+                val engine = File(_installPath.value, "engine.log")
+                val commit = if (engine.exists()) {
+                    engine.useLines { seq ->
+                        seq.firstOrNull { it.contains("Commit hash") }?.trim()?.removePrefix("Commit hash  :")?.trim().orEmpty()
+                    }
+                } else ""
+                _patchCheck.value = PatchCheck.Result(
+                    signatureOk = v.verified,
+                    usedV1 = v.usedV1,
+                    usedV2 = v.usedV2,
+                    expectedLibs = expected,
+                    presentLibs = present,
+                    engineCommit = commit,
+                )
+            } catch (t: Throwable) {
+                _patchCheck.value = PatchCheck.Failed(t.message ?: "verification failed")
+            }
+        }
     }
 
     // ------------------------------------------------------------------ updater

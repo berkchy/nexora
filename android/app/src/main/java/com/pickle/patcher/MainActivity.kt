@@ -70,6 +70,7 @@ import com.pickle.patcher.ui.screens.PluginsScreen
 import com.pickle.patcher.ui.screens.CrashLogScreen
 import com.pickle.patcher.ui.screens.PatchScreen
 import com.pickle.patcher.ui.IntroOverlay
+import com.pickle.patcher.ui.screens.toDisplayVersion
 import com.pickle.patcher.ui.theme.NexoraTheme
 import com.pickle.patcher.ui.theme.Gray40
 import com.pickle.patcher.ui.theme.Gray60
@@ -88,9 +89,14 @@ class MainActivity : ComponentActivity() {
                     vm.autoInstallAddons()
                     vm.scanAddonsStatus()
                 }
+                val bundleVersion by vm.bundleVersion.collectAsState()
+                var introKey by remember { mutableStateOf(0L) }
+                LaunchedEffect(bundleVersion) {
+                    if (vm.shouldReplayIntro(bundleVersion)) introKey++
+                }
                 Box(Modifier.fillMaxSize()) {
                     PatcherApp(vm)
-                    IntroOverlay()
+                    IntroOverlay(playKey = introKey)
                 }
             }
         }
@@ -150,6 +156,34 @@ fun PatcherApp(vm: PatcherViewModel) {
                         )
                         Spacer(Modifier.width(8.dp))
                         Text("Nexora", style = MaterialTheme.typography.titleMedium)
+                        Spacer(Modifier.width(8.dp))
+                        val version by vm.bundleVersion.collectAsState()
+                        val update by vm.appUpdate.collectAsState()
+                        if (version.isNotBlank()) {
+                            Surface(
+                                shape = androidx.compose.foundation.shape.RoundedCornerShape(6.dp),
+                                color = if (update is PatcherViewModel.AppUpdate.Available) {
+                                    com.pickle.patcher.ui.theme.Tertiary.copy(alpha = 0.18f)
+                                } else {
+                                    MaterialTheme.colorScheme.surfaceContainerHighest
+                                },
+                            ) {
+                                Text(
+                                    text = if (update is PatcherViewModel.AppUpdate.Available) {
+                                        "update"
+                                    } else {
+                                        version.toDisplayVersion()
+                                    },
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = if (update is PatcherViewModel.AppUpdate.Available) {
+                                        com.pickle.patcher.ui.theme.Tertiary
+                                    } else {
+                                        MaterialTheme.colorScheme.onSurfaceVariant
+                                    },
+                                    modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
+                                )
+                            }
+                        }
                     }
                 },
                 navigationIcon = {
