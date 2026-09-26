@@ -134,6 +134,7 @@ apply_patch "$PATCHES/amxmodx-xash-disconnect-forwards.patch"  "$SRC/amxmodx"
 # plugin output, and amxx's own log can be disabled, so print straight to the
 # server console with ALERT: arch-independent and visible in engine.log.
 apply_patch "$PATCHES/amxmodx-spawn-progress.patch"        "$SRC/amxmodx"
+apply_patch "$PATCHES/amxmodx-boot-progress.patch"          "$SRC/amxmodx"
 # ARM flush-to-zero: disable FZ bit so denormalized floats (used by pev/set_pev
 # vector round-trip) are preserved instead of being flushed to zero.
 AMXX_FM="$SRC/amxmodx/modules/fakemeta/fakemeta_amxx.cpp"
