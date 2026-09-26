@@ -59,6 +59,8 @@ import androidx.compose.ui.text.input.OffsetMapping
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.imePadding
+import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.layout.widthIn
 
 private val EditorFont = FontFamily.Monospace
 private val EditorSize = 13.sp
@@ -149,6 +151,7 @@ fun PluginsScreen(vm: PatcherViewModel) {
     val savedAt by vm.iniSavedAt.collectAsState()
     var selected by remember { mutableStateOf<File?>(null) }
     val pageScroll = rememberScrollState()
+    val hScroll = rememberScrollState()
 
     LaunchedEffect(Unit) { vm.loadPluginInis() }
     LaunchedEffect(inis) {
@@ -208,10 +211,10 @@ fun PluginsScreen(vm: PatcherViewModel) {
                 modifier = Modifier.fillMaxWidth(),
             ) {
                 Row(Modifier.padding(horizontal = 8.dp, vertical = 8.dp)) {
-                    // line-number gutter
+                    // line-number gutter: stays put, only the text pans sideways
                     Column(
                         horizontalAlignment = Alignment.End,
-                        modifier = Modifier.width(34.dp),
+                        modifier = Modifier.width(36.dp).padding(end = 8.dp),
                     ) {
                         repeat(lineCount) { i ->
                             Text(
@@ -226,22 +229,28 @@ fun PluginsScreen(vm: PatcherViewModel) {
                             )
                         }
                     }
-                    Spacer(Modifier.width(8.dp))
-                    BasicTextField(
-                        value = text,
-                        onValueChange = vm::editIniText,
-                        textStyle = MaterialTheme.typography.bodySmall.copy(
-                            color = White,
-                            fontFamily = EditorFont,
-                            fontSize = EditorSize,
-                            lineHeight = EditorLineHeight,
-                        ),
-                        cursorBrush = SolidColor(Accent),
-                        visualTransformation = IniHighlight(),
+                    // A horizontal scroll measures the field with unbounded width,
+                    // which is what keeps long lines on one line instead of
+                    // soft-wrapping them.
+                    Box(
                         modifier = Modifier
-                            .fillMaxWidth()
-                            .weight(1f),
-                    )
+                            .weight(1f)
+                            .horizontalScroll(hScroll),
+                    ) {
+                        BasicTextField(
+                            value = text,
+                            onValueChange = vm::editIniText,
+                            textStyle = MaterialTheme.typography.bodySmall.copy(
+                                color = White,
+                                fontFamily = EditorFont,
+                                fontSize = EditorSize,
+                                lineHeight = EditorLineHeight,
+                            ),
+                            cursorBrush = SolidColor(Accent),
+                            visualTransformation = IniHighlight(),
+                            modifier = Modifier.widthIn(min = 260.dp),
+                        )
+                    }
                 }
             }
 
