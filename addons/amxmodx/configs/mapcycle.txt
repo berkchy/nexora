@@ -1,0 +1,9 @@
+// Map cycle used by nextmap.amxx and mapchooser.amxx.
+// One map per line. Lines starting with // are ignored.
+
+de_dust2
+de_dust
+de_inferno
+de_nuke
+cs_assault
+cs_italy

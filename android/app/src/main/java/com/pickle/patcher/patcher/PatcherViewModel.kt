@@ -1490,8 +1490,14 @@ class PatcherViewModel(app: Application) : AndroidViewModel(app) {
         if (includeDir.isDirectory) {
             cmd.add("-i${includeDir.absolutePath}")
         }
+        val gameDir = File(_installPath.value)
+        val amxxPluginsDir = File(gameDir, "addons/amxmodx/plugins")
+        val scriptDirName = scriptDir.name
+        val scriptIsShipped = scriptDirName == "scripting" &&
+            scriptDir.parentFile?.parentFile?.name == "amxmodx" &&
+            gameDir.exists()
         val compiledDir = _outputRoot.value?.let { File(it) }?.takeIf { it.isDirectory }
-            ?: File(scriptDir, "compiled")
+            ?: if (scriptIsShipped) amxxPluginsDir else File(scriptDir, "compiled")
         compiledDir.mkdirs()
         val outPath = File(compiledDir, f.nameWithoutExtension + ".amxx").absolutePath
         cmd.add("-o$outPath")
