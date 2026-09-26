@@ -81,6 +81,9 @@ import com.pickle.patcher.ui.theme.Gray90
 import com.pickle.patcher.ui.theme.SuccessGreen
 import com.pickle.patcher.ui.theme.White
 import java.text.DecimalFormat
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
 
 private val mbFmt = DecimalFormat("0.0")
 private fun Long.mb(): String = "${mbFmt.format(this / 1048576.0)} MB"
@@ -596,7 +599,6 @@ private fun PatchCard(vm: PatcherViewModel) {
                     color = Gray40,
                 )
                 Spacer(Modifier.height(10.dp))
-                val context = LocalContext.current
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     SecondaryButton("Copy log", onClick = {
                         val clip = context.getSystemService(android.content.ClipboardManager::class.java)
@@ -631,7 +633,7 @@ private fun PatchCard(vm: PatcherViewModel) {
 
 @Composable
 private fun PatchComponentsDialog(
-    components: List<PatchComponent>,
+    components: List<PatcherViewModel.PatchComponent>,
     summary: PatcherViewModel.PatchSummary?,
     onConfirm: (Set<String>) -> Unit,
     onDismiss: () -> Unit,
@@ -938,6 +940,3 @@ private fun PatchResult(
         }
     }
 }
-import java.text.SimpleDateFormat
-import java.util.Date
-import java.util.Locale

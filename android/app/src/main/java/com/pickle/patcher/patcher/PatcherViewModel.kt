@@ -1033,7 +1033,7 @@ class PatcherViewModel(app: Application) : AndroidViewModel(app) {
         val abi = _abi.value
         val payload = b.files.entries
             .filter { it.key.contains(abi) || it.key.startsWith("addons/") }
-            .sumOf { it.value.size().toLong() }
+            .sumOf { it.value.size.toLong() }
         return PatchSummary(
             abi = abi,
             source = src.name,
