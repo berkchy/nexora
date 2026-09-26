@@ -19,7 +19,6 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -43,7 +42,6 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.pickle.patcher.R
 import com.pickle.patcher.ui.theme.Accent
-import com.pickle.patcher.ui.theme.AccentDim
 import com.pickle.patcher.ui.theme.Black
 import com.pickle.patcher.ui.theme.Gray40
 import com.pickle.patcher.ui.theme.White
@@ -92,13 +90,7 @@ fun IntroOverlay() {
         Box(
             modifier = Modifier
                 .fillMaxSize()
-                .background(
-                    Brush.verticalGradient(
-                        0f to Color(0xFF10141B),
-                        0.55f to Black,
-                        1f to Color(0xFF0A0D12),
-                    )
-                )
+                .background(Black)
                 .pointerInput(Unit) {
                     detectTapGestures { visible = false }
                 },
@@ -143,28 +135,6 @@ fun IntroOverlay() {
                     letterSpacing = 1.sp,
                     modifier = Modifier.graphicsLayer { alpha = appear * 0.9f },
                 )
-                Spacer(Modifier.height(22.dp))
-                Box(
-                    modifier = Modifier
-                        .width(132.dp)
-                        .height(2.dp)
-                        .clip(RoundedCornerShape(2.dp))
-                        .background(AccentDim)
-                ) {
-                    Box(
-                        modifier = Modifier
-                            .fillMaxSize()
-                            .graphicsLayer {
-                                scaleX = sweep
-                                transformOrigin = androidx.compose.ui.graphics.TransformOrigin(0f, 0.5f)
-                            }
-                            .background(
-                                Brush.horizontalGradient(
-                                    listOf(Accent.copy(alpha = 0.35f), Accent)
-                                )
-                            )
-                    )
-                }
             }
         }
     }

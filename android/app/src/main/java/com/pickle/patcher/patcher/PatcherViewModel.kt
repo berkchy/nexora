@@ -71,7 +71,10 @@ sealed interface PatchUiState {
         val log: List<String> = emptyList(),
         val counters: Map<String, String> = emptyMap(),
     ) : PatchUiState
-    data class Done(val report: ApkPatcher.PatchReport) : PatchUiState
+    data class Done(
+        val report: ApkPatcher.PatchReport,
+        val log: List<String> = emptyList(),
+    ) : PatchUiState
     data class Failed(val message: String) : PatchUiState
 }
 
@@ -871,7 +874,8 @@ class PatcherViewModel(app: Application) : AndroidViewModel(app) {
                     },
                 )
                 lastReport = report
-                _patch.value = PatchUiState.Done(report)
+                val finished = (_patch.value as? PatchUiState.Running)?.log.orEmpty()
+                _patch.value = PatchUiState.Done(report, finished)
             } catch (t: Throwable) {
                 _patch.value = PatchUiState.Failed(t.message ?: "Unknown error")
             }

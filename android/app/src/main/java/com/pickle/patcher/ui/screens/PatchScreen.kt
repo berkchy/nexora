@@ -507,20 +507,18 @@ private fun AbiRow(
                 Text(
                     text = when {
                         !status.inSource -> "Not in source APK"
-                        status.downloading -> "Downloading ${(status.downloadPercent * 100).toInt()}%"
                         status.installed -> "Installed \u00b7 ${status.libCount} libs"
                         else -> "No libraries yet"
                     },
                     style = MaterialTheme.typography.bodySmall,
                     color = when {
                         status.installed -> SuccessGreen
-                        status.downloading -> Accent
                         status.inSource -> Gray40
                         else -> Gray60
                     },
                 )
             }
-            if (status.inSource && !status.installed && !status.downloading) {
+            if (status.inSource && !status.installed) {
                 Text(
                     text = if (status.selected) "Download" else "Get",
                     style = MaterialTheme.typography.bodySmall,
@@ -563,7 +561,12 @@ private fun PatchCard(vm: PatcherViewModel) {
                 PatchSteps(s)
             }
             is PatchUiState.Done -> {
-                PatchResult(s.report, onInstall = { context.startActivity(vm.installIntent()) })
+                PatchResult(
+                    report = s.report,
+                    log = s.log,
+                    onInstall = { context.startActivity(vm.installIntent()) },
+                    onPatchAgain = { vm.reset() },
+                )
             }
             is PatchUiState.Failed -> {
                 Icon(Icons.Filled.Warning, null, tint = AlertRed, modifier = Modifier.size(20.dp))
@@ -700,21 +703,11 @@ private fun PatchComponentsDialog(
     )
 }
 
-private val PatchStepLabels = listOf(
-    ApkPatcher.Step.ANALYZE to "Analyze",
-    ApkPatcher.Step.INJECT to "Inject",
-    ApkPatcher.Step.ALIGN to "Align",
-    ApkPatcher.Step.SIGN to "Sign",
-    ApkPatcher.Step.VERIFY to "Verify",
-)
-
 @Composable
 private fun PatchSteps(state: PatchUiState.Running) {
-    val steps = PatchStepLabels
-    val currentIndex = steps.indexOfFirst { it.first == state.step }
     val entries = state.counters["entries"].orEmpty()
     val libs = state.counters["libs"].orEmpty()
-    val ringLabel = when (state.step) {
+    val stage = when (state.step) {
         ApkPatcher.Step.ANALYZE -> "analyze"
         ApkPatcher.Step.INJECT -> "inject"
         ApkPatcher.Step.ALIGN -> "align"
@@ -723,24 +716,18 @@ private fun PatchSteps(state: PatchUiState.Running) {
     }
 
     Row(verticalAlignment = Alignment.CenterVertically) {
-        RingProgress(fraction = state.progress, label = ringLabel)
+        RingProgress(fraction = state.progress, label = stage)
         Spacer(Modifier.width(14.dp))
         Column(Modifier.weight(1f)) {
             Text(
-                text = steps.getOrNull(currentIndex)?.second ?: "",
-                style = MaterialTheme.typography.titleMedium,
-                color = White,
-            )
-            Spacer(Modifier.height(2.dp))
-            Text(
-                text = state.detail.ifBlank { "working…" },
-                style = MaterialTheme.typography.bodySmall,
+                text = state.detail.ifBlank { "working\u2026" },
+                style = MaterialTheme.typography.bodyMedium,
                 color = Accent,
                 maxLines = 2,
                 overflow = TextOverflow.Ellipsis,
             )
             if (entries.isNotEmpty() || libs.isNotEmpty()) {
-                Spacer(Modifier.height(6.dp))
+                Spacer(Modifier.height(8.dp))
                 Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                     if (entries.isNotEmpty()) {
                         StatPill("entries", entries)
@@ -754,28 +741,16 @@ private fun PatchSteps(state: PatchUiState.Running) {
     }
 
     Spacer(Modifier.height(12.dp))
-
-    steps.forEachIndexed { i, (_, label) ->
-        val st = when {
-            i < currentIndex -> StepState.DONE
-            i == currentIndex -> StepState.ACTIVE
-            else -> StepState.PENDING
-        }
-        val detail = when (st) {
-            StepState.ACTIVE -> state.detail
-            StepState.DONE -> "done"
-            else -> ""
-        }
-        StepRow(title = label, detail = detail, state = st)
-        if (i < steps.lastIndex) Spacer(Modifier.height(4.dp))
-    }
-
-    Spacer(Modifier.height(10.dp))
     MiniConsole(lines = state.log)
 }
 
 @Composable
-private fun PatchResult(report: ApkPatcher.PatchReport, onInstall: () -> Unit) {
+private fun PatchResult(
+    report: ApkPatcher.PatchReport,
+    log: List<String>,
+    onInstall: () -> Unit,
+    onPatchAgain: () -> Unit,
+) {
     AnimatedContent(
         targetState = true,
         transitionSpec = { fadeIn(tween(300)).togetherWith(fadeOut(tween(200))) },
@@ -806,6 +781,10 @@ private fun PatchResult(report: ApkPatcher.PatchReport, onInstall: () -> Unit) {
                 onClick = onInstall,
                 icon = { Icon(Icons.Filled.InstallDesktop, null, modifier = Modifier.size(18.dp)) },
             )
+            Spacer(Modifier.height(8.dp))
+            SecondaryButton("Patch again", onClick = onPatchAgain)
+            Spacer(Modifier.height(12.dp))
+            MiniConsole(lines = log)
             Spacer(Modifier.height(6.dp))
             Text(
                 "Replaces the existing AMXX install. Signed with the debug key.",
