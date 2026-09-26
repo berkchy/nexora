@@ -61,6 +61,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.layout.Box
 
 private val EditorFont = FontFamily.Monospace
 private val EditorSize = 13.sp
