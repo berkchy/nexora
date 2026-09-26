@@ -173,7 +173,7 @@ if [ -f "$AMXX_FM" ] && ! grep -q "DisableARM_FTZ" "$AMXX_FM"; then
   echo "   patched: ARM FTZ disable"
 fi
 # AMXX module file suffix: "amd64" upstream means "64-bit cells" (applies to
-# every PAWN_CELL_SIZE=64 build, ARM included), but on ARM32 that name reads as
+# cell-64 build), but on ARM32 that name reads as
 # an x86-64 binary. Name ARM32 modules "_arm" (arm64 keeps "_amd64" so it also
 # matches the ISA); the loader suffix logic must stay in sync with the CI build.
 apply_patch "$PATCHES/amxmodx-module-suffix-arm.patch"      "$SRC/amxmodx"
@@ -312,6 +312,9 @@ case "$ABI" in
     PCRE_HOST=aarch64-linux-android
     RUNTIME_SUFFIX=arm64
     MOD_SUFFIX=amd64
+    # 64-bit cells: pointers are 8 bytes here, which is what the AMX VM
+    # assumes (amx_Exec asserts sizeof(cell)==sizeof(void *)).
+    CELL=64
     ;;
   armeabi-v7a)
     TARGET=armv7a-linux-androideabi24
@@ -321,6 +324,11 @@ case "$ABI" in
     # ARM32 AMXX modules are named "_arm" (not "_amd64"): the loader suffix
     # logic in the amxmodx-module-suffix-arm patch mirrors this.
     MOD_SUFFIX=arm
+    # 32-bit cells on purpose. amx_Exec asserts sizeof(cell)==sizeof(void *),
+    # so a 64-bit-cell build on 32-bit pointers aborts the moment a plugin
+    # runs. This is also the cell size the stock amxxpc emits, so plugins
+    # compiled anywhere load here.
+    CELL=32
     ;;
   *)
     echo "unsupported ABI: $ABI (expected arm64-v8a or armeabi-v7a)" >&2
@@ -372,7 +380,7 @@ DEFS=(
   -Dstricmp=strcasecmp
   -Dstrnicmp=strncasecmp
   -DAMX_NOPROPLIST
-  -DPAWN_CELL_SIZE=64
+  -DPAWN_CELL_SIZE=$CELL
   -DAMXX_USE_VERSIONLIB
   -DHAVE_STDINT_H
   -DHAVE_I64
@@ -1008,10 +1016,11 @@ else
 fi
 
 # ----------------------------------------------------------------- plugins
-# Host pawncc. libpc300 is compiled from source with 64-bit PAWN cells
-# (PAWN_CELL_SIZE=64) and exported as Compile64; the amxxpc driver prefers
-# Compile64 and writes cellsize = sizeof(cell), so plugins are 64-bit and
-# loadable by the 64-bit AMXX core. NOTE: the CMakeLists of libpc300 is stale
+# Host pawncc, used only for the bundle's own plugin .sma compilation on the
+# build machine. It always builds 64-bit cells (exported as Compile64) because
+# the only AMXX core it has to match is the host-side one; the on-device
+# compiler further down is built per ABI with that ABI's cell size.
+# NOTE: the CMakeLists of libpc300 is stale
 # (missing files / cmake_minimum_required), so we compile it by hand.
 echo "== building host pawncc (64-bit cells) =="
 LIBPC="$AMXX/compiler/libpc300"
@@ -1112,15 +1121,15 @@ fi
 # target Android ABI so the patcher app can compile plugins on-device straight
 # out of the bundle. Layout mirrors the AMBuilder targets:
 #   OUT/compiler/$ABI/amxxpc          driver (amxx.cpp + amxxpc.cpp + Binary.cpp + zlib)
-#   OUT/compiler/$ABI/amxxpc32.so     libpc300 kernel (libpawnc + sc*), PAWN_CELL_SIZE=64
+#   OUT/compiler/$ABI/amxxpc32.so     libpc300 kernel (libpawnc + sc*), cell size = $CELL
 # The driver dlopens/amxxpc32.so at runtime, so both ship together. libc++ is
 # linked statically (libc++_static + libc++abi, whole-archive) to avoid having to
 # bundle libc++_shared.so and juggle LD_LIBRARY_PATH on-device.
-echo "== building amxxpc for $ABI (embedded) =="
+echo "== building amxxpc for $ABI (embedded, cell $CELL) =="
 PC_DEV="$TMP/amxxpc-$ABI"
 rm -rf "$PC_DEV"
 mkdir -p "$PC_DEV"
-PC_DEV_COMMON="-std=gnu17 -O2 -fPIC -DPAWN_CELL_SIZE=64 -DHAVE_I64 -DLINUX \
+PC_DEV_COMMON="-std=gnu17 -O2 -fPIC -DPAWN_CELL_SIZE=$CELL -DHAVE_I64 -DLINUX \
   -DHAVE_UNISTD_H -DHAVE_INTTYPES_H -DHAVE_STDINT_H -DHAVE_ALLOCA_H \
   -D__BYTE_ORDER=__LITTLE_ENDIAN -D__LITTLE_ENDIAN -I$LIBPC"
 for s in sc1 sc2 sc3 sc4 sc5 sc6 sc7 scvars scmemfil scstate sclist sci18n \
@@ -1136,7 +1145,7 @@ for f in "$AMXX/third_party/zlib"/*.c; do
   [ -e "$f" ] || continue
   "$CC" -O2 -fPIC -c "$f" -o "$PC_DEV/zobj/$(basename "${f%.c}").o"
 done
-"$CXX" -O2 -std=c++14 -DPAWN_CELL_SIZE=64 -DHAVE_I64 -DHAVE_STDINT_H \
+"$CXX" -O2 -std=c++14 -DPAWN_CELL_SIZE=$CELL -DHAVE_I64 -DHAVE_STDINT_H \
   -DLINUX -DAMX_ANSIONLY -D__BYTE_ORDER=__LITTLE_ENDIAN -D__LITTLE_ENDIAN \
   -I"$LIBPC" -I"$AMXX/public" -I"$AMXX/compiler/amxxpc" -I"$AMXX/third_party" \
   -o "$PC_DEV/amxxpc" "$AMXX/compiler/amxxpc"/amxxpc.cpp \

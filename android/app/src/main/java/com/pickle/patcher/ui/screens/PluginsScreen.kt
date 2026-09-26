@@ -66,6 +66,7 @@ import androidx.compose.foundation.layout.Box
 private val EditorFont = FontFamily.Monospace
 private val EditorSize = 13.sp
 private val EditorLineHeight = 19.sp
+private val EditorLines = 18
 
 /**
  * INI highlighting for the plugin config editor: comments, sections, keys and
@@ -153,6 +154,7 @@ fun PluginsScreen(vm: PatcherViewModel) {
     var selected by remember { mutableStateOf<File?>(null) }
     val pageScroll = rememberScrollState()
     val hScroll = rememberScrollState()
+    val vScroll = rememberScrollState()
 
     LaunchedEffect(Unit) { vm.loadPluginInis() }
     LaunchedEffect(inis) {
@@ -164,6 +166,11 @@ fun PluginsScreen(vm: PatcherViewModel) {
 
     val file = selected
     val lineCount = remember(text) { text.count { it == '\n' } + 1 }
+    val editorStyle = MaterialTheme.typography.bodySmall.copy(
+        fontFamily = EditorFont,
+        fontSize = EditorSize,
+        lineHeight = EditorLineHeight,
+    )
     val saved = savedAt > 0L
 
     Column(
@@ -211,45 +218,37 @@ fun PluginsScreen(vm: PatcherViewModel) {
                 color = Gray99,
                 modifier = Modifier.fillMaxWidth(),
             ) {
-                Row(Modifier.padding(horizontal = 8.dp, vertical = 8.dp)) {
-                    // line-number gutter: stays put, only the text pans sideways
-                    Column(
-                        horizontalAlignment = Alignment.End,
-                        modifier = Modifier.width(36.dp).padding(end = 8.dp),
-                    ) {
-                        repeat(lineCount) { i ->
-                            Text(
-                                "${i + 1}",
-                                style = MaterialTheme.typography.bodySmall.copy(
-                                    fontFamily = EditorFont,
-                                    fontSize = EditorSize,
-                                    lineHeight = EditorLineHeight,
-                                ),
-                                color = Gray70,
-                                textAlign = TextAlign.End,
-                            )
+                // The viewport is a fixed 18 lines; scrolling happens inside it in
+                // both directions, and the gutter scrolls with the text through the
+                // same state.
+                val editorHeight = (EditorLines * EditorLineHeight.value).dp + 16.dp
+                Box(
+                    Modifier
+                        .fillMaxWidth()
+                        .height(editorHeight)
+                        .verticalScroll(vScroll)
+                        .horizontalScroll(hScroll),
+                ) {
+                    Row(Modifier.padding(horizontal = 8.dp, vertical = 8.dp)) {
+                        Column(horizontalAlignment = Alignment.End) {
+                            repeat(lineCount) { i ->
+                                Text(
+                                    "${i + 1}",
+                                    style = editorStyle.copy(color = Gray70),
+                                    textAlign = TextAlign.End,
+                                )
+                            }
                         }
-                    }
-                    // A horizontal scroll measures the field with unbounded width,
-                    // which is what keeps long lines on one line instead of
-                    // soft-wrapping them.
-                    Box(
-                        modifier = Modifier
-                            .weight(1f)
-                            .horizontalScroll(hScroll),
-                    ) {
+                        Spacer(Modifier.width(10.dp))
+                        // Measured with unbounded width, so long lines stay on one
+                        // line instead of soft-wrapping.
                         BasicTextField(
                             value = text,
                             onValueChange = vm::editIniText,
-                            textStyle = MaterialTheme.typography.bodySmall.copy(
-                                color = White,
-                                fontFamily = EditorFont,
-                                fontSize = EditorSize,
-                                lineHeight = EditorLineHeight,
-                            ),
+                            textStyle = editorStyle.copy(color = White),
                             cursorBrush = SolidColor(Accent),
                             visualTransformation = IniHighlight(),
-                            modifier = Modifier.widthIn(min = 260.dp),
+                            modifier = Modifier.widthIn(min = 240.dp),
                         )
                     }
                 }
