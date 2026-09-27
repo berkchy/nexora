@@ -296,15 +296,8 @@ build-release:
           # DWARF the build just emitted, so the table can never drift from
           # the shipped gamedll (DW_AT_data_member_location == offsetof).
           "$NDKBIN/llvm-readelf" -S "$SO" | grep -i "debug" || echo "  (no debug sections in $SO)"
-          : > "$BUILD/gamedll.dwarf"
-          # One dump per class: a full --debug-info text of the gamedll runs
-          # past a gigabyte, and only these layouts are read out of it.
-          python3 ./android/ci/gamedata-offsets.py list "$TPL" \
-            | cut -f1 | sort -u | while read -r CLS; do
-            echo "## $CLS" >> "$BUILD/gamedll.dwarf"
-            "$NDKBIN/llvm-dwarfdump" --debug-info --name="$CLS" "$SO" \
-              >> "$BUILD/gamedll.dwarf"
-          done
+          python3 ./android/ci/gamedata-offsets.py dump "$TPL" \
+            --dwarfdump "$NDKBIN/llvm-dwarfdump" --so "$SO" --out "$BUILD/gamedll.dwarf"
           echo "  dwarf dump: $(wc -c < "$BUILD/gamedll.dwarf") bytes"
           if python3 ./android/ci/gamedata-offsets.py measure "$TPL" \
               "$BUILD/gamedll.dwarf" "$BUILD/offsets-$VARIANT.txt"; then

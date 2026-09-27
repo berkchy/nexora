@@ -24,6 +24,7 @@ source of truth for what gets measured.
 import argparse
 import os
 import re
+import subprocess
 import sys
 
 # --- template parsing -------------------------------------------------------
@@ -202,6 +203,59 @@ def build_layout(dies):
     return {name: members(die, set()) for name, die in by_name.items()}
 
 
+def dump_types(dwarfdump, so_path, fields, out_path):
+    """Dump just the layouts we read, following base classes as they show up.
+
+    llvm-dwarfdump prints one DIE subtree per --name match, and a member that
+    a class inherits is only described under the *base* class, so the set of
+    types to dump is discovered while dumping.
+    """
+    pending = []
+    seen = set()
+    for (cls, _section, _field), _values in fields:
+        if cls not in seen:
+            seen.add(cls)
+            pending.append(cls)
+    written = 0
+    with open(out_path, "w", encoding="utf-8") as out:
+        while pending:
+            name = pending.pop(0)
+            result = subprocess.run(
+                [dwarfdump, "--debug-info", "--name=" + name, "--show-children", so_path],
+                capture_output=True,
+                text=True,
+            )
+            if result.returncode != 0:
+                print("dwarfdump %s: %s" % (name, result.stderr.strip()), file=sys.stderr)
+                continue
+            out.write("## %s\n" % name)
+            out.write(result.stdout)
+            written += len(result.stdout)
+            for base in referenced_types(result.stdout):
+                if base not in seen:
+                    seen.add(base)
+                    pending.append(base)
+    return written
+
+
+def referenced_types(text):
+    """Type names an inheritance entry points at."""
+    names = []
+    die = None
+    for line in text.split("\n"):
+        m = DIE_RE.match(line)
+        if m:
+            die = m.group(3)
+            continue
+        if die == "DW_TAG_inheritance":
+            m = ATTR_RE.match(line)
+            if m and m.group(1) == "DW_AT_type":
+                name = QUOTED_RE.search(m.group(2) or "")
+                if name:
+                    names.append(name.group(1))
+    return names
+
+
 def dwarf_diagnostics(path):
     """Why did the parse come up short? Cheap enough to always print on failure."""
     try:
@@ -318,6 +372,12 @@ def main():
     p_emit.add_argument("--abi", default="unknown")
     p_emit.add_argument("--note", default="")
 
+    p_dump = sub.add_parser("dump")
+    p_dump.add_argument("template")
+    p_dump.add_argument("--dwarfdump", required=True)
+    p_dump.add_argument("--so", required=True)
+    p_dump.add_argument("--out", required=True)
+
     p_measure = sub.add_parser("measure")
     p_measure.add_argument("template")
     p_measure.add_argument("dwarf")
@@ -329,6 +389,11 @@ def main():
     if args.cmd == "list":
         for (cls, section, field), values in fields:
             print("%s\t%s\t%s\t%s" % (cls, section, field, values.get("type", "")))
+        return 0
+
+    if args.cmd == "dump":
+        written = dump_types(args.dwarfdump, args.so, fields, args.out)
+        print("dumped %d bytes of type info -> %s" % (written, args.out))
         return 0
 
     if args.cmd == "measure":
