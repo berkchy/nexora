@@ -295,7 +295,9 @@ build-release:
           # Measure this build's cstrike pdata offsets straight out of the
           # DWARF the build just emitted, so the table can never drift from
           # the shipped gamedll (DW_AT_data_member_location == offsetof).
+          "$NDKBIN/llvm-readelf" -S "$SO" | grep -i "debug" || echo "  (no debug sections in $SO)"
           "$NDKBIN/llvm-dwarfdump" --debug-info "$SO" > "$BUILD/gamedll.dwarf"
+          echo "  dwarf dump: $(wc -c < "$BUILD/gamedll.dwarf") bytes"
           if python3 ./android/ci/gamedata-offsets.py measure "$TPL" \
               "$BUILD/gamedll.dwarf" "$BUILD/offsets-$VARIANT.txt"; then
             if [ "$VARIANT" = "arm64" ]; then

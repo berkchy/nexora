@@ -22,6 +22,7 @@ source of truth for what gets measured.
 """
 
 import argparse
+import os
 import re
 import sys
 
@@ -201,6 +202,33 @@ def build_layout(dies):
     return {name: members(die, set()) for name, die in by_name.items()}
 
 
+def dwarf_diagnostics(path):
+    """Why did the parse come up short? Cheap enough to always print on failure."""
+    try:
+        size = os.path.getsize(path)
+    except OSError as exc:
+        return "dwarf diagnostics unavailable: %s" % exc
+    tags = {}
+    classes = []
+    total = 0
+    with open(path, encoding="utf-8", errors="replace") as handle:
+        for line in handle:
+            total += 1
+            m = DIE_RE.match(line)
+            if not m or m.group(3) == "NULL":
+                continue
+            tags[m.group(3)] = tags.get(m.group(3), 0) + 1
+            if m.group(3) in TYPE_TAGS and len(classes) < 8:
+                classes.append(line.strip())
+    top = sorted(tags.items(), key=lambda kv: -kv[1])[:8]
+    return "dwarf: %d bytes, %d lines, most common tags: %s\nfirst class/struct DIEs:\n%s" % (
+        size,
+        total,
+        ", ".join("%s=%d" % (tag, count) for tag, count in top),
+        "\n".join("  " + c for c in classes) or "  (none)",
+    )
+
+
 def measure(dwarf_dump, fields):
     dies = parse_dwarf(dwarf_dump)
     layout = build_layout(dies)
@@ -308,6 +336,7 @@ def main():
         if missing:
             for item in sorted(set(missing)):
                 print("MISSING %s" % item, file=sys.stderr)
+            print(dwarf_diagnostics(args.dwarf), file=sys.stderr)
             return 1
         with open(args.out, "w", encoding="utf-8") as handle:
             for cls, field, offset in rows:
