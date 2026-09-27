@@ -288,15 +288,27 @@ def measure(dwarf_dump, fields):
     layout = build_layout(dies)
     out = []
     missing = []
-    for (cls, _section, field), _values in fields:
+    carried = {}
+    for (cls, _section, field), values in fields:
         if cls not in layout:
-            missing.append("%s (class not in DWARF)" % cls)
+            # Not compiled into this gamedll (SimpleStateMachine belongs to the
+            # bot code): nothing to read it from, so keep what the template has
+            # rather than dropping the entry on the floor.
+            template = values.get("linux")
+            if template is None:
+                missing.append("%s (class not in DWARF, no template value)" % cls)
+                continue
+            carried.setdefault(cls, 0)
+            carried[cls] += 1
+            out.append((cls, field, int(template)))
             continue
         if field not in layout[cls]:
+            # The class is there but the member is not: a real mismatch, not a
+            # missing type, so this must not be papered over.
             missing.append("%s.%s (member not in DWARF)" % (cls, field))
             continue
         out.append((cls, field, layout[cls][field]))
-    return out, missing
+    return out, missing, carried
 
 
 # --- emission ---------------------------------------------------------------
@@ -397,7 +409,10 @@ def main():
         return 0
 
     if args.cmd == "measure":
-        rows, missing = measure(args.dwarf, fields)
+        rows, missing, carried = measure(args.dwarf, fields)
+        for cls in sorted(carried):
+            print("CARRIED %s: not in this build's debug info, kept %d template value(s)"
+                  % (cls, carried[cls]), file=sys.stderr)
         if missing:
             for item in sorted(set(missing)):
                 print("MISSING %s" % item, file=sys.stderr)
