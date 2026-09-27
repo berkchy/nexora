@@ -1,8 +1,8 @@
 diff --git a/amxmodx/modules.cpp b/amxmodx/modules.cpp
-index 7f8219c..7013f25 100644
+index 068b8d0..a3ebd5c 100644
 --- a/amxmodx/modules.cpp
 +++ b/amxmodx/modules.cpp
-@@ -112,7 +112,7 @@ static binlogfuncs_t logfuncs =
+@@ -108,7 +108,7 @@ static binlogfuncs_t logfuncs =
  };
  #endif
  
@@ -11,10 +11,28 @@ index 7f8219c..7013f25 100644
  {
  	*error = 0;
  	size_t bufSize;
-@@ -356,6 +356,20 @@ int load_amxscript_internal(AMX *amx, void **program, const char *filename, char
+@@ -352,6 +352,41 @@ int load_amxscript_internal(AMX *amx, void **program, const char *filename, char
  	return (amx->error = AMX_ERR_NONE);
  }
  
++// A plugin whose image was built for a different cell size than this core
++// loads without complaint and then jumps through garbage: amx_Exec only
++// asserts sizeof(cell) == sizeof(void *), which a 64-bit-cell image passes on
++// a 32-bit host because both are 4 bytes there. The native table walk then
++// reads image data and the "function pointer" becomes a small integer, so the
++// crash lands wherever the plugin happened to call a native. Name it here.
++static void reportPluginCellSize(AMX *amx, const char *filename)
++{
++	int image = amx->cellsize;
++	int core = (int)sizeof(cell);
++
++	if (image != 0 && image != core)
++	{
++		print_srvconsole("[NX] plugin 43 CELL MISMATCH %s: built for %d-byte cells, this core is %d-byte\n",
++			filename, image, core);
++	}
++}
++
 +// Wraps the reader so every attempt lands in engine.log: the amxx log can
 +// be disabled or fail to open, and a plugin that dies while loading used to
 +// leave nothing behind at all.
@@ -23,7 +41,10 @@ index 7f8219c..7013f25 100644
 +	print_srvconsole("[NX] plugin 40 reading %s\n", filename);
 +	int rc = load_amxscript_internal_impl(amx, program, filename, error, maxLength, debug);
 +	if (rc == AMX_ERR_NONE)
++	{
 +		print_srvconsole("[NX] plugin 41 loaded %s\n", filename);
++		reportPluginCellSize(amx, filename);
++	}
 +	else
 +		print_srvconsole("[NX] plugin 42 FAILED %s: %s (amx error %d)\n", filename, error, rc);
 +	return rc;
