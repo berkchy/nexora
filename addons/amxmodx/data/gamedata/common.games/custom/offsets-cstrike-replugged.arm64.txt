@@ -1,9 +1,12 @@
 /**
- * ARM64 offset overrides for CS16Client (ReGameDLL_CS / Velaron fork).
- * Measured from libcs_android_arm64.so via offsetof against the
- * Velaron/ReGameDLL_CS headers (see tmp/opencode/offsets_velaron3).
+ * arm64-v8a offset overrides for CS16Client (ReGameDLL_CS fork).
+ * Measured from libcs_android_arm64.so and re-verified on every native CI
+ * build with android/ci/gamedata-offsets.py (DWARF, same build).
+ * This file doubles as the field list template for the generated
+ * offsets-cstrike-replugged.arm32.txt; the patcher enables only the
+ * variant matching the installed ABI (all *.txt in this dir are parsed).
  * Only the "linux" column is overridden; parsed after AMXX's own files,
- * so fixed offsets win. Do not touch without re-measuring.
+ * so fixed offsets win.
  */
 
 "Games"

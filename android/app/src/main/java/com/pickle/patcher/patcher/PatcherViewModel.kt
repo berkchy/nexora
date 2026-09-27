@@ -746,13 +746,8 @@ class PatcherViewModel(app: Application) : AndroidViewModel(app) {
                     buildString {
                         append("Installed $count addons files into ${target.path}")
                         if (gamedataToggled) {
-                            append(
-                                if (_abi.value == "arm64-v8a") {
-                                    "\narm64 gamedata override enabled"
-                                } else {
-                                    "\narm64 gamedata override disabled for this ABI"
-                                }
-                            )
+                            val variant = if (_abi.value == "arm64-v8a") "arm64" else "arm32"
+                            append("\n$variant gamedata override selected for ${_abi.value}")
                         }
                     }
                 )
@@ -827,32 +822,31 @@ class PatcherViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     /**
-     * offsets-cstrike-replugged.txt holds byte offsets measured from the arm64
-     * gamedll and overrides the "linux" column AMXX uses for every platform.
-     * arm64 needs it (its gamedll CRC does not match the shipped gamedata);
-     * a 32-bit gamedll must not see it, so it is renamed out of the *.txt scan
-     * there and put back when the install is arm64 again.
+     * AMXX parses *every* *.txt in addons/amxmodx/data/gamedata/common.games/custom,
+     * and the ReGameDLL member layout is ABI-specific (pointer size, member
+     * order), so the wrong variant silently corrupts cstrike pdata. The per-ABI
+     * files ship as offsets-cstrike-replugged.<abi>.txt; the one matching the
+     * installed ABI is kept as *.txt and the other is renamed out of the scan.
      */
     private fun applyGamedataAbiPolicy(gameDir: File, abi: String): Boolean {
         val customDir = File(gameDir, "addons/amxmodx/data/gamedata/common.games/custom")
         val files = customDir.listFiles() ?: return false
+        val wanted = if (abi == "arm64-v8a") "arm64" else "arm32"
         var changed = false
         for (file in files) {
             if (!file.isFile) continue
-            if (abi == "arm64-v8a") {
-                if (!file.name.endsWith(GAMEDATA_DISABLED_SUFFIX)) continue
-                val restored = File(file.parentFile, file.name.removeSuffix(GAMEDATA_DISABLED_SUFFIX))
-                if (file.renameTo(restored)) changed = true
+            // Pre-per-ABI installs still carry the untagged arm64 table; left
+            // in place it would keep overriding offsets on a 32-bit gamedll.
+            if (file.name == LEGACY_GAMEDATA_NAME) {
+                if (file.delete()) changed = true
                 continue
             }
-            if (!file.name.endsWith(".txt")) continue
-            val text = try {
-                file.readText()
-            } catch (_: Throwable) {
-                continue
-            }
-            if (!text.contains("ARM64 offset overrides")) continue
-            if (file.renameTo(File(file.parentFile, file.name + GAMEDATA_DISABLED_SUFFIX))) changed = true
+            val name = file.name.removeSuffix(GAMEDATA_DISABLED_SUFFIX)
+            val match = GAMEDATA_VARIANT.matchEntire(name) ?: continue
+            val variant = match.groupValues[1]
+            val target = if (variant == wanted) name else name + GAMEDATA_DISABLED_SUFFIX
+            if (file.name == target) continue
+            if (file.renameTo(File(file.parentFile, target))) changed = true
         }
         return changed
     }
@@ -1792,8 +1786,12 @@ class PatcherViewModel(app: Application) : AndroidViewModel(app) {
         const val GAME_CZERO = "czero"
         /** ABIs the patcher can build for, in priority order. */
         val SUPPORTED_ABIS = listOf("arm64-v8a", "armeabi-v7a")
-        /** Suffix that keeps the arm64-only gamedata override out of AMXX's *.txt scan. */
-        const val GAMEDATA_DISABLED_SUFFIX = ".arm64-only"
+        /** Suffix that keeps the non-matching gamedata variant out of AMXX's *.txt scan. */
+        const val GAMEDATA_DISABLED_SUFFIX = ".disabled"
+        /** Per-ABI gamedata override files: offsets-cstrike-replugged.<arm64|arm32>.txt */
+        val GAMEDATA_VARIANT = Regex("offsets-cstrike-replugged\\.(arm64|arm32)\\.txt")
+        /** Pre-per-ABI override name; removed on sight so it cannot keep applying. */
+        const val LEGACY_GAMEDATA_NAME = "offsets-cstrike-replugged.txt"
         /** Releases (tags + patcher APK) are published here by CI. */
         const val APP_RELEASE_REPO = "berkchy/nexora"
         /**
