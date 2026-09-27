@@ -336,7 +336,9 @@ def emit(fields, measurements, out_path, abi, note=""):
     for (cls, section, field), values in fields:
         if cls != current_class:
             if current_class is not None:
+                # Close the previous class: its "Offsets" section, then itself.
                 lines.append("\t\t\t\t}")
+                lines.append("\t\t\t}")
                 lines.append("")
             current_class = cls
             lines.append('\t\t\t"%s"' % cls)
@@ -348,21 +350,45 @@ def emit(fields, measurements, out_path, abi, note=""):
             raise SystemExit("emit: no measurement for %s.%s" % key)
         lines.append('\t\t\t\t\t"%s"' % field)
         lines.append("\t\t\t\t\t{")
-        lines.append('\t\t\t\t\t\t"type"%s"%s"' % (" " * 6, values.get("type", "integer")))
-        lines.append('\t\t\t\t\t\t"linux"%s"%d"' % (" " * 5, measurements[key]))
+        # Every key the template has, in its order: "size" matters for arrays,
+        # strings and classptr fields, and dropping it breaks those reads.
+        for name, value in values.items():
+            if name == "linux":
+                value = str(measurements[key])
+            pad = " " * max(1, 8 - len(name) - 2)
+            lines.append('\t\t\t\t\t\t"%s"%s"%s"' % (name, pad, value))
         lines.append("\t\t\t\t\t}")
         lines.append("")
     if current_class is not None:
         lines.append("\t\t\t\t}")
         lines.append("\t\t\t}")
         lines.append("")
-    lines.append("\t\t\t}")
+    lines.append("\t\t}")
     lines.append("\t}")
     lines.append("}")
     lines.append("")
 
     with open(out_path, "w", encoding="utf-8") as handle:
         handle.write("\n".join(lines))
+    return structure(out_path)
+
+
+def structure(path):
+    """Indentation and key of every meaningful line, values normalized away.
+
+    AMXX parses these files with a brace-matching reader, and a file that is
+    missing a closing brace fails as "Section beginning without a matching
+    ending" for the whole gamedata set — not just for one entry. So the shape
+    is compared, not the numbers.
+    """
+    out = []
+    for line in open(path, encoding="utf-8").read().split("\n"):
+        stripped = line.strip()
+        if not stripped or stripped.startswith("/*") or stripped.startswith("*") \
+                or stripped.startswith("//") or stripped.startswith("#"):
+            continue
+        out.append((len(line) - len(line.lstrip("\t")), stripped.split()[0]))
+    return out
 
 
 def main():
@@ -444,8 +470,22 @@ def main():
         return 0
 
     if args.cmd == "emit":
-        emit(fields, measurements, args.out, args.abi, args.note)
-        print("wrote %s (%d fields)" % (args.out, len(fields)))
+        written = emit(fields, measurements, args.out, args.abi, args.note)
+        # The template is a file AMXX already parses, so its shape is the
+        # reference: an unbalanced brace here breaks every gamedata lookup.
+        expected = structure(args.template)
+        if written != expected:
+            for index, (got, want) in enumerate(zip(written, expected)):
+                if got != want:
+                    raise SystemExit(
+                        "emit: %s has the wrong shape at line %d: %r, template has %r"
+                        % (args.out, index + 1, got, want)
+                    )
+            raise SystemExit(
+                "emit: %s has %d structural lines, template has %d"
+                % (args.out, len(written), len(expected))
+            )
+        print("wrote %s (%d fields, shape matches the template)" % (args.out, len(fields)))
         return 0
     return 2
 
