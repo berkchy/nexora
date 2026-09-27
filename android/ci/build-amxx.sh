@@ -98,32 +98,44 @@ apply_patch() {
   echo "   patched: $(basename "$patch")"
 }
 
-apply_patch "$PATCHES/amxmodx-pawncc-64bit.patch"        "$SRC/amxmodx"
-apply_patch "$PATCHES/amxmodx-pawncc-64bit-literalpool.patch" "$SRC/amxmodx"
 apply_patch "$PATCHES/amxmodx-libpawnc-console.patch"      "$SRC/amxmodx"
+
+# --- cell64 / arm64 only -------------------------------------------------
+# These fix places where an 8-byte cell (or the arm64 host) breaks stock
+# amxmodx: pointers that no longer fit a cell, 64-bit cell semantics, arm64
+# trampolines and pdata translation. The 32-bit build does not need them and
+# does not get them: it runs upstream code on those paths, so a 32-bit bug is
+# a real port issue instead of a fix of ours fighting the port.
+if [ "$ABI" = "arm64-v8a" ]; then
+  apply_patch "$PATCHES/cell64/amxmodx-pawncc-64bit.patch"          "$SRC/amxmodx"
+  apply_patch "$PATCHES/cell64/amxmodx-pawncc-64bit-literalpool.patch" "$SRC/amxmodx"
+  apply_patch "$PATCHES/cell64/amxmodx-libpc300-sclist-llx.patch"   "$SRC/amxmodx"
+  apply_patch "$PATCHES/cell64/amxmodx-CDetour-cell.diff"          "$SRC/amxmodx"
+  apply_patch "$PATCHES/cell64/amxmodx-64bit-cell-casts.diff"       "$SRC/amxmodx"
+  apply_patch "$PATCHES/cell64/amxmodx-amtl-64bit.diff"             "$SRC/amxmodx" "public/amtl"
+  apply_patch "$PATCHES/cell64/amxmodx-param-convert-64bit.patch"  "$SRC/amxmodx"
+  apply_patch "$PATCHES/cell64/amxmodx-pcvar-handle-64bit.patch"   "$SRC/amxmodx"
+  apply_patch "$PATCHES/cell64/amxmodx-fakemeta-intvec-64.patch"    "$SRC/amxmodx"
+  apply_patch "$PATCHES/cell64/amxmodx-cbase-bit32-guard.diff"     "$SRC/amxmodx"
+  apply_patch "$PATCHES/cell64/amxmodx-ham-trampoline-arm64.patch"  "$SRC/amxmodx"
+  apply_patch "$PATCHES/cell64/amxmodx-pdata-runtime-translate.diff" "$SRC/amxmodx"
+else
+  echo "== $ABI: skipping the 12 cell64/arm64-only patches"
+fi
 # bionic printf eats the 'L' modifier for %Lx (integer conversions), so cell64
 # varargs shift by 4 bytes and insert_dbgsymbol's "%s" reads an integer as a
 # pointer -> SIGSEGV on arm32 (arm64 8-byte slots mask the shift).
-apply_patch "$PATCHES/amxmodx-libpc300-sclist-llx.patch"   "$SRC/amxmodx"
 apply_patch "$PATCHES/amxmodx-android-load-CModule.patch" "$SRC/amxmodx"
 apply_patch "$PATCHES/amxmodx-android-load-modules.patch" "$SRC/amxmodx"
-apply_patch "$PATCHES/amxmodx-CDetour-cell.diff"          "$SRC/amxmodx"
-apply_patch "$PATCHES/amxmodx-64bit-cell-casts.diff"       "$SRC/amxmodx"
 apply_patch "$PATCHES/amxmodx-memtools-dlfcn.diff"         "$SRC/amxmodx"
 apply_patch "$PATCHES/amxmodx-CTextParsers-quote-underrun.diff" "$SRC/amxmodx"
-apply_patch "$PATCHES/amxmodx-amtl-64bit.diff"             "$SRC/amxmodx" "public/amtl"
 apply_patch "$PATCHES/amxmodx-regparm-arm64.patch"         "$SRC/amxmodx"
 apply_patch "$PATCHES/amxmodx-csx-string-guard.patch"     "$SRC/amxmodx"
-apply_patch "$PATCHES/amxmodx-param-convert-64bit.patch"  "$SRC/amxmodx"
 apply_patch "$PATCHES/amxmodx-amx-hea-adopt.patch"      "$SRC/amxmodx"
-apply_patch "$PATCHES/amxmodx-pcvar-handle-64bit.patch" "$SRC/amxmodx"
 apply_patch "$PATCHES/amxmodx-float64-widen.patch"     "$SRC/amxmodx"
 apply_patch "$PATCHES/amxmodx-gamesig-rtld.patch"       "$SRC/amxmodx"
 apply_patch "$PATCHES/amxmodx-interface-android.diff"   "$SRC/amxmodx"
 apply_patch "$PATCHES/amxmodx-ham-float64.patch"       "$SRC/amxmodx"
-apply_patch "$PATCHES/amxmodx-fakemeta-intvec-64.patch" "$SRC/amxmodx"
-apply_patch "$PATCHES/amxmodx-cbase-bit32-guard.diff"  "$SRC/amxmodx"
-apply_patch "$PATCHES/amxmodx-ham-trampoline-arm64.patch"  "$SRC/amxmodx"
 apply_patch "$PATCHES/amxmodx-cbase-pev-fallback.patch"     "$SRC/amxmodx"
 apply_patch "$PATCHES/amxmodx-fun-strip-user-weapons.diff"  "$SRC/amxmodx"
 # Xash3D has no SV_DropClient detour (symbol hidden + ABI differs), so deliver
@@ -179,7 +191,6 @@ fi
 apply_patch "$PATCHES/amxmodx-module-suffix-arm.patch"      "$SRC/amxmodx"
 # Runtime translation of legacy 32-bit pdata offsets to the measured arm64
 # ReGameDLL layout (see patch header for how the tables are regenerated).
-apply_patch "$PATCHES/amxmodx-pdata-runtime-translate.diff" "$SRC/amxmodx"
 # Fix Pawn compiler assertion bug: =='0' (char literal = 48) should be ==0 (int zero)
 # This causes "array_level=='0'" assertion failure on any enum-constant array index.
 # Even after fixing =='0' -> ==0, the assertion still fires for plugins (eg
