@@ -1,8 +1,17 @@
 diff --git a/amxmodx/CForward.cpp b/amxmodx/CForward.cpp
-index 36ea332..6003432 100644
+index 36ea332..3934aac 100644
 --- a/amxmodx/CForward.cpp
 +++ b/amxmodx/CForward.cpp
-@@ -123,7 +123,22 @@ cell CForward::execute(cell *params, ForwardPreparedArray *preparedArrays)
+@@ -9,6 +9,8 @@
+ 
+ #include "amxmodx.h"
+ #include "debugger.h"
++#include "natives.h"
++#include "CPlugin.h"
+ #include "binlog.h"
+ 
+ CForward::CForward(const char *name, ForwardExecType et, int numParams, const ForwardParam *paramTypes)
+@@ -123,7 +125,22 @@ cell CForward::execute(cell *params, ForwardPreparedArray *preparedArrays)
  			g_BinLog.WriteOp(BinLog_CallPubFunc, iter->pPlugin->getId(), iter->func);
  #endif
  
