@@ -62,6 +62,7 @@ import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.layout.Box
+import androidx.compose.ui.text.PlatformTextStyle
 
 private val EditorFont = FontFamily.Monospace
 private val EditorSize = 13.sp
@@ -170,7 +171,9 @@ fun PluginsScreen(vm: PatcherViewModel) {
         fontFamily = EditorFont,
         fontSize = EditorSize,
         lineHeight = EditorLineHeight,
+        platformStyle = PlatformTextStyle(includeFontPadding = false),
     )
+    val gutterText = remember(text) { (1..lineCount).joinToString("\n") }
     val saved = savedAt > 0L
 
     Column(
@@ -230,15 +233,15 @@ fun PluginsScreen(vm: PatcherViewModel) {
                         .horizontalScroll(hScroll),
                 ) {
                     Row(Modifier.padding(horizontal = 8.dp, vertical = 8.dp)) {
-                        Column(horizontalAlignment = Alignment.End) {
-                            repeat(lineCount) { i ->
-                                Text(
-                                    "${i + 1}",
-                                    style = editorStyle.copy(color = Gray70),
-                                    textAlign = TextAlign.End,
-                                )
-                            }
-                        }
+                        // One Text for the whole gutter, with the same style as the
+                        // field: a stack of per-line Texts drifts by a fraction of a
+                        // dp per line against the field's single text layout.
+                        Text(
+                            text = gutterText,
+                            style = editorStyle.copy(color = Gray70),
+                            softWrap = false,
+                            textAlign = TextAlign.End,
+                        )
                         Spacer(Modifier.width(10.dp))
                         // Measured with unbounded width, so long lines stay on one
                         // line instead of soft-wrapping.
