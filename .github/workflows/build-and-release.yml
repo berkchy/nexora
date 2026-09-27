@@ -256,7 +256,7 @@ jobs:
                 -DCMAKE_BUILD_TYPE=Release \
                 -DCMAKE_C_FLAGS="-g" \
                 -DCMAKE_CXX_FLAGS="-g" &&
-               cmake --build "$BUILD" --target regameddl --parallel 2 &&
+               cmake --build "$BUILD" --target regamedll --parallel 2 &&
                [ -f "$SO" ]; then
               # Measure this build's cstrike pdata offsets straight out of the
               # DWARF the build just emitted, so the table can never drift from
