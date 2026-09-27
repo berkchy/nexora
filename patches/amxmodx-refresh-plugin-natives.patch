@@ -1,17 +1,16 @@
 diff --git a/amxmodx/CForward.cpp b/amxmodx/CForward.cpp
-index 36ea332..3934aac 100644
+index 36ea332..116a680 100644
 --- a/amxmodx/CForward.cpp
 +++ b/amxmodx/CForward.cpp
-@@ -9,6 +9,8 @@
+@@ -8,6 +8,7 @@
+ //     https://alliedmods.net/amxmodx-license
  
  #include "amxmodx.h"
- #include "debugger.h"
 +#include "natives.h"
-+#include "CPlugin.h"
+ #include "debugger.h"
  #include "binlog.h"
  
- CForward::CForward(const char *name, ForwardExecType et, int numParams, const ForwardParam *paramTypes)
-@@ -123,7 +125,22 @@ cell CForward::execute(cell *params, ForwardPreparedArray *preparedArrays)
+@@ -123,7 +124,22 @@ cell CForward::execute(cell *params, ForwardPreparedArray *preparedArrays)
  			g_BinLog.WriteOp(BinLog_CallPubFunc, iter->pPlugin->getId(), iter->func);
  #endif
  
@@ -75,17 +74,17 @@ index c1fb593..cdf285f 100644
  {
  	char file[PLATFORM_MAX_PATH];
 diff --git a/amxmodx/CPlugin.h b/amxmodx/CPlugin.h
-index 0ad53f5..ee04815 100644
+index 0ad53f5..702f39b 100644
 --- a/amxmodx/CPlugin.h
 +++ b/amxmodx/CPlugin.h
-@@ -99,6 +99,7 @@ public:
- 		inline bool isExecutable(int id) const { return (isValid() && !isPaused());	}
- 		
- 		void Finalize();
+@@ -139,6 +139,7 @@ public:
+ 	
+ 	inline int getPluginsNum() const { return pCounter; }
+ 	void Finalize();
 +	void RefreshNatives();
- 		void AddToFailCounter(unsigned int i);
- 		void pausePlugin();
- 		void unpausePlugin();
+ 	void clear();
+ 
+ 	class iterator
 diff --git a/amxmodx/natives.cpp b/amxmodx/natives.cpp
 index d5ae1c7..fde68b9 100644
 --- a/amxmodx/natives.cpp
