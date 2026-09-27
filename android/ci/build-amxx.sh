@@ -153,6 +153,11 @@ apply_patch "$PATCHES/amxmodx-assert-report.patch"        "$SRC/amxmodx"
 # Prints every plugin read attempt and its result to the server console, so a
 # plugin that dies mid-load names itself in engine.log instead of vanishing.
 apply_patch "$PATCHES/amxmodx-plugin-load-report.patch"    "$SRC/amxmodx"
+# Zombie Plague's main plugin registers its natives in plugin_precache and the
+# class plugin calls them from its own plugin_precache. AMXX only wires plugin
+# natives into other plugins' images at load time, so that call was a jump to a
+# null pointer; re-resolve between the plugins of a forward.
+apply_patch "$PATCHES/amxmodx-refresh-plugin-natives.patch" "$SRC/amxmodx"
 # ARM flush-to-zero: disable FZ bit so denormalized floats (used by pev/set_pev
 # vector round-trip) are preserved instead of being flushed to zero.
 AMXX_FM="$SRC/amxmodx/modules/fakemeta/fakemeta_amxx.cpp"
