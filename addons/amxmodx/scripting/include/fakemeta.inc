@@ -65,7 +65,7 @@ native set_pev(_index,_value,any:...);
  * @param	_value		The pev field to set - MUST be a string field.
  * @param	_string		The string handle, retrieved from places like AllocString.
  */
-native set_pev_string(_index, _value, _string);
+native set_pev_string(_index, _value, const _string[]);
 
 
 /**
