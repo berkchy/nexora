@@ -1,0 +1,26 @@
+diff --git a/amxmodx/CPlugin.cpp b/amxmodx/CPlugin.cpp
+index c1fb593..e49c1ce 100644
+--- a/amxmodx/CPlugin.cpp
++++ b/amxmodx/CPlugin.cpp
+@@ -414,10 +414,17 @@ void CPluginMngr::CPlugin::Finalize()
+ 
+ 			if (!res)
+ 			{
+-				status = ps_bad_load;
+-				sprintf(buffer, "Plugin uses an unknown function (name \"%s\") - check your modules.ini.", no_function);
+-				errorMsg = buffer;
+-				amx.error = AMX_ERR_NOTFOUND;
++				// [NX] Bir plugin'in fonksiyonu, saglayici plugin'in
++				// plugin_init'inde register_native() ile tanimlanir. Oysa bu
++				// noktada hicbir plugin_init calismis olmaz: hepsi tek tek
++				// plugin dosyalari okunduktan sonra C_ServerActivate_Post
++				// icinde toplu calisir. 1.8.2'de plugin_init yuke aninda
++				// calistigi icin sorun yoktu. Plugin'i oldurmek yerine
++				// uyari veriyoruz ve bos girdileri birakiyoruz, cunku
++				// CForward::execute her plugin'den sonra (native sayisi
++				// degistiyse) unresolved girdileri yeniden cozuyor.
++				sprintf(buffer, "Plugin uses a function that is not registered yet (name \"%s\") - resolving after plugin_init", no_function);
++				AMXXLOG_Log("[NX] Plugin \"%s\": %s", name.chars(), buffer);
+ 			} else {
+ 				amx_RegisterToAny(&amx, invalid_native);
+ 			}

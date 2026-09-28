@@ -158,6 +158,13 @@ apply_patch "$PATCHES/amxmodx-plugin-load-report.patch"    "$SRC/amxmodx"
 # natives into other plugins' images at load time, so that call was a jump to a
 # null pointer; re-resolve between the plugins of a forward.
 apply_patch "$PATCHES/amxmodx-refresh-plugin-natives.patch" "$SRC/amxmodx"
+# Bu AMXX surumunde tum plugin'lerin plugin_init'i C_ServerActivate_Post
+# icinde, yani native cozumlemesinden SONRA toplu calisir. Bir plugin baska
+# bir plugin'in fonksiyonunu cagiriyorsa, saglayici register_native()'i
+# plugin_init icinde yaptigi icin o fonksiyon Finalize() aninda daha kayitli
+# degildir ve plugin "unknown function" ile yuklenmez olurdu. Artik sadece
+# uyari veriyoruz; CForward::execute sonraki adimda baglantiyi tamamliyor.
+apply_patch "$PATCHES/amxmodx-plugin-native-pending.diff" "$SRC/amxmodx"
 # ARM flush-to-zero: disable FZ bit so denormalized floats (used by pev/set_pev
 # vector round-trip) are preserved instead of being flushed to zero.
 AMXX_FM="$SRC/amxmodx/modules/fakemeta/fakemeta_amxx.cpp"
