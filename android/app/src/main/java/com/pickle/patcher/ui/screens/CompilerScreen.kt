@@ -8,6 +8,7 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -75,8 +76,21 @@ fun CompilerScreen(vm: PatcherViewModel) {
     var pickForOutput by remember { mutableStateOf(false) }
     val failures = (compile as? CompileState.Done)?.failures ?: emptyMap()
     var stampError by remember { mutableStateOf<Pair<String, String>?>(null) }
+    // Set when the folder picker came back without a folder, so we can offer
+    // Auto Find instead of silently doing nothing. true = the Output row was
+    // being picked, false = the Scripts row.
+    var pickCancelled by remember { mutableStateOf<Boolean?>(null) }
+    var notice by remember { mutableStateOf<String?>(null) }
 
     val context = LocalContext.current
+
+    // Small bottom notice, disappears on its own.
+    LaunchedEffect(notice) {
+        if (notice != null) {
+            kotlinx.coroutines.delay(NOTICE_MS)
+            notice = null
+        }
+    }
 
     // Scroll the outer column to the compiler output when a compile starts.
     LaunchedEffect(compile) {
@@ -88,7 +102,15 @@ fun CompilerScreen(vm: PatcherViewModel) {
     val folderPicker = rememberLauncherForActivityResult(
         ActivityResultContracts.OpenDocumentTree(),
     ) { uri ->
-        if (pickForOutput) uri?.let(vm::setOutputRoot) else uri?.let(vm::setScriptRoot)
+        if (uri == null) {
+            // Backed out of the picker: nothing was selected. Remember which
+            // row asked for it so Auto Find knows what to look for.
+            pickCancelled = pickForOutput
+        } else if (pickForOutput) {
+            vm.setOutputRoot(uri)
+        } else {
+            vm.setScriptRoot(uri)
+        }
         pickForOutput = false
     }
 
@@ -121,6 +143,7 @@ fun CompilerScreen(vm: PatcherViewModel) {
 
     val selectedSources = scripts.filter { it.path in selected }
 
+    Box(modifier = Modifier.fillMaxSize()) {
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -278,6 +301,21 @@ fun CompilerScreen(vm: PatcherViewModel) {
             ErrorDialog(name = name.substringAfterLast('/'), message = message) { stampError = null }
         }
 
+        pickCancelled?.let { forOutput ->
+            PickFolderDialog(
+                target = vm.autoFindTargetName(forOutput),
+                onClose = { pickCancelled = null },
+                onAutoFind = {
+                    pickCancelled = null
+                    val what = if (forOutput) "Output" else "Scripts"
+                    notice = if (vm.autoFindAmxxFolder(forOutput))
+                        "$what folder found."
+                    else
+                        "Could not find xash/<game>/${vm.autoFindTargetName(forOutput)}"
+                },
+            )
+        }
+
         when (val c = compile) {
             is CompileState.Compiling -> {
                 Spacer(Modifier.height(12.dp))
@@ -296,6 +334,67 @@ fun CompilerScreen(vm: PatcherViewModel) {
                 LogBox(c.message, error = true)
             }
             else -> {}
+        }
+    }
+
+        notice?.let { BottomNotice(it) }
+    }
+}
+
+/** How long the little bottom notice stays on screen. */
+private const val NOTICE_MS = 4000L
+
+/**
+ * Shown when the SAF folder picker was left without choosing anything. The
+ * manual tree walk is the painful part on a phone, so Auto Find does it.
+ */
+@Composable
+private fun PickFolderDialog(
+    target: String,
+    onClose: () -> Unit,
+    onAutoFind: () -> Unit,
+) {
+    AlertDialog(
+        onDismissRequest = onClose,
+        title = { Text("Can't pick a folder?", color = AlertRed) },
+        text = {
+            Text(
+                "No folder was selected.\n\n" +
+                    "Auto Find looks for xash/<game>/$target under the device's " +
+                    "internal storage and fills it in for you.",
+                style = MaterialTheme.typography.bodySmall,
+                color = Gray30,
+            )
+        },
+        confirmButton = {
+            TextButton(onClick = onAutoFind) { Text("Auto Find", color = Accent) }
+        },
+        dismissButton = {
+            TextButton(onClick = onClose) { Text("Close", color = Gray60) }
+        },
+    )
+}
+
+/** Small bottom notification, the AppCard styling at snackbar size. */
+@Composable
+private fun BottomNotice(text: String) {
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(horizontal = 16.dp, vertical = 18.dp),
+        contentAlignment = Alignment.BottomCenter,
+    ) {
+        Surface(
+            shape = RoundedCornerShape(8.dp),
+            color = Gray80,
+            modifier = Modifier.fillMaxWidth(),
+        ) {
+            Text(
+                text,
+                style = MaterialTheme.typography.bodySmall,
+                color = Accent,
+                modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp),
+            )
         }
     }
 }

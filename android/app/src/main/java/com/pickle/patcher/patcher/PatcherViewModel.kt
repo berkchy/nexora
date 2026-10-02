@@ -1392,6 +1392,54 @@ class PatcherViewModel(app: Application) : AndroidViewModel(app) {
         compilerPrefs.edit().remove("output_root").apply()
     }
 
+    /**
+     * Looks for `<xash>/<gamedir>/addons/amxmodx/<sub>` and uses it, so the
+     * user does not have to walk the SAF tree by hand: `scripting` for the
+     * .sma source folder, `plugins` for the compiled output.
+     *
+     * cstrike and czero are checked first, then any other game directory that
+     * happens to sit under <xash>. Returns false when nothing was found.
+     */
+    fun autoFindAmxxFolder(forOutput: Boolean): Boolean {
+        val sub = if (forOutput) "plugins" else "scripting"
+        val found = findAmxxFolder(sub) ?: return false
+        if (forOutput) {
+            _outputRoot.value = found.absolutePath
+            compilerPrefs.edit().putString("output_root", found.absolutePath).apply()
+        } else {
+            _scriptRoot.value = found.absolutePath
+            compilerPrefs.edit().putString("script_root", found.absolutePath).apply()
+            refreshScripts()
+        }
+        return true
+    }
+
+    /** The folder Auto Find looks for, used in the messages. */
+    fun autoFindTargetName(forOutput: Boolean): String =
+        "addons/amxmodx/" + if (forOutput) "plugins" else "scripting"
+
+    private fun findAmxxFolder(sub: String): File? {
+        val gamesRoot = File(GAME_ROOT)
+        if (!gamesRoot.isDirectory) return null
+
+        val games = ArrayList<String>()
+        games.add(GAME_CSTRIKE)
+        games.add(GAME_CZERO)
+        try {
+            gamesRoot.listFiles()?.forEach { f ->
+                if (f.isDirectory && !games.contains(f.name)) games.add(f.name)
+            }
+        } catch (_: Exception) {
+            // listing denied, the known game dirs are still tried
+        }
+
+        for (game in games) {
+            val dir = File(File(File(gamesRoot, game), "addons/amxmodx"), sub)
+            if (dir.isDirectory) return dir
+        }
+        return null
+    }
+
     private fun uriToDir(uri: Uri): File? {
         // external storage (com.android.externalstorage.documents):
         // content://.../tree/primary%3Axash%2Fcstrike  -> /storage/emulated/0/xash/cstrike
