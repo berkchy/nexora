@@ -165,6 +165,76 @@ apply_patch "$PATCHES/amxmodx-refresh-plugin-natives.patch" "$SRC/amxmodx"
 # degildir ve plugin "unknown function" ile yuklenmez olurdu. Artik sadece
 # uyari veriyoruz; CForward::execute sonraki adimda baglantiyi tamamliyor.
 apply_patch "$PATCHES/amxmodx-plugin-native-pending.diff" "$SRC/amxmodx"
+# Yukaridaki iki patch birlikte bir bosluk birakiyor: cozulemeyen native'in
+# girdisi address=0 olarak kaliyor ve o native ilk cagrildiginda process
+# adres 0'a zipliyor (arm32'de fault addr 0x6, SIGSEGV, libamxmodx icinde,
+# ZP'nin plugin_precache'i sirasinda). Guvenli iki adim:
+#   1) Finalize() cozulemedigi dala da invalid_native stub'i tak: artik NULL
+#      adres kalmaz, geci gelen bir cagri duzgun bir AMXX hatasina doner.
+#   2) RefreshNatives() stub'lari sifirlamadan once temizlesin, yoksa
+#      amx_Register (yalnizca address==0 olanlari doldurur) yeniden cozemez.
+python3 - "$SRC/amxmodx/amxmodx/CPlugin.cpp" <<'PATCHSTEP'
+import io, sys
+
+p = sys.argv[1]
+s = io.open(p, encoding='utf-8').read()
+changed = False
+
+# ---- 1) Finalize(): unresolved native gets the safety stub
+old = '\t\t\t\tAMXXLOG_Log("[NX] Plugin \\"%s\\": %s", name.chars(), buffer);\n\t\t\t} else {'
+new = ('\t\t\t\tAMXXLOG_Log("[NX] Plugin \\"%s\\": %s", name.chars(), buffer);\n'
+       '\n'
+       '\t\t\t\t// Never leave a null native behind: an entry that stays at\n'
+       '\t\t\t\t// address 0 is jumped to when it is called, which is a SIGSEGV\n'
+       '\t\t\t\t// inside plugin_precache with no useful backtrace. The stub turns\n'
+       '\t\t\t\t// a late call into a normal AMXX error, and RefreshNatives()\n'
+       '\t\t\t\t// swaps it for the real address once it exists.\n'
+       '\t\t\t\tamx_RegisterToAny(&amx, invalid_native);\n'
+       '\t\t\t} else {')
+
+if 'Never leave a null native behind' not in s:
+    if old not in s:
+        raise SystemExit('build-amxx: CPlugin.cpp Finalize hunk not found')
+    s = s.replace(old, new, 1)
+    changed = True
+
+# ---- 2) RefreshNatives(): clear the stubs before retrying
+old = '\t\t\tamx_Register(a->getAMX(), table, -1);'
+new = ('\t\t\tAMX *amx = a->getAMX();\n'
+       '\n'
+       '\t\t\t// amx_Register() only fills entries whose address is still zero\n'
+       '\t\t\t// and the safety stub is not zero, so clear the stubbed entries\n'
+       '\t\t\t// first or the retry could never resolve them\n'
+       '\t\t\tAMX_HEADER *hdr = (AMX_HEADER *)amx->base;\n'
+       '\t\t\tAMX_FUNCSTUB *stub = GETENTRY(hdr, natives, 0);\n'
+       '\t\t\tint entries = NUMENTRIES(hdr, natives, libraries);\n'
+       '\n'
+       '\t\t\tfor (int i = 0; i < entries; i++)\n'
+       '\t\t\t{\n'
+       '\t\t\t\tif (stub->address == (ucell)invalid_native)\n'
+       '\t\t\t\t\tstub->address = 0;\n'
+       '\n'
+       '\t\t\t\tstub = (AMX_FUNCSTUB *)((unsigned char *)stub + hdr->defsize);\n'
+       '\t\t\t}\n'
+       '\n'
+       '\t\t\tamx_Register(amx, table, -1);\n'
+       '\n'
+       '\t\t\t// Whatever nobody has registered stays on the stub\n'
+       '\t\t\tamx_RegisterToAny(amx, invalid_native);')
+
+if 'and the safety stub is not zero' not in s:
+    if old not in s:
+        raise SystemExit('build-amxx: CPlugin.cpp RefreshNatives hunk not found')
+    s = s.replace(old, new, 1)
+    changed = True
+
+if changed:
+    io.open(p, 'w', encoding='utf-8').write(s)
+
+print('   CPlugin.cpp: unresolved natives get a stub and are retried (%s)'
+      % ('changed' if changed else 'already applied'))
+PATCHSTEP
+
 # ARM flush-to-zero: disable FZ bit so denormalized floats (used by pev/set_pev
 # vector round-trip) are preserved instead of being flushed to zero.
 AMXX_FM="$SRC/amxmodx/modules/fakemeta/fakemeta_amxx.cpp"
