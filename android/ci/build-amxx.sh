@@ -158,21 +158,21 @@ apply_patch "$PATCHES/amxmodx-plugin-load-report.patch"    "$SRC/amxmodx"
 # natives into other plugins' images at load time, so that call was a jump to a
 # null pointer; re-resolve between the plugins of a forward.
 apply_patch "$PATCHES/amxmodx-refresh-plugin-natives.patch" "$SRC/amxmodx"
-# Bu AMXX surumunde tum plugin'lerin plugin_init'i C_ServerActivate_Post
-# icinde, yani native cozumlemesinden SONRA toplu calisir. Bir plugin baska
-# bir plugin'in fonksiyonunu cagiriyorsa, saglayici register_native()'i
-# plugin_init icinde yaptigi icin o fonksiyon Finalize() aninda daha kayitli
-# degildir ve plugin "unknown function" ile yuklenmez olurdu. Artik sadece
-# uyari veriyoruz; CForward::execute sonraki adimda baglantiyi tamamliyor.
+# The plugin_init of all plugins in this AMXX page is C_ServerActivate_Post
+# in #, that is, it works collectively AFTER native resolution. Another plugin
+# if it calls the function of a plugin, the provider calls register_native()
+# because it is done in plugin_init, it is more registered at the time of Finalize function()
+# it is not, and the plugin would not be installed with the "unknown function". Now only
+# we are giving a warning; CForward::execute completes the connection in the next step.
 apply_patch "$PATCHES/amxmodx-plugin-native-pending.diff" "$SRC/amxmodx"
-# Yukaridaki iki patch birlikte bir bosluk birakiyor: cozulemeyen native'in
-# girdisi address=0 olarak kaliyor ve o native ilk cagrildiginda process
-# adres 0'a zipliyor (arm32'de fault addr 0x6, SIGSEGV, libamxmodx icinde,
-# ZP'nin plugin_precache'i sirasinda). Guvenli iki adim:
-#   1) Finalize() cozulemedigi dala da invalid_native stub'i tak: artik NULL
-#      adres kalmaz, geci gelen bir cagri duzgun bir AMXX hatasina doner.
-#   2) RefreshNatives() stub'lari sifirlamadan once temizlesin, yoksa
-#      amx_Register (yalnizca address==0 olanlari doldurur) yeniden cozemez.
+# The two patches above leave a gap together: the unresolved native's
+ the # entry remains as address=0, and when that native is first called, the process
+# the address is zipping to 0 (in arm32, fault addr 0x6, SIGSEGV, libamxmodx in,
+# During ZP's plugin_precache). Two safe steps:
+# 1) Insert invalid_native stub in the branch where finalize() cannot be solved: now NULL
+# there is no address left, a late incoming call freezes into a flat AMXX error.
+#2) RefreshNatives() should clean the stubs before siphoning, otherwise
+# amx_Register (fills in only the ones with address==0) cannot be solved again.
 python3 - "$SRC/amxmodx/amxmodx/CPlugin.cpp" <<'PATCHSTEP'
 import io, sys
 
@@ -180,7 +180,21 @@ p = sys.argv[1]
 s = io.open(p, encoding='utf-8').read()
 changed = False
 
-# ---- 1) Finalize(): unresolved native gets the safety stub
+# ---- 1) forward declaration: the stub is defined further down in this file
+old = 'void CPluginMngr::RefreshNatives()'
+new = ('// Its definition sits further down in this file, so declare it before the\n'
+       '// first use.\n'
+       'static cell AMX_NATIVE_CALL invalid_native(AMX *amx, cell *params);\n'
+       '\n'
+       'void CPluginMngr::RefreshNatives()')
+
+if 'static cell AMX_NATIVE_CALL invalid_native(AMX *amx, cell *params);' not in s:
+    if old not in s:
+        raise SystemExit('build-amxx: RefreshNatives anchor not found')
+    s = s.replace(old, new, 1)
+    changed = True
+
+# ---- 2) Finalize(): unresolved native gets the safety stub
 old = '\t\t\t\tAMXXLOG_Log("[NX] Plugin \\"%s\\": %s", name.chars(), buffer);\n\t\t\t} else {'
 new = ('\t\t\t\tAMXXLOG_Log("[NX] Plugin \\"%s\\": %s", name.chars(), buffer);\n'
        '\n'
@@ -189,7 +203,7 @@ new = ('\t\t\t\tAMXXLOG_Log("[NX] Plugin \\"%s\\": %s", name.chars(), buffer);\n
        '\t\t\t\t// inside plugin_precache with no useful backtrace. The stub turns\n'
        '\t\t\t\t// a late call into a normal AMXX error, and RefreshNatives()\n'
        '\t\t\t\t// swaps it for the real address once it exists.\n'
-       '\t\t\t\tamx_RegisterToAny(&amx, invalid_native);\n'
+       '\t\t\tamx_RegisterToAny(&amx, invalid_native);\n'
        '\t\t\t} else {')
 
 if 'Never leave a null native behind' not in s:
@@ -198,20 +212,20 @@ if 'Never leave a null native behind' not in s:
     s = s.replace(old, new, 1)
     changed = True
 
-# ---- 2) RefreshNatives(): clear the stubs before retrying
+# ---- 3) RefreshNatives(): clear the stubs before retrying
 old = '\t\t\tamx_Register(a->getAMX(), table, -1);'
 new = ('\t\t\tAMX *amx = a->getAMX();\n'
+       '\t\t\tAMX_HEADER *hdr = (AMX_HEADER *)amx->base;\n'
        '\n'
        '\t\t\t// amx_Register() only fills entries whose address is still zero\n'
-       '\t\t\t// and the safety stub is not zero, so clear the stubbed entries\n'
-       '\t\t\t// first or the retry could never resolve them\n'
-       '\t\t\tAMX_HEADER *hdr = (AMX_HEADER *)amx->base;\n'
-       '\t\t\tAMX_FUNCSTUB *stub = GETENTRY(hdr, natives, 0);\n'
-       '\t\t\tint entries = NUMENTRIES(hdr, natives, libraries);\n'
+       '\t\t\t// and the stub is not zero, so clear the stubbed entries first\n'
+       '\t\t\t// or the retry could never resolve them\n'
+       '\t\t\tint entries = (hdr->libraries - hdr->natives) / hdr->defsize;\n'
+       '\t\t\tAMX_FUNCSTUB *stub = (AMX_FUNCSTUB *)((unsigned char *)hdr + hdr->natives);\n'
        '\n'
        '\t\t\tfor (int i = 0; i < entries; i++)\n'
        '\t\t\t{\n'
-       '\t\t\t\tif (stub->address == (ucell)invalid_native)\n'
+       '\t\t\t\tif ((AMX_NATIVE)stub->address == invalid_native)\n'
        '\t\t\t\t\tstub->address = 0;\n'
        '\n'
        '\t\t\t\tstub = (AMX_FUNCSTUB *)((unsigned char *)stub + hdr->defsize);\n'
@@ -222,7 +236,7 @@ new = ('\t\t\tAMX *amx = a->getAMX();\n'
        '\t\t\t// Whatever nobody has registered stays on the stub\n'
        '\t\t\tamx_RegisterToAny(amx, invalid_native);')
 
-if 'and the safety stub is not zero' not in s:
+if 'or the retry could never resolve them' not in s:
     if old not in s:
         raise SystemExit('build-amxx: CPlugin.cpp RefreshNatives hunk not found')
     s = s.replace(old, new, 1)
