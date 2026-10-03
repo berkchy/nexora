@@ -166,7 +166,7 @@ apply_patch "$PATCHES/amxmodx-refresh-plugin-natives.patch" "$SRC/amxmodx"
 # we are giving a warning; CForward::execute completes the connection in the next step.
 apply_patch "$PATCHES/amxmodx-plugin-native-pending.diff" "$SRC/amxmodx"
 # The two patches above leave a gap together: the unresolved native's
- the # entry remains as address=0, and when that native is first called, the process
+# the # entry remains as address=0, and when that native is first called, the process
 # the address is zipping to 0 (in arm32, fault addr 0x6, SIGSEGV, libamxmodx in,
 # During ZP's plugin_precache). Two safe steps:
 # 1) Insert invalid_native stub in the branch where finalize() cannot be solved: now NULL
