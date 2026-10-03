@@ -1039,10 +1039,14 @@ cmake -S "$SRC/yapb" -B "$YAPBBUILD" \
   -DANDROID_STL=c++_static \
   -DCMAKE_BUILD_TYPE=Release
 cmake --build "$YAPBBUILD" -j"$(nproc)"
-# YaPB produces libyapb.so or yapb.so depending on version
-YAPB_SO=$(find "$YAPBBUILD" -name "libyapb.so" -o -name "yapb.so" | head -1)
-cp "$YAPB_SO" "$OUT/lib/$ABI/libyapb.so"
-echo "   yapb -> $(ls -l "$OUT/lib/$ABI/libyapb.so" | awk '{print $5}') bytes"
+# YaPB names the library after the target, e.g. yapb_arm64.so
+YAPB_SO=$(find "$YAPBBUILD" -name "libyapb*.so" -o -name "yapb*.so" | head -1)
+if [ -n "$YAPB_SO" ]; then
+  cp "$YAPB_SO" "$OUT/lib/$ABI/libyapb.so"
+  echo "   yapb -> $(ls -l "$OUT/lib/$ABI/libyapb.so" | awk '{print $5}') bytes"
+else
+  echo "WARN: yapb lib not found, skipping"
+fi
 
 # ----------------------------------------------------------------- client (crash handler)
 # CS16Client client DLL (vcs16/cl_dll) — built with crash handler, bundled as libclient
