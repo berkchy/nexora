@@ -1043,7 +1043,7 @@ if [ -f "$CLIENT_SRC/.gitmodules" ]; then
     git -C "$CLIENT_SRC" submodule update --init --recursive 2>&1 | head -20 || true
   else
     echo "   vcs16 .git missing, fetching submodules manually"
-    for mod in "3rdparty/mainui_cpp|https://github.com/Velaron/mainui_cpp|5b9c60ce408843b6c439ccfe875542978e70de96" "3rdparty/miniutl|https://github.com/FWGS/MiniUTL|048a416f4c54c501dfd728fd792bfdc9f2883f51"; do
+    for mod in "3rdparty/mainui_cpp|https://github.com/berkchy/mainui_cpp|08bdb7a5d1a422105a3bdd7d479ccc461a46ce01" "3rdparty/miniutl|https://github.com/FWGS/MiniUTL|048a416f4c54c501dfd728fd792bfdc9f2883f51"; do
       IFS='|' read -r path url rev <<< "$mod"
       if [ ! -f "$CLIENT_SRC/$path/CMakeLists.txt" ] && [ ! -f "$CLIENT_SRC/$path/README.md" ]; then
         rm -rf "$CLIENT_SRC/$path"
@@ -1055,16 +1055,6 @@ if [ -f "$CLIENT_SRC/.gitmodules" ]; then
         # mainui_cpp's own miniutl submodule
         if [ -f "$CLIENT_SRC/$path/.gitmodules" ]; then
           git -C "$CLIENT_SRC/$path" submodule update --init --recursive --depth 1 2>&1 | tail -2 || true
-        fi
-        # cs16-meta-patcher menu customizations (text banner titles, trimmed main
-        # menu, Color.cpp build shim). Only meaningful on a pristine checkout.
-        if [ "$path" = "3rdparty/mainui_cpp" ]; then
-          if ! git -C "$CLIENT_SRC/$path" apply --reverse --check "$PATCHES/mainui-menu-text-and-trim.patch" 2>/dev/null; then
-            echo "   mainui: applying cs16 menu customizations"
-            git -C "$CLIENT_SRC/$path" apply "$PATCHES/mainui-menu-text-and-trim.patch" 2>/dev/null || echo "   WARN: mainui patch did not apply cleanly"
-          else
-            echo "   mainui: menu customizations already applied, skipping"
-          fi
         fi
       fi
     done
