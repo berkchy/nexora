@@ -495,7 +495,7 @@ DEFS=(
   -D__BYTE_ORDER=__LITTLE_ENDIAN
 )
 FLAGS=(
-  -fPIC -O2 -fno-strict-aliasing -Wall -Wno-uninitialized -Wno-unused
+  -fPIC -O2 -g -fno-strict-aliasing -Wall -Wno-uninitialized -Wno-unused
   -Wno-switch -Wno-format -Wno-format-security -fsigned-char -fvisibility=hidden
 )
 CXXFLAGS=(
@@ -1106,6 +1106,8 @@ cmake -S "$CLIENT_SRC" -B "$CLIENT_BUILD" \
   -DANDROID_PLATFORM=android-24 \
   -DANDROID_STL=c++_static \
   -DCMAKE_BUILD_TYPE=Release \
+  -DCMAKE_C_FLAGS_RELEASE="-O2 -g" \
+  -DCMAKE_CXX_FLAGS_RELEASE="-O2 -g" \
   -DCMAKE_POLICY_VERSION_MINIMUM=3.5 \
   -DCS16_PATCHER_VERSION="${RELEASE_VERSION:-dev}" \
   -DBUILD_CLIENT=ON -DBUILD_SERVER=OFF -DBUILD_MAINUI=ON -DMAINUI_NAME=menu -DMAINUI_USE_STB=ON -DMAINUI_RENDER_PICBUTTON_TEXT=ON

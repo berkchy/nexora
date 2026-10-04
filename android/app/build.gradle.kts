@@ -64,6 +64,13 @@ android {
 
     packaging {
         resources.excludes += "/META-INF/{AL2.0,LGPL2.1}"
+        // The crash handler resolves frames by reading .symtab from the
+        // on-disk .so, and Android's own crash report only carries module
+        // offsets. Stripping here removes both, so an arm32 SIGSEGV lands as
+        // a bare address instead of a function name.
+        jniLibs {
+            doNotStrip("**/*.so")
+        }
     }
 }
 
