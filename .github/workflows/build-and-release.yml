@@ -36,25 +36,22 @@ jobs:
           MSG=$(git log -1 --pretty=%s)
           echo "Commit message: $MSG"
           LOWER=$(echo "$MSG" | tr '[:upper:]' '[:lower:]')
-          NEEDS_APK=false
-          NEEDS_BUNDLE=true
-          if echo "$LOWER" | grep -q '\[android build\]' || echo "$LOWER" | grep -q '\[version build\]'; then
-            NEEDS_APK=true
-          fi
-          if echo "$LOWER" | grep -qE '\[bundle build\]|\[android build\]|\[version build\]'; then
-            HAS_MARKER="true"
-          else
-            HAS_MARKER="false"
-          fi
-          # Continuous rolling release: every build ships APK + bundle.
-          # Unique version per build (run number) so the in-app updater
-          # (version.txt string + APK byte check) can tell builds apart.
+          # What gets built comes from the commit message and nothing else:
+          #   [android] -> the patcher APK, with the on-device compilers in it
+          #   [libs]    -> the .so set: amxx core/modules, plugins, game dlls
+          # A commit with neither marker builds nothing, so docs/config/infra
+          # pushes no longer spend a runner compiling an APK and 40 libraries.
+          NEEDS_ANDROID=false
+          NEEDS_LIBS=false
+          if echo "$LOWER" | grep -q '\[android\]'; then NEEDS_ANDROID=true; fi
+          if echo "$LOWER" | grep -q '\[libs\]'; then NEEDS_LIBS=true; fi
+          # Legacy markers still accepted.
+          if echo "$LOWER" | grep -qE '\[android build\]|\[version build\]'; then NEEDS_ANDROID=true; fi
+          if echo "$LOWER" | grep -qE '\[bundle build\]'; then NEEDS_LIBS=true; fi
           if [ "$GITHUB_REF_NAME" = "continuous" ]; then
-            NEEDS_APK=true
-            HAS_MARKER="true"
             echo "APP_VERSION_NAME=continuous-r${GITHUB_RUN_NUMBER}" >> "$GITHUB_ENV"
             # Epoch seconds: monotonic across CI providers (run numbers and
-            # GitLab pipeline IIDs are independent counters → downgrade block).
+            # GitLab pipeline IIDs are independent counters -> downgrade block).
             echo "APP_VERSION_CODE=$(date -u +%s)" >> "$GITHUB_ENV"
             echo "APK_NAME=nexora_continuous.apk" >> "$GITHUB_ENV"
             echo "BUNDLE_VERSION=continuous-r${GITHUB_RUN_NUMBER}" >> "$GITHUB_ENV"
@@ -66,57 +63,63 @@ jobs:
           # Escape multiline for GitHub Actions output
           ESCAPED=$(echo "$MSG" | head -1 | sed 's/"/\\"/g')
           echo "commit_msg=$ESCAPED" >> "$GITHUB_OUTPUT"
-          echo "needs_apk=$NEEDS_APK" >> "$GITHUB_OUTPUT"
-          echo "needs_bundle=$NEEDS_BUNDLE" >> "$GITHUB_OUTPUT"
-          echo "has_build_marker=$HAS_MARKER" >> "$GITHUB_OUTPUT"
-          echo "APK build: $NEEDS_APK | Bundle build: $NEEDS_BUNDLE"
-          # --- native skip guard: reuse the previous .so set when nothing
-          # native changed (saves ~5 min on app/addons/CI-only changes).
+          echo "needs_android=$NEEDS_ANDROID" >> "$GITHUB_OUTPUT"
+          echo "needs_libs=$NEEDS_LIBS" >> "$GITHUB_OUTPUT"
+          echo "APK build: $NEEDS_ANDROID | Libs build: $NEEDS_LIBS"
+          if [ "$NEEDS_ANDROID" != "true" ] && [ "$NEEDS_LIBS" != "true" ]; then
+            echo "::notice::no [android] / [libs] marker in the commit message - nothing to build"
+          fi
+
+          # --- native skip guard: when [libs] is asked for but nothing native
+          # changed, reuse the previous .so set instead of recompiling (~5 min).
           # Guard inputs: repo diff on native watch paths + HEAD SHAs of the
           # floating upstream sources (unpinned master/branch clones).
           SKIP_NATIVE=false
           NATIVE_SHA_OUT=$(git rev-parse HEAD)
-          UP_AMXX=$(git ls-remote https://github.com/alliedmodders/amxmodx.git HEAD 2>/dev/null | cut -f1)
-          UP_MM=$(git ls-remote https://github.com/FWGS/metamod-fwgs.git HEAD 2>/dev/null | cut -f1)
-          UP_REAPI=$(git ls-remote https://github.com/rehlds/ReAPI.git HEAD 2>/dev/null | cut -f1)
-          # YaPB is a submodule now: report the pinned commit and what upstream has
-          UP_YAPB=$(git -C 3rdparty/yapb rev-parse HEAD 2>/dev/null)
-          UP_YAPB_UPSTREAM=$(git ls-remote https://github.com/yapb/yapb.git HEAD 2>/dev/null | cut -f1)
-          UP_RGDLL=$(git ls-remote https://github.com/berkchy/ReGameDLL_CS.git fix/first-spawn-equip 2>/dev/null | cut -f1)
-          UP_JSON=$(python3 -c "import json; print(json.dumps({'amxmodx':'$UP_AMXX','metamod':'$UP_MM','reapi':'$UP_REAPI','yapb':'$UP_YAPB','yapb_upstream':'$UP_YAPB_UPSTREAM','regamedll':'$UP_RGDLL'}))")
-          if [ "$GITHUB_REF_NAME" = "continuous" ] && [ -n "$UP_AMXX" ]; then
-            META_JSON=$(curl -fsSL --max-time 30 "https://github.com/${GITHUB_REPOSITORY}/releases/download/continuous/build-meta.json" 2>/dev/null || true)
-            NATIVE_SHA=$(echo "$META_JSON" | python3 -c "import json,sys; print(json.load(sys.stdin).get('native_sha',''))" 2>/dev/null || true)
-            if [ -n "$NATIVE_SHA" ]; then
-              git fetch --depth 1 origin "$NATIVE_SHA" 2>/dev/null || NATIVE_SHA=""
-            fi
-            if [ -n "$NATIVE_SHA" ]; then
-              META_UP=$(echo "$META_JSON" | python3 -c "import json,sys; print(json.dumps(json.load(sys.stdin).get('upstreams',{}),sort_keys=True))" 2>/dev/null || echo "")
-              CUR_UP=$(echo "$UP_JSON" | python3 -c "import json,sys; print(json.dumps(json.load(sys.stdin),sort_keys=True))" 2>/dev/null || echo "")
-              DIFF_OUT=$(git diff --name-only "$NATIVE_SHA" HEAD -- android/ci patches vcs16 3rdparty .github/workflows 2>/dev/null || echo "DIFF-FAILED")
-              if [ "$DIFF_OUT" != "DIFF-FAILED" ] && [ -z "$DIFF_OUT" ] && [ -n "$META_UP" ] && [ "$META_UP" = "$CUR_UP" ]; then
-                SKIP_NATIVE=true
-                NATIVE_SHA_OUT=$NATIVE_SHA
+          if [ "$NEEDS_LIBS" = "true" ]; then
+            UP_AMXX=$(git ls-remote https://github.com/alliedmodders/amxmodx.git HEAD 2>/dev/null | cut -f1)
+            UP_MM=$(git ls-remote https://github.com/FWGS/metamod-fwgs.git HEAD 2>/dev/null | cut -f1)
+            UP_REAPI=$(git ls-remote https://github.com/rehlds/ReAPI.git HEAD 2>/dev/null | cut -f1)
+            # YaPB is a submodule now: report the pinned commit and what upstream has
+            UP_YAPB=$(git -C 3rdparty/yapb rev-parse HEAD 2>/dev/null)
+            UP_YAPB_UPSTREAM=$(git ls-remote https://github.com/yapb/yapb.git HEAD 2>/dev/null | cut -f1)
+            UP_RGDLL=$(git ls-remote https://github.com/berkchy/ReGameDLL_CS.git fix/first-spawn-equip 2>/dev/null | cut -f1)
+            UP_JSON=$(python3 -c "import json; print(json.dumps({'amxmodx':'$UP_AMXX','metamod':'$UP_MM','reapi':'$UP_REAPI','yapb':'$UP_YAPB','yapb_upstream':'$UP_YAPB_UPSTREAM','regamedll':'$UP_RGDLL'}))")
+            if [ "$GITHUB_REF_NAME" = "continuous" ] && [ -n "$UP_AMXX" ]; then
+              META_JSON=$(curl -fsSL --max-time 30 "https://github.com/${GITHUB_REPOSITORY}/releases/download/continuous/build-meta.json" 2>/dev/null || true)
+              NATIVE_SHA=$(echo "$META_JSON" | python3 -c "import json,sys; print(json.load(sys.stdin).get('native_sha',''))" 2>/dev/null || true)
+              if [ -n "$NATIVE_SHA" ]; then
+                git fetch --depth 1 origin "$NATIVE_SHA" 2>/dev/null || NATIVE_SHA=""
+              fi
+              if [ -n "$NATIVE_SHA" ]; then
+                META_UP=$(echo "$META_JSON" | python3 -c "import json; print(json.dumps(json.load(sys.stdin).get('upstreams',{}),sort_keys=True))" 2>/dev/null || echo "")
+                CUR_UP=$(echo "$UP_JSON" | python3 -c "import json; print(json.dumps(json.load(sys.stdin),sort_keys=True))" 2>/dev/null || echo "")
+                DIFF_OUT=$(git diff --name-only "$NATIVE_SHA" HEAD -- android/ci patches vcs16 3rdparty .github/workflows 2>/dev/null || echo "DIFF-FAILED")
+                if [ "$DIFF_OUT" != "DIFF-FAILED" ] && [ -z "$DIFF_OUT" ] && [ -n "$META_UP" ] && [ "$META_UP" = "$CUR_UP" ]; then
+                  SKIP_NATIVE=true
+                  NATIVE_SHA_OUT=$NATIVE_SHA
+                fi
               fi
             fi
           fi
           echo "skip_native=$SKIP_NATIVE" >> "$GITHUB_OUTPUT"
           echo "native_sha_out=$NATIVE_SHA_OUT" >> "$GITHUB_OUTPUT"
-          echo "upstreams_json=$UP_JSON" >> "$GITHUB_OUTPUT"
           echo "Native skip: $SKIP_NATIVE (native_sha: $NATIVE_SHA_OUT)"
 
       - name: Set up JDK
-        if: steps.build_type.outputs.needs_apk == 'true'
+        if: steps.build_type.outputs.needs_android == 'true'
         uses: actions/setup-java@v4
         with:
           distribution: temurin
           java-version: '17'
 
       - name: Set up Android SDK/NDK tooling
+        if: steps.build_type.outputs.needs_android == 'true' || steps.build_type.outputs.needs_libs == 'true'
         uses: android-actions/setup-android@v3
         with:
           packages: 'platform-tools'
       - name: Install NDK r25c
+        if: steps.build_type.outputs.needs_android == 'true' || steps.build_type.outputs.needs_libs == 'true'
         shell: bash
         run: |
           echo "y" | $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager "ndk;25.2.9519653" \
@@ -129,7 +132,7 @@ jobs:
           command -v ninja >/dev/null || sudo apt-get install -y ninja-build
 
       - name: Setup ccache
-        if: steps.build_type.outputs.skip_native != 'true'
+        if: steps.build_type.outputs.needs_libs == 'true' && steps.build_type.outputs.skip_native != 'true'
         shell: bash
         run: |
           command -v ccache >/dev/null 2>&1 || { sudo apt-get update -qq && sudo apt-get install -y -qq ccache; } || true
@@ -145,7 +148,7 @@ jobs:
           fi
 
       - name: Restore ccache
-        if: steps.build_type.outputs.skip_native != 'true'
+        if: steps.build_type.outputs.needs_libs == 'true' && steps.build_type.outputs.skip_native != 'true'
         uses: actions/cache@v4
         with:
           path: ${{ github.workspace }}/.ccache
@@ -153,7 +156,7 @@ jobs:
           restore-keys: ccache-ndk-r25c-
 
       - name: Cross-compile core + modules + plugins
-        if: steps.build_type.outputs.skip_native != 'true'
+        if: steps.build_type.outputs.needs_libs == 'true' && steps.build_type.outputs.skip_native != 'true'
         shell: bash
         run: |
           # Every source is a submodule under 3rdparty/ and carries its own
@@ -180,13 +183,13 @@ jobs:
           done
 
       - name: ccache stats (post native)
-        if: steps.build_type.outputs.skip_native != 'true'
+        if: steps.build_type.outputs.needs_libs == 'true' && steps.build_type.outputs.skip_native != 'true'
         shell: bash
         run: |
           if [ -n "${CCACHE:-}" ]; then ccache --show-stats || true; fi
 
       - name: Restore native outputs from release
-        if: steps.build_type.outputs.skip_native == 'true'
+        if: steps.build_type.outputs.needs_libs == 'true' && steps.build_type.outputs.skip_native == 'true'
         shell: bash
         env:
           GH_TOKEN: ${{ github.token }}
@@ -224,8 +227,39 @@ jobs:
           [ -f "$BO/lib/armeabi-v7a/libamxmodx.so" ] || touch "$GITHUB_WORKSPACE/v7a-missing"
           [ -f "$BO/lib/armeabi-v7a/libcs_android_armv7l.so" ] || touch "$GITHUB_WORKSPACE/v7a-missing"
 
+      - name: Restore on-device compilers from release
+        if: steps.build_type.outputs.needs_android == 'true' && steps.build_type.outputs.needs_libs != 'true'
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          # [android] on its own: the patcher APK embeds amxxpc/amxxpc32 for both
+          # ABIs, but those are native binaries. Instead of cross-compiling the
+          # whole tree for an APK-only change, take the compilers the last [libs]
+          # build already published (a few MB) and build only the APK.
+          mkdir -p /tmp/prevpc \
+            "$GITHUB_WORKSPACE/build-out/compiler/arm64-v8a" \
+            "$GITHUB_WORKSPACE/build-out/compiler/armeabi-v7a"
+          cd /tmp/prevpc
+          gh release download continuous --repo "$GITHUB_REPOSITORY" \
+            --pattern 'compiler-*' --clobber
+          shopt -s nullglob
+          for f in *; do
+            case "$f" in
+              compiler-arm64-v8a__*) cp "$f" "$GITHUB_WORKSPACE/build-out/compiler/arm64-v8a/${f#compiler-arm64-v8a__}" ;;
+              compiler-armeabi-v7a__*) cp "$f" "$GITHUB_WORKSPACE/build-out/compiler/armeabi-v7a/${f#compiler-armeabi-v7a__}" ;;
+            esac
+          done
+          PC="$GITHUB_WORKSPACE/build-out/compiler"
+          ls -l "$PC/arm64-v8a"
+          [ -f "$PC/arm64-v8a/amxxpc" ] || { echo "::error::no restored arm64 compiler"; exit 1; }
+          [ -f "$PC/arm64-v8a/amxxpc32.so" ] || { echo "::error::no restored arm64 amxxpc32"; exit 1; }
+          [ -f "$PC/armeabi-v7a/amxxpc" ] || touch "$GITHUB_WORKSPACE/v7a-missing"
+          [ -f "$PC/armeabi-v7a/amxxpc32.so" ] || touch "$GITHUB_WORKSPACE/v7a-missing"
+
       - name: Build ReGameDLL libcs (first-spawn fix)
-        if: steps.build_type.outputs.skip_native != 'true'
+        if: steps.build_type.outputs.needs_libs == 'true' && steps.build_type.outputs.skip_native != 'true'
         shell: bash
         run: |
           set -euo pipefail
@@ -328,6 +362,7 @@ jobs:
           done
 
       - name: Package release bundles
+        if: steps.build_type.outputs.needs_libs == 'true'
         shell: bash
         run: |
           # Incremental update: individual .so files + manifest.json
@@ -385,7 +420,7 @@ jobs:
           ls "$GITHUB_WORKSPACE/compiler-assets" || true
 
       - name: Install Android SDK platform & build tools
-        if: steps.build_type.outputs.needs_apk == 'true'
+        if: steps.build_type.outputs.needs_android == 'true'
         shell: bash
         run: |
           # The runner's preinstalled sdkmanager is too old for current SDK XML
@@ -402,13 +437,13 @@ jobs:
           test -d "$ANDROID_HOME/build-tools/35.0.0"
 
       - name: Set up Gradle
-        if: steps.build_type.outputs.needs_apk == 'true'
+        if: steps.build_type.outputs.needs_android == 'true'
         uses: gradle/actions/setup-gradle@v4
         with:
           validate-wrappers: false
 
       - name: Bundle debug signing keystore into app assets
-        if: steps.build_type.outputs.needs_apk == 'true'
+        if: steps.build_type.outputs.needs_android == 'true'
         shell: bash
         run: |
           mkdir -p android/app/src/main/assets/keystore
@@ -417,7 +452,7 @@ jobs:
           cp android/debug/debug_cert.pem android/app/src/main/assets/keystore/debug_cert.pem
 
       - name: Embed amxxpc compiler as native libs
-        if: steps.build_type.outputs.needs_apk == 'true'
+        if: steps.build_type.outputs.needs_android == 'true'
         shell: bash
         run: |
           # amxxpc compiler (produced by build-amxx.sh)
@@ -436,7 +471,7 @@ jobs:
           ls -lh android/app/src/main/jniLibs/arm64-v8a/
 
       - name: Build the patcher APK
-        if: steps.build_type.outputs.needs_apk == 'true'
+        if: steps.build_type.outputs.needs_android == 'true'
         working-directory: android
         env:
           APP_VERSION_NAME: ${{ env.APP_VERSION_NAME }}
@@ -444,7 +479,7 @@ jobs:
         run: ./gradlew --no-daemon :app:assembleRelease --stacktrace
 
       - name: Rename APK to nexora_vX.X.X.apk
-        if: steps.build_type.outputs.needs_apk == 'true'
+        if: steps.build_type.outputs.needs_android == 'true'
         shell: bash
         run: |
           cd android/app/build/outputs/apk/release
@@ -458,7 +493,7 @@ jobs:
           cat "$GITHUB_WORKSPACE/version.txt"
 
       - name: Release (rolling continuous)
-        if: startsWith(github.ref, 'refs/tags/') && github.ref_name == 'continuous'
+        if: startsWith(github.ref, 'refs/tags/') && github.ref_name == 'continuous' && (steps.build_type.outputs.needs_android == 'true' || steps.build_type.outputs.needs_libs == 'true')
         shell: bash
         env:
           GH_TOKEN: ${{ github.token }}
@@ -475,9 +510,16 @@ jobs:
               --title "Nexora Continuous" \
               --notes "Nexora Continuous build"
           fi
-          if [ "${{ steps.build_type.outputs.needs_apk }}" = "true" ]; then
-            PRESERVE='^$'
-          else
+          # Only the side that was actually rebuilt is replaced: an [android]
+          # build must not drop the .so assets, a [libs] build must not drop
+          # the APK.
+          NEEDS_ANDROID="${{ steps.build_type.outputs.needs_android }}"
+          NEEDS_LIBS="${{ steps.build_type.outputs.needs_libs }}"
+          PRESERVE='^$'
+          if [ "$NEEDS_LIBS" != "true" ]; then
+            PRESERVE='^(nexora_continuous\.apk|version\.txt)$'
+          fi
+          if [ "$NEEDS_ANDROID" != "true" ]; then
             PRESERVE='^(nexora_continuous\.apk|version\.txt)$'
           fi
           gh release view continuous --json assets | jq -r '.assets[] | .name' | while read -r name; do
@@ -495,32 +537,39 @@ jobs:
           Built: $(date -u +%Y-%m-%dT%H:%M:%SZ)"
           gh release edit continuous --title "Nexora Continuous" --notes "$BODY"
           shopt -s nullglob
-          FILES=(amxx-addons.zip manifest.json manifest-v7a.json build-meta.json incremental/arm64-v8a/*.so incremental-v7a/armeabi-v7a/*.so compiler-assets/*)
-          if [ "${{ steps.build_type.outputs.needs_apk }}" = "true" ]; then
+          FILES=()
+          if [ "$NEEDS_LIBS" = "true" ]; then
+            FILES+=(amxx-addons.zip manifest.json manifest-v7a.json build-meta.json incremental/arm64-v8a/*.so incremental-v7a/armeabi-v7a/*.so compiler-assets/*)
+          fi
+          if [ "$NEEDS_ANDROID" = "true" ]; then
             FILES+=(version.txt android/app/build/outputs/apk/release/*.apk)
+          fi
+          if [ "${#FILES[@]}" -eq 0 ]; then
+            echo "nothing to upload"
+            exit 0
           fi
           gh release upload continuous --clobber "${FILES[@]}"
 
       - name: Release
-        if: startsWith(github.ref, 'refs/tags/') && github.ref_name != 'continuous'
+        if: startsWith(github.ref, 'refs/tags/') && github.ref_name != 'continuous' && (steps.build_type.outputs.needs_android == 'true' || steps.build_type.outputs.needs_libs == 'true')
         uses: softprops/action-gh-release@v2
         with:
           body: ${{ steps.build_type.outputs.commit_msg }}
           files: |
-            amxx-addons.zip
+            ${{ steps.build_type.outputs.needs_libs == 'true' && 'amxx-addons.zip
             manifest.json
             manifest-v7a.json
             build-meta.json
-            version.txt
             compiler-assets/*
             incremental/arm64-v8a/*.so
-            incremental-v7a/armeabi-v7a/*.so
-            ${{ steps.build_type.outputs.needs_apk == 'true' && 'android/app/build/outputs/apk/release/*.apk' || '' }}
+            incremental-v7a/armeabi-v7a/*.so' || '' }}
+            ${{ steps.build_type.outputs.needs_android == 'true' && 'version.txt
+            android/app/build/outputs/apk/release/*.apk' || '' }}
           generate_release_notes: true
           fail_on_unmatched_files: false
 
       - name: Notify Discord on successful release
-        if: success() && startsWith(github.ref, 'refs/tags/')
+        if: success() && startsWith(github.ref, 'refs/tags/') && (steps.build_type.outputs.needs_android == 'true' || steps.build_type.outputs.needs_libs == 'true')
         shell: bash
         env:
           DISCORD_WEBHOOK: ${{ secrets.DISCORD_WEBHOOK }}
@@ -537,7 +586,7 @@ jobs:
           fi
           REPO="${GITHUB_REPOSITORY}"
           COMMIT_MSG=$(echo '${{ steps.build_type.outputs.commit_msg }}' | head -c 500)
-          HAS_MARKER='${{ steps.build_type.outputs.has_build_marker }}'
+          NEEDS_LIBS='${{ steps.build_type.outputs.needs_libs }}'
           RELEASE_URL="https://github.com/${REPO}/releases/tag/${GITHUB_REF_NAME}"
           if compgen -G "android/app/build/outputs/apk/release/*.apk" >/dev/null; then
             APK_COUNT=$(ls android/app/build/outputs/apk/release/*.apk | wc -l)
@@ -553,7 +602,7 @@ jobs:
             TYPE_FIELD="App + libs"
             APK_URL="https://github.com/${REPO}/releases/download/${GITHUB_REF_NAME}/${APK_FILE}"
             APK_FIELD=", { \"name\": \"Download\", \"value\": \"[${APK_FILE}](${APK_URL})\", \"inline\": true }"
-          elif [ "$HAS_MARKER" = "true" ]; then
+          elif [ "$NEEDS_LIBS" = "true" ]; then
             TITLE="Nexora v${VERSION} libs & plugins update"
             STATUS_FIELD=":white_check_mark: Libs & plugins updated"
             TYPE_FIELD="Bundle (libs & plugins)"
