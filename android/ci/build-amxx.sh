@@ -303,7 +303,6 @@ sed -i "/assert(lval2.sym==NULL/d" "$SRC/amxmodx/compiler/libpc300/sc3.c"
 apply_patch "$PATCHES/amxmodx-sc6-state-dbginfo.patch" "$SRC/amxmodx"
 # AMXX core is still compiled against metamod-p's meta_api.h (METAMOD above),
 # which requires this ARM64 shim (cs16_amxx_compat.h + const SET_LOCALINFO).
-apply_patch "$PATCHES/metamod-p-aarch64.patch"            "$SRC/metamod-p"
 apply_patch "$PATCHES/metamod-fwgs-android.patch"          "$SRC/metamod-fwgs"
 # Android native lib: also try libamxxpc32.so (APK lib prefix) when driver is libamxxpc.so
 if [ -f "$SRC/amxmodx/compiler/amxxpc/amxxpc.cpp" ]; then
