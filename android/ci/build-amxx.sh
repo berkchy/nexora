@@ -75,10 +75,11 @@ if [ "$ABI" = "arm64-v8a" ]; then
   AMXX_REF=nexora-cell64
 fi
 echo "== amxmodx: $AMXX_REF =="
-if ! git -C "$REPO_ROOT/3rdparty/amxmodx" rev-parse --verify "$AMXX_REF" >/dev/null 2>&1; then
-  git -C "$REPO_ROOT/3rdparty/amxmodx" fetch -q --depth 1 origin "$AMXX_REF"
-fi
-git -C "$REPO_ROOT/3rdparty/amxmodx" checkout -q "$AMXX_REF"
+# The CI checkout of this submodule is shallow and pinned to one commit, so the
+# branch has to be fetched into an explicit ref before it can be checked out.
+git -C "$REPO_ROOT/3rdparty/amxmodx" fetch -q --depth 1 origin \
+  "+refs/heads/$AMXX_REF:refs/remotes/origin/$AMXX_REF"
+git -C "$REPO_ROOT/3rdparty/amxmodx" checkout -q -B "$AMXX_REF" "refs/remotes/origin/$AMXX_REF"
 git -C "$REPO_ROOT/3rdparty/amxmodx" submodule update --init --recursive --depth 1 2>&1 | tail -2 || true
 
 
