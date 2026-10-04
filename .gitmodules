@@ -10,3 +10,6 @@
 	path = 3rdparty/mm-p
 	url = https://github.com/berkchy/mm-p.git
 	branch = main
+[submodule "3rdparty/yapb"]
+	path = 3rdparty/yapb
+	url = https://github.com/berkchy/yapb.git

@@ -79,9 +79,11 @@ jobs:
           UP_AMXX=$(git ls-remote https://github.com/alliedmodders/amxmodx.git HEAD 2>/dev/null | cut -f1)
           UP_MM=$(git ls-remote https://github.com/FWGS/metamod-fwgs.git HEAD 2>/dev/null | cut -f1)
           UP_REAPI=$(git ls-remote https://github.com/rehlds/ReAPI.git HEAD 2>/dev/null | cut -f1)
-          UP_YAPB=$(git ls-remote https://github.com/yapb/yapb.git HEAD 2>/dev/null | cut -f1)
+          # YaPB is a submodule now: report the pinned commit and what upstream has
+          UP_YAPB=$(git -C 3rdparty/yapb rev-parse HEAD 2>/dev/null)
+          UP_YAPB_UPSTREAM=$(git ls-remote https://github.com/yapb/yapb.git HEAD 2>/dev/null | cut -f1)
           UP_RGDLL=$(git ls-remote https://github.com/berkchy/ReGameDLL_CS.git fix/first-spawn-equip 2>/dev/null | cut -f1)
-          UP_JSON=$(python3 -c "import json; print(json.dumps({'amxmodx':'$UP_AMXX','metamod':'$UP_MM','reapi':'$UP_REAPI','yapb':'$UP_YAPB','regamedll':'$UP_RGDLL'}))")
+          UP_JSON=$(python3 -c "import json; print(json.dumps({'amxmodx':'$UP_AMXX','metamod':'$UP_MM','reapi':'$UP_REAPI','yapb':'$UP_YAPB','yapb_upstream':'$UP_YAPB_UPSTREAM','regamedll':'$UP_RGDLL'}))")
           if [ "$GITHUB_REF_NAME" = "continuous" ] && [ -n "$UP_AMXX" ]; then
             META_JSON=$(curl -fsSL --max-time 30 "https://github.com/${GITHUB_REPOSITORY}/releases/download/continuous/build-meta.json" 2>/dev/null || true)
             NATIVE_SHA=$(echo "$META_JSON" | python3 -c "import json,sys; print(json.load(sys.stdin).get('native_sha',''))" 2>/dev/null || true)

@@ -81,8 +81,9 @@ vendored_from "$REPO_ROOT/3rdparty/mm-p" "$SRC/metamod-p"
 fetch metamod-fwgs "https://github.com/FWGS/metamod-fwgs.git" yes
 # ReAPI: AMXX module for ReGameDLL/ReHLDS API (rehlds/ReAPI)
 fetch reapi "https://github.com/rehlds/ReAPI.git" yes
-# YaPB: Counter-Strike bot, metamod plugin (yapb/yapb)
-fetch yapb "https://github.com/yapb/yapb.git" yes
+# YaPB: Counter-Strike bot. Checked out as a submodule (3rdparty/yapb, our
+# mirror of yapb/yapb) instead of fetched here, so the cvar fix for the
+# unresolved-console-variable crash can be maintained in-tree.
 
 apply_patch() {
   local patch=$1 dir=$2 subdir=${3:-}
@@ -452,6 +453,7 @@ AMXX=$SRC/amxmodx
 HLSDK=$REPO_ROOT/3rdparty/hlsdk
 METAMOD=$SRC/metamod-p/metamod
 MMHLSDK=$SRC/metamod-p/hlsdk
+YAPB=$REPO_ROOT/3rdparty/yapb
 
 # Compiler (amxxpc) output logs. Script Folder holds the folder the user picked
 # for plugins (e.g. .../amxmodx/scripting). We append ONLY "logs/" to its value:
@@ -1029,7 +1031,7 @@ echo "   reapi -> $(ls -l "$OUT/lib/$ABI/libreapi_amxx_$MOD_SUFFIX.so" | awk '{p
 # YaPB bot (yapb/yapb) — metamod plugin, CMake-based.
 echo "== building yapb =="
 YAPBBUILD="$TMP/yapb-build"
-cmake -S "$SRC/yapb" -B "$YAPBBUILD" \
+cmake -S "$YAPB" -B "$YAPBBUILD" \
   -GNinja \
   -DCMAKE_C_COMPILER_LAUNCHER="${CCACHE:-}" \
   -DCMAKE_CXX_COMPILER_LAUNCHER="${CCACHE:-}" \
