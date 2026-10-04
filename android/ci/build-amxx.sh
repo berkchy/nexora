@@ -3,13 +3,13 @@
 # Cross-compiles the CS16Client AMXX core + modules for android using the
 # Android NDK. Supported target ABIs: arm64-v8a (default, fully supported) and
 # armeabi-v7a (best-effort/experimental trial — see known gaps below). Sources:
-#   - alliedmodders/amxmodx@master   (rolling 1.10, fetched from upstream)
-#   - 3rdparty/mm-p                  (submodule, Bots-United/metamod-p)
-#   - 3rdparty/hlsdk                 (submodule, vendored HLSDK)
+#   - 3rdparty/amxmodx                (submodule, our mirror of alliedmodders/amxmodx)
+#   - 3rdparty/mm-p                   (submodule, our mirror of Bots-United/metamod-p)
+#   - 3rdparty/metamod-fwgs           (submodule, our mirror of FWGS/metamod-fwgs)
+#   - 3rdparty/hlsdk                  (submodule, vendored HLSDK)
 #
-# All build customizations live as patch files under <repo>/patches/ and are
-# applied here. hlsdk + metamod-p are vendored repos checked out as git
-# submodules under <repo>/3rdparty/ (berkchy/hlsdk, berkchy/mm-p).
+# Every source carries its Android/Xash3D changes as commits in its own
+# repository, so patches/ is no longer part of the build.
 #
 # Produces (with ABI's shard dir this run builds into):
 #   $OUT/lib/$ABI/libamxmodx.so
@@ -57,28 +57,10 @@ fetch() {
 }
 fetch amxmodx "$AMXX_REPO" yes
 
-# vendored_from <src-dir> <dst-dir>: copy a vendored tree from the repo and
-# turn it into a git repo so apply_patch() (git apply) works on it.
-vendored_from() {
-  local src=$1 dst=$2
-  if [ ! -d "$dst/.git" ]; then
-    echo "== vendoring $src -> $dst =="
-    rm -rf "$dst"
-    mkdir -p "$dst"
-    cp -R "$src/." "$dst/"
-    # A submodule checkout contains a .git pointer file (gitdir: ...); strip it
-    # so git init starts a fresh repo here (a stale pointer would make git
-    # reuse the submodule's HEAD and aborts the "sourced" commit as no-op).
-    rm -rf "$dst/.git"
-    (cd "$dst" && git init -q && git add -A && git -c user.name=ci -c user.email=ci@ci commit -q -m sourced)
-  fi
-}
 # metamod-p stays only as the header source used to compile the AMXX core
-# (its meta_api.h ABI suffices); the actual runtime gamemod is metamod-fwgs.
-vendored_from "$REPO_ROOT/3rdparty/mm-p" "$SRC/metamod-p"
-# Runtime metamod: FWGS/metamod-fwgs (CMake), Xash3D-explicit, produces
-# libmetamod_android_arm64.so.
-fetch metamod-fwgs "https://github.com/FWGS/metamod-fwgs.git" yes
+# (its meta_api.h ABI suffices); the actual runtime gamemod is metamod-fwgs,
+# which builds with CMake and produces libmetamod_android_<abi>.so. Both are
+# submodules now and are used straight from the checkout.
 # ReAPI: AMXX module for ReGameDLL/ReHLDS API (rehlds/ReAPI)
 fetch reapi "https://github.com/rehlds/ReAPI.git" yes
 # YaPB: Counter-Strike bot. Checked out as a submodule (3rdparty/yapb, our
@@ -303,7 +285,6 @@ sed -i "/assert(lval2.sym==NULL/d" "$SRC/amxmodx/compiler/libpc300/sc3.c"
 apply_patch "$PATCHES/amxmodx-sc6-state-dbginfo.patch" "$SRC/amxmodx"
 # AMXX core is still compiled against metamod-p's meta_api.h (METAMOD above),
 # which requires this ARM64 shim (cs16_amxx_compat.h + const SET_LOCALINFO).
-apply_patch "$PATCHES/metamod-fwgs-android.patch"          "$SRC/metamod-fwgs"
 # Android native lib: also try libamxxpc32.so (APK lib prefix) when driver is libamxxpc.so
 if [ -f "$SRC/amxmodx/compiler/amxxpc/amxxpc.cpp" ]; then
   python3 - "$SRC" <<'PYEOF' || true
@@ -450,9 +431,10 @@ SYSROOT_LIB=$NDK/toolchains/llvm/prebuilt/$HOST-x86_64/sysroot/usr/lib/$SYSROOT_
 
 AMXX=$SRC/amxmodx
 HLSDK=$REPO_ROOT/3rdparty/hlsdk
-METAMOD=$SRC/metamod-p/metamod
-MMHLSDK=$SRC/metamod-p/hlsdk
+METAMOD=$REPO_ROOT/3rdparty/mm-p/metamod
+MMHLSDK=$REPO_ROOT/3rdparty/mm-p/hlsdk
 YAPB=$REPO_ROOT/3rdparty/yapb
+METAMOD_FWGS=$REPO_ROOT/3rdparty/metamod-fwgs
 
 # Compiler (amxxpc) output logs. Script Folder holds the folder the user picked
 # for plugins (e.g. .../amxmodx/scripting). We append ONLY "logs/" to its value:
@@ -751,7 +733,7 @@ PCRE_A="$TMP/pcre-inst/lib/libpcre.a"
 # libmetamod.so for the bundle (the gamedll alias still resolves to it).
 echo "== building metamod (metamod-fwgs, $ABI) =="
 MMBUILD=$TMP/metamod-fwgs-build
-cmake -S "$SRC/metamod-fwgs" -B "$MMBUILD" \
+cmake -S "$METAMOD_FWGS" -B "$MMBUILD" \
   -GNinja \
   -DCMAKE_C_COMPILER_LAUNCHER="${CCACHE:-}" \
   -DCMAKE_CXX_COMPILER_LAUNCHER="${CCACHE:-}" \

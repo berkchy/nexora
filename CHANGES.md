@@ -68,8 +68,8 @@ a function pointer in a 4-byte cell; the whole toolchain must use 64-bit cells.
 
 ## ReGameDLL / CS game DLL first-spawn fix
 
-- `regamedll-spawn-justconnected.diff` — applied to the ReGameDLL_CS fork
-  (`regamedll/dlls/player.cpp`, baseline `7be9d59`) that produces `libcs.so`.
+- The fix is committed in the ReGameDLL_CS fork (`berkchy/ReGameDLL_CS`,
+  `fix/first-spawn-equip`, `regamedll/dlls/player.cpp`) that produces `libcs.so`.
 
   Symptom: joining a server, the player's **first** spawn happens unarmed
   (no ammo HUD, cannot fire); switching team and respawning fixes it.
