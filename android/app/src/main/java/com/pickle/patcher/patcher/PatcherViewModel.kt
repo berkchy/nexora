@@ -320,8 +320,24 @@ class PatcherViewModel(app: Application) : AndroidViewModel(app) {
 
     val repo = "berkchy/nexora"
 
-    private val workDir = File(app.getExternalFilesDir(null) ?: app.cacheDir, "patcher")
-    private val libsDir = File(app.getExternalFilesDir(null) ?: app.cacheDir, "libs")
+    private val externalRoot: File = app.getExternalFilesDir(null) ?: app.cacheDir
+    private val workDir = File(externalRoot, "patcher")
+
+    // The downloaded client APK lives next to the patch output, so both show up
+    // under Android/data/<pkg>/files and neither is hidden in internal storage.
+    private val sourceCacheDir = File(externalRoot, "apk-source")
+
+    /**
+     * A file in [workDir] with the directory created. The external files dir
+     * only materializes once something writes into it, and opening the output
+     * APK before that fails with ENOENT.
+     */
+    private fun workFile(name: String): File {
+        workDir.mkdirs()
+        return File(workDir, name)
+    }
+
+    private val libsDir = File(externalRoot, "libs")
 
     init {
         val savedScripts = compilerPrefs.getString("script_root", null)
@@ -398,8 +414,7 @@ class PatcherViewModel(app: Application) : AndroidViewModel(app) {
 
     /** The single APK the patcher ever patches with, straight from GitHub. */
     private fun cachedClientApk(): File? =
-        File(File(getApplication<Application>().filesDir, "apk-source"), CLIENT_APK_ASSET)
-            .takeIf { it.isFile }
+        File(sourceCacheDir, CLIENT_APK_ASSET).takeIf { it.isFile }
 
     /**
      * Null when the file is a usable client APK, otherwise why it is not.
@@ -500,7 +515,7 @@ class PatcherViewModel(app: Application) : AndroidViewModel(app) {
                 val name = CLIENT_APK_ASSET
                 val url = ReleaseRepository.assetUrl(repo, tag, name)
                 val total = ReleaseRepository.probeSize(url) ?: 0L
-                val dir = File(getApplication<Application>().filesDir, "apk-source").apply { mkdirs() }
+                val dir = sourceCacheDir.apply { mkdirs() }
                 val dest = File(dir, name)
                 val part = File(dir, "$name.part").also { it.delete() }
                 partial = part
@@ -1056,7 +1071,7 @@ class PatcherViewModel(app: Application) : AndroidViewModel(app) {
                 _patch.value = PatchUiState.Failed("Signing key could not be loaded: ${it.message}")
                 return
             }
-        val out = File(workDir, "patched.apk")
+        val out = workFile("patched.apk")
 
         viewModelScope.launch(Dispatchers.IO) {
             _patch.value = PatchUiState.Running(ApkPatcher.Step.ANALYZE, 0f)
@@ -1091,7 +1106,7 @@ class PatcherViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
-    fun outputApk(): File? = lastReport?.let { File(workDir, "patched.apk") }
+    fun outputApk(): File? = lastReport?.let { workFile("patched.apk") }
 
     fun installIntent(): Intent? {
         val out = outputApk() ?: return null
@@ -1311,7 +1326,7 @@ class PatcherViewModel(app: Application) : AndroidViewModel(app) {
         val cur = _appUpdate.value as? AppUpdate.Available ?: return
         viewModelScope.launch(Dispatchers.IO) {
             try {
-                val dest = File(workDir, "update.apk")
+                val dest = workFile("update.apk")
                 if (dest.exists()) dest.delete()
                 val t0 = SystemClock.elapsedRealtime()
                 ReleaseRepository.downloadUrl(cur.url, dest, cur.size) { done, total ->

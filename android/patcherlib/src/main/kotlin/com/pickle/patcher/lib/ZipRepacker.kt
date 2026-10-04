@@ -113,6 +113,12 @@ object ZipRepacker {
                 }
             }
 
+            // The caller's output directory is not always there yet (the app's
+            // external files dir only appears once something writes into it),
+            // and RandomAccessFile does not create parents: without this the
+            // patch dies with "open failed: ENOENT".
+            output.parentFile?.mkdirs()
+
             val raf = RandomAccessFile(output, "rw")
             val cdEntries = ArrayList<CdRecord>()
             var alignPadBytes = 0L
