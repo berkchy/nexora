@@ -36,12 +36,18 @@ object ReleaseRepository {
         .build()
 
     /**
-     * Resolves the latest release tag via the github.com redirect
-     * (…/releases/latest -> …/releases/tag/vX). Costs no API quota,
-     * unlike /releases/latest on api.github.com (60 req/hour shared).
+     * Resolves the latest release tag, pre-releases included.
+     *
+     * The github.com redirect (…/releases/latest -> …/releases/tag/vX) costs no
+     * API quota but skips pre-releases, and the rolling "continuous" builds of
+     * both repos are marked as pre-releases, so that redirect 404s for them.
+     * The releases feed does list them, newest first, so it is the fallback.
      * Returns null on any failure (caller backs off).
      */
-    suspend fun latestTagRedirect(repo: String): String? {
+    suspend fun latestTagRedirect(repo: String): String? =
+        latestTagFromRedirect(repo) ?: latestTagFromFeed(repo)
+
+    private suspend fun latestTagFromRedirect(repo: String): String? {
         return try {
             val req = Request.Builder()
                 .url("https://github.com/$repo/releases/latest")
@@ -52,6 +58,33 @@ object ReleaseRepository {
                 if (!resp.isSuccessful) return null
                 val finalUrl = resp.request.url.toString()
                 finalUrl.substringAfterLast("/releases/tag/", "").ifBlank { null }
+            }
+        } catch (_: Throwable) {
+            null
+        }
+    }
+
+    /**
+     * First entry of the repository's releases feed, which unlike /releases/latest
+     * also carries the pre-releases. Still no api.github.com, so no quota.
+     */
+    private suspend fun latestTagFromFeed(repo: String): String? {
+        return try {
+            val req = Request.Builder()
+                .url("https://github.com/$repo/releases.atom")
+                .header("User-Agent", "cs16-amxx-patcher")
+                .get()
+                .build()
+            webClient.newCall(req).execute().use { resp ->
+                if (!resp.isSuccessful) return null
+                val body = resp.body?.string().orEmpty()
+                Regex("/releases/tag/([^<\"]+)")
+                    .find(body)
+                    ?.groupValues
+                    ?.getOrNull(1)
+                    ?.substringBefore('"')
+                    ?.trim()
+                    ?.ifBlank { null }
             }
         } catch (_: Throwable) {
             null

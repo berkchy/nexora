@@ -133,17 +133,37 @@ class PatcherViewModel(app: Application) : AndroidViewModel(app) {
     private val _bundle = MutableStateFlow<BundleState>(BundleState.None)
     val bundle: StateFlow<BundleState> = _bundle.asStateFlow()
 
-    /** ABI the user chose for the patch. Defaults to arm64-v8a. */
-    private val _abi = MutableStateFlow(SUPPORTED_ABIS.first())
+    /**
+     * The ABI of the phone the patcher runs on. There is no ABI picker: a
+     * 32-bit phone cannot load arm64 modules and patching one in would only
+     * produce an APK that dies at startup, so the device decides and the source
+     * APK is only allowed to narrow it down, never widen it.
+     */
+    private val deviceAbi: String =
+        Build.SUPPORTED_ABIS.firstOrNull { it in SUPPORTED_ABIS } ?: SUPPORTED_ABIS.first()
+
+    /** ABI every patch step uses. Fixed by the device architecture. */
+    private val _abi = MutableStateFlow(deviceAbi)
     val abi: StateFlow<String> = _abi.asStateFlow()
 
     val supportedAbis: List<String> = SUPPORTED_ABIS
+    val isDeviceAbi: String get() = deviceAbi
 
     val sourceAbis: List<String> get() = _source.value?.abis ?: emptyList()
     val loadedBundleAbi: String? get() = loadedBundle?.manifest?.abi?.ifBlank { null }
 
-    fun setAbi(abi: String) {
-        if (abi !in SUPPORTED_ABIS) return
+    /**
+     * Picks the ABI to patch for: the device's own one whenever the source APK
+     * ships it, otherwise the only one the APK does have.
+     */
+    private fun resolveAbi(sourceAbis: List<String>): String? = when {
+        sourceAbis.isEmpty() -> null
+        deviceAbi in sourceAbis -> deviceAbi
+        else -> sourceAbis.first()
+    }
+
+    private fun setAbi(abi: String) {
+        if (abi !in SUPPORTED_ABIS || abi == _abi.value) return
         _abi.value = abi
         val b = loadedBundle
         if (b != null && b.manifest.abi.isNotBlank() && b.manifest.abi != abi) {
@@ -415,7 +435,7 @@ class PatcherViewModel(app: Application) : AndroidViewModel(app) {
             _receivedSource.value = null
             return
         }
-        if (_abi.value !in supported) setAbi(supported.first())
+        if (_abi.value !in supported) resolveAbi(supported)?.let { setAbi(it) }
         _source.value = SourceInfo(label, file.length(), info.entryCount, supported)
         _receivedSource.value = file
         refreshAbiStatus()

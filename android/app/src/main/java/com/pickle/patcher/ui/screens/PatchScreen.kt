@@ -241,14 +241,33 @@ private fun BundleCard(vm: PatcherViewModel) {
     val abiStatus by vm.abiStatus.collectAsState()
 
     AppCard {
-        TargetCard(
-            status = abiStatus,
-            onSelect = { vm.setAbi(it) },
-            onGet = { abiToGet ->
-                vm.setAbi(abiToGet)
-                vm.fetchAndDownloadBundle()
-            },
-        )
+        // Read-only: the device architecture picks the ABI, there is nothing to
+        // choose. The status line still shows what that means for the bundle.
+        val target = abiStatus.firstOrNull { it.selected }
+        Column {
+            Text(
+                "Target",
+                style = MaterialTheme.typography.titleSmall,
+                color = Gray40,
+            )
+            Spacer(Modifier.height(6.dp))
+            Text(
+                "${displayAbi(target?.abi ?: vm.isDeviceAbi)} · " +
+                    if (target?.abi == "arm64-v8a") "64-bit" else "32-bit",
+                style = MaterialTheme.typography.titleSmall,
+                color = White,
+            )
+            Spacer(Modifier.height(2.dp))
+            Text(
+                when {
+                    target == null || !target.inSource -> "Waiting for the client APK"
+                    target.installed -> "Installed · ${target.libCount} libs"
+                    else -> "No libraries yet"
+                },
+                style = MaterialTheme.typography.bodySmall,
+                color = Gray40,
+            )
+        }
 
         Spacer(Modifier.height(12.dp))
 
@@ -480,117 +499,6 @@ private fun libTypeDesc(name: String): String = when {
     name.startsWith("libcs_android_") -> "ReGameDLL game DLL"
     name.contains("_amxx_") -> "AMXX module"
     else -> "Library"
-}
-
-@Composable
-private fun TargetCard(
-    status: List<PatcherViewModel.AbiStatus>,
-    onSelect: (String) -> Unit,
-    onGet: (String) -> Unit,
-) {
-    Column {
-        Text(
-            "Target",
-            style = MaterialTheme.typography.titleSmall,
-            color = Gray40,
-        )
-        Spacer(Modifier.height(6.dp))
-        status.forEachIndexed { i, st ->
-            AbiRow(
-                status = st,
-                onSelect = { onSelect(st.abi) },
-                onGet = { onGet(st.abi) },
-            )
-            if (i < status.lastIndex) Spacer(Modifier.height(6.dp))
-        }
-    }
-}
-
-@Composable
-private fun AbiRow(
-    status: PatcherViewModel.AbiStatus,
-    onSelect: () -> Unit,
-    onGet: () -> Unit,
-) {
-    val borderColor by animateColorAsState(
-        targetValue = if (status.selected) Accent.copy(alpha = 0.55f) else Gray70.copy(alpha = 0.5f),
-        animationSpec = tween(180),
-        label = "abiBorder",
-    )
-    Surface(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clip(RoundedCornerShape(12.dp))
-            .border(1.dp, borderColor, RoundedCornerShape(12.dp))
-            .clickable(enabled = status.inSource) { onSelect() },
-        shape = RoundedCornerShape(12.dp),
-        color = if (status.selected) Accent.copy(alpha = 0.06f) else Color.Transparent,
-    ) {
-        Row(
-            modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            // radio dot: the only selection affordance, no buttons
-            Box(
-                modifier = Modifier.size(14.dp),
-                contentAlignment = Alignment.Center,
-            ) {
-                if (status.selected) {
-                    Box(
-                        Modifier
-                            .size(12.dp)
-                            .clip(CircleShape)
-                            .background(Accent)
-                    )
-                } else {
-                    Box(
-                        Modifier
-                            .size(12.dp)
-                            .clip(CircleShape)
-                            .border(1.dp, Gray60, CircleShape)
-                    )
-                }
-            }
-            Spacer(Modifier.width(12.dp))
-            Column(Modifier.weight(1f)) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text(
-                        text = displayAbi(status.abi),
-                        style = MaterialTheme.typography.titleSmall,
-                        color = if (status.inSource) White else Gray60,
-                    )
-                    Spacer(Modifier.width(8.dp))
-                    Text(
-                        text = if (status.abi == "arm64-v8a") "64-bit" else "32-bit",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = Gray60,
-                    )
-                }
-                Spacer(Modifier.height(2.dp))
-                Text(
-                    text = when {
-                        !status.inSource -> "Not in source APK"
-                        status.installed -> "Installed \u00b7 ${status.libCount} libs"
-                        else -> "No libraries yet"
-                    },
-                    style = MaterialTheme.typography.bodySmall,
-                    color = when {
-                        status.installed -> SuccessGreen
-                        status.inSource -> Gray40
-                        else -> Gray60
-                    },
-                )
-            }
-            if (status.inSource && !status.installed) {
-                Text(
-                    text = if (status.selected) "Download" else "Get",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = Accent,
-                    modifier = Modifier.clickable { onGet() },
-                )
-            }
-        }
-    }
 }
 
 @Composable
