@@ -156,10 +156,10 @@ jobs:
         if: steps.build_type.outputs.skip_native != 'true'
         shell: bash
         run: |
-          # amxmodx is fetched from upstream by build-amxx.sh and customized
-          # by ./patches/; hlsdk + metamod-p are checked out as git submodules
-          # under 3rdparty/ (berkchy/hlsdk, berkchy/mm-p), so no overlay copy
-          # step is needed.
+          # Every source is a submodule under 3rdparty/ and carries its own
+          # changes as commits: berkchy/amxmodx, berkchy/mm-p,
+          # berkchy/metamod-fwgs, berkchy/hlsdk, berkchy/yapb. build-amxx.sh
+          # selects the amxmodx branch for the ABI it is building.
           # arm64-v8a is mandatory; armeabi-v7a is best-effort (trial) and its
           # failure only drops the v7a bundle, it never fails the workflow.
           for ABI in arm64-v8a armeabi-v7a; do

@@ -16,3 +16,7 @@
 [submodule "3rdparty/metamod-fwgs"]
 	path = 3rdparty/metamod-fwgs
 	url = https://github.com/berkchy/metamod-fwgs.git
+[submodule "3rdparty/amxmodx"]
+	path = 3rdparty/amxmodx
+	url = https://github.com/berkchy/amxmodx.git
+	branch = nexora

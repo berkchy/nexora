@@ -28,7 +28,6 @@ set -euo pipefail
 
 SBIN=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
 REPO_ROOT=$(cd "$SBIN/../.." && pwd)
-PATCHES="$REPO_ROOT/patches"
 
 SRC=$1
 NDK=$2
@@ -36,7 +35,6 @@ OUT=$3
 PLUGINS_SRC=${4:-}
 ABI=${5:-arm64-v8a}
 
-AMXX_REPO=https://github.com/alliedmodders/amxmodx.git
 
 mkdir -p "$SRC" "$OUT/lib/$ABI" "$OUT/plugins"
 
@@ -55,7 +53,6 @@ fetch() {
     fi
   fi
 }
-fetch amxmodx "$AMXX_REPO" yes
 
 # metamod-p stays only as the header source used to compile the AMXX core
 # (its meta_api.h ABI suffices); the actual runtime gamemod is metamod-fwgs,
@@ -67,326 +64,23 @@ fetch reapi "https://github.com/rehlds/ReAPI.git" yes
 # mirror of yapb/yapb) instead of fetched here, so the cvar fix for the
 # unresolved-console-variable crash can be maintained in-tree.
 
-apply_patch() {
-  local patch=$1 dir=$2 subdir=${3:-}
-  local target="$dir/$subdir"
-  local mark="$target/.applied-$(basename "$patch")"
-  if [ -f "$mark" ]; then
-    echo "   patch already applied: $(basename "$patch")"
-    return 0
-  fi
-  (cd "$target" && git apply --check "$patch")
-  (cd "$target" && git apply "$patch")
-  touch "$mark"
-  echo "   patched: $(basename "$patch")"
-}
-
-apply_patch "$PATCHES/amxmodx-libpawnc-console.patch"      "$SRC/amxmodx"
-
-# --- cell64 / arm64 only -------------------------------------------------
-# These fix places where an 8-byte cell (or the arm64 host) breaks stock
-# amxmodx: pointers that no longer fit a cell, 64-bit cell semantics, arm64
-# trampolines and pdata translation. The 32-bit build does not need them and
-# does not get them: it runs upstream code on those paths, so a 32-bit bug is
-# a real port issue instead of a fix of ours fighting the port.
+# amxmodx: our fork, checked out as a submodule. The arm64 build uses the
+# nexora-cell64 branch, which carries the 8-byte cell fixes on top of
+# nexora: pointers that no longer fit a cell, 64-bit cell semantics, arm64
+# trampolines and pdata translation. The 32-bit build stays on nexora and
+# runs upstream code on those paths, so a 32-bit bug stays a real port issue
+# instead of a fix of ours fighting the port.
+AMXX_REF=nexora
 if [ "$ABI" = "arm64-v8a" ]; then
-  apply_patch "$PATCHES/cell64/amxmodx-pawncc-64bit.patch"          "$SRC/amxmodx"
-  apply_patch "$PATCHES/cell64/amxmodx-pawncc-64bit-literalpool.patch" "$SRC/amxmodx"
-  apply_patch "$PATCHES/cell64/amxmodx-libpc300-sclist-llx.patch"   "$SRC/amxmodx"
-  apply_patch "$PATCHES/cell64/amxmodx-CDetour-cell.diff"          "$SRC/amxmodx"
-  apply_patch "$PATCHES/cell64/amxmodx-64bit-cell-casts.diff"       "$SRC/amxmodx"
-  apply_patch "$PATCHES/cell64/amxmodx-amtl-64bit.diff"             "$SRC/amxmodx" "public/amtl"
-  apply_patch "$PATCHES/cell64/amxmodx-param-convert-64bit.patch"  "$SRC/amxmodx"
-  apply_patch "$PATCHES/cell64/amxmodx-pcvar-handle-64bit.patch"   "$SRC/amxmodx"
-  apply_patch "$PATCHES/cell64/amxmodx-fakemeta-intvec-64.patch"    "$SRC/amxmodx"
-  apply_patch "$PATCHES/cell64/amxmodx-cbase-bit32-guard.diff"     "$SRC/amxmodx"
-  apply_patch "$PATCHES/cell64/amxmodx-ham-trampoline-arm64.patch"  "$SRC/amxmodx"
-  apply_patch "$PATCHES/cell64/amxmodx-pdata-runtime-translate.diff" "$SRC/amxmodx"
-else
-  echo "== $ABI: skipping the 12 cell64/arm64-only patches"
+  AMXX_REF=nexora-cell64
 fi
-# bionic printf eats the 'L' modifier for %Lx (integer conversions), so cell64
-# varargs shift by 4 bytes and insert_dbgsymbol's "%s" reads an integer as a
-# pointer -> SIGSEGV on arm32 (arm64 8-byte slots mask the shift).
-apply_patch "$PATCHES/amxmodx-android-load-CModule.patch" "$SRC/amxmodx"
-apply_patch "$PATCHES/amxmodx-android-load-modules.patch" "$SRC/amxmodx"
-apply_patch "$PATCHES/amxmodx-memtools-dlfcn.diff"         "$SRC/amxmodx"
-apply_patch "$PATCHES/amxmodx-CTextParsers-quote-underrun.diff" "$SRC/amxmodx"
-apply_patch "$PATCHES/amxmodx-regparm-arm64.patch"         "$SRC/amxmodx"
-apply_patch "$PATCHES/amxmodx-csx-string-guard.patch"     "$SRC/amxmodx"
-apply_patch "$PATCHES/amxmodx-amx-hea-adopt.patch"      "$SRC/amxmodx"
-apply_patch "$PATCHES/amxmodx-float64-widen.patch"     "$SRC/amxmodx"
-apply_patch "$PATCHES/amxmodx-gamesig-rtld.patch"       "$SRC/amxmodx"
-apply_patch "$PATCHES/amxmodx-interface-android.diff"   "$SRC/amxmodx"
-apply_patch "$PATCHES/amxmodx-ham-float64.patch"       "$SRC/amxmodx"
-apply_patch "$PATCHES/amxmodx-cbase-pev-fallback.patch"     "$SRC/amxmodx"
-apply_patch "$PATCHES/amxmodx-fun-strip-user-weapons.diff"  "$SRC/amxmodx"
-# Xash3D has no SV_DropClient detour (symbol hidden + ABI differs), so deliver
-# client_disconnected/client_remove from the engine pfnClientDisconnect path.
-apply_patch "$PATCHES/amxmodx-xash-disconnect-forwards.patch"  "$SRC/amxmodx"
-# Map-spawn progress markers ([NX] spawn NN / serveractivate). The arm32
-# SIGABRT lands somewhere between the "Mapchange" log line and the first
-# plugin output, and amxx's own log can be disabled, so print straight to the
-# server console with ALERT: arch-independent and visible in engine.log.
-apply_patch "$PATCHES/amxmodx-spawn-progress.patch"        "$SRC/amxmodx"
-apply_patch "$PATCHES/amxmodx-boot-progress.patch"          "$SRC/amxmodx"
-# Routes assert() failures into the server console as well: without this the
-# shim only writes to stderr (logcat), so a crash arrives with no message.
-apply_patch "$PATCHES/amxmodx-assert-report.patch"        "$SRC/amxmodx"
-# Prints every plugin read attempt and its result to the server console, so a
-# plugin that dies mid-load names itself in engine.log instead of vanishing.
-apply_patch "$PATCHES/amxmodx-plugin-load-report.patch"    "$SRC/amxmodx"
-# Zombie Plague's main plugin registers its natives in plugin_precache and the
-# class plugin calls them from its own plugin_precache. AMXX only wires plugin
-# natives into other plugins' images at load time, so that call was a jump to a
-# null pointer; re-resolve between the plugins of a forward.
-apply_patch "$PATCHES/amxmodx-refresh-plugin-natives.patch" "$SRC/amxmodx"
-# The plugin_init of all plugins in this AMXX page is C_ServerActivate_Post
-# in #, that is, it works collectively AFTER native resolution. Another plugin
-# if it calls the function of a plugin, the provider calls register_native()
-# because it is done in plugin_init, it is more registered at the time of Finalize function()
-# it is not, and the plugin would not be installed with the "unknown function". Now only
-# we are giving a warning; CForward::execute completes the connection in the next step.
-apply_patch "$PATCHES/amxmodx-plugin-native-pending.diff" "$SRC/amxmodx"
-# The two patches above leave a gap together: the unresolved native's
-# the # entry remains as address=0, and when that native is first called, the process
-# the address is zipping to 0 (in arm32, fault addr 0x6, SIGSEGV, libamxmodx in,
-# During ZP's plugin_precache). Two safe steps:
-# 1) Insert invalid_native stub in the branch where finalize() cannot be solved: now NULL
-# there is no address left, a late incoming call freezes into a flat AMXX error.
-#2) RefreshNatives() should clean the stubs before siphoning, otherwise
-# amx_Register (fills in only the ones with address==0) cannot be solved again.
-python3 - "$SRC/amxmodx/amxmodx/CPlugin.cpp" <<'PATCHSTEP'
-import io, sys
-
-p = sys.argv[1]
-s = io.open(p, encoding='utf-8').read()
-changed = False
-
-# ---- 1) forward declaration: the stub is defined further down in this file
-old = 'void CPluginMngr::RefreshNatives()'
-new = ('// Its definition sits further down in this file, so declare it before the\n'
-       '// first use.\n'
-       'static cell AMX_NATIVE_CALL invalid_native(AMX *amx, cell *params);\n'
-       '\n'
-       'void CPluginMngr::RefreshNatives()')
-
-if 'static cell AMX_NATIVE_CALL invalid_native(AMX *amx, cell *params);' not in s:
-    if old not in s:
-        raise SystemExit('build-amxx: RefreshNatives anchor not found')
-    s = s.replace(old, new, 1)
-    changed = True
-
-# ---- 2) Finalize(): unresolved native gets the safety stub
-old = '\t\t\t\tAMXXLOG_Log("[NX] Plugin \\"%s\\": %s", name.chars(), buffer);\n\t\t\t} else {'
-new = ('\t\t\t\tAMXXLOG_Log("[NX] Plugin \\"%s\\": %s", name.chars(), buffer);\n'
-       '\n'
-       '\t\t\t\t// Never leave a null native behind: an entry that stays at\n'
-       '\t\t\t\t// address 0 is jumped to when it is called, which is a SIGSEGV\n'
-       '\t\t\t\t// inside plugin_precache with no useful backtrace. The stub turns\n'
-       '\t\t\t\t// a late call into a normal AMXX error, and RefreshNatives()\n'
-       '\t\t\t\t// swaps it for the real address once it exists.\n'
-       '\t\t\tamx_RegisterToAny(&amx, invalid_native);\n'
-       '\t\t\t} else {')
-
-if 'Never leave a null native behind' not in s:
-    if old not in s:
-        raise SystemExit('build-amxx: CPlugin.cpp Finalize hunk not found')
-    s = s.replace(old, new, 1)
-    changed = True
-
-# ---- 3) RefreshNatives(): clear the stubs before retrying
-old = '\t\t\tamx_Register(a->getAMX(), table, -1);'
-new = ('\t\t\tAMX *amx = a->getAMX();\n'
-       '\t\t\tAMX_HEADER *hdr = (AMX_HEADER *)amx->base;\n'
-       '\n'
-       '\t\t\t// amx_Register() only fills entries whose address is still zero\n'
-       '\t\t\t// and the stub is not zero, so clear the stubbed entries first\n'
-       '\t\t\t// or the retry could never resolve them\n'
-       '\t\t\tint entries = (hdr->libraries - hdr->natives) / hdr->defsize;\n'
-       '\t\t\tAMX_FUNCSTUB *stub = (AMX_FUNCSTUB *)((unsigned char *)hdr + hdr->natives);\n'
-       '\n'
-       '\t\t\tfor (int i = 0; i < entries; i++)\n'
-       '\t\t\t{\n'
-       '\t\t\t\tif ((AMX_NATIVE)stub->address == invalid_native)\n'
-       '\t\t\t\t\tstub->address = 0;\n'
-       '\n'
-       '\t\t\t\tstub = (AMX_FUNCSTUB *)((unsigned char *)stub + hdr->defsize);\n'
-       '\t\t\t}\n'
-       '\n'
-       '\t\t\tamx_Register(amx, table, -1);\n'
-       '\n'
-       '\t\t\t// Whatever nobody has registered stays on the stub\n'
-       '\t\t\tamx_RegisterToAny(amx, invalid_native);')
-
-if 'or the retry could never resolve them' not in s:
-    if old not in s:
-        raise SystemExit('build-amxx: CPlugin.cpp RefreshNatives hunk not found')
-    s = s.replace(old, new, 1)
-    changed = True
-
-if changed:
-    io.open(p, 'w', encoding='utf-8').write(s)
-
-print('   CPlugin.cpp: unresolved natives get a stub and are retried (%s)'
-      % ('changed' if changed else 'already applied'))
-PATCHSTEP
-
-# ARM flush-to-zero: disable FZ bit so denormalized floats (used by pev/set_pev
-# vector round-trip) are preserved instead of being flushed to zero.
-AMXX_FM="$SRC/amxmodx/modules/fakemeta/fakemeta_amxx.cpp"
-if [ -f "$AMXX_FM" ] && ! grep -q "DisableARM_FTZ" "$AMXX_FM"; then
-  awk '
-  /void OnAmxxAttach\(\)/ {
-    print "static void DisableARM_FTZ(void)"
-    print "{"
-    print "#if defined(__aarch64__)"
-    print "\tunsigned long long fpcr;"
-    print "\t__asm__ volatile(\"mrs %0, fpcr\" : \"=r\"(fpcr));"
-    print "\tfpcr &= ~(1ULL << 24);"
-    print "\t__asm__ volatile(\"msr fpcr, %0\" :: \"r\"(fpcr));"
-    print "#elif defined(__arm__)"
-    print "\tunsigned int fpscr;"
-    print "\t__asm__ volatile(\"vmrs %0, fpscr\" : \"=r\"(fpscr));"
-    print "\tfpscr &= ~(1u << 24);"
-    print "\t__asm__ volatile(\"vmsr fpscr, %0\" :: \"r\"(fpscr));"
-    print "#endif"
-    print "}"
-    print ""
-  }
-  /initialze_offsets\(\)/ && !done {
-    print "\tDisableARM_FTZ();"
-    print ""
-    done=1
-  }
-  { print }
-  ' "$AMXX_FM" > "$AMXX_FM.tmp" && mv "$AMXX_FM.tmp" "$AMXX_FM"
-  echo "   patched: ARM FTZ disable"
+echo "== amxmodx: $AMXX_REF =="
+if ! git -C "$REPO_ROOT/3rdparty/amxmodx" rev-parse --verify "$AMXX_REF" >/dev/null 2>&1; then
+  git -C "$REPO_ROOT/3rdparty/amxmodx" fetch -q --depth 1 origin "$AMXX_REF"
 fi
-# AMXX module file suffix: "amd64" upstream means "64-bit cells" (applies to
-# cell-64 build), but on ARM32 that name reads as
-# an x86-64 binary. Name ARM32 modules "_arm" (arm64 keeps "_amd64" so it also
-# matches the ISA); the loader suffix logic must stay in sync with the CI build.
-apply_patch "$PATCHES/amxmodx-module-suffix-arm.patch"      "$SRC/amxmodx"
-# Runtime translation of legacy 32-bit pdata offsets to the measured arm64
-# ReGameDLL layout (see patch header for how the tables are regenerated).
-# Fix Pawn compiler assertion bug: =='0' (char literal = 48) should be ==0 (int zero)
-# This causes "array_level=='0'" assertion failure on any enum-constant array index.
-# Even after fixing =='0' -> ==0, the assertion still fires for plugins (eg
-# zombie_plague40.sma) that use an enum field with array_level > 0 as an array
-# index. That is a legitimate pattern, so remove the overly-strict assert.
-sed -i "s/array_level==\s*'0'/array_level==0/g" "$SRC/amxmodx/compiler/libpc300/sc3.c"
-sed -i "/assert(lval2.sym==NULL/d" "$SRC/amxmodx/compiler/libpc300/sc3.c"
-# Fix compiler assertion in debug-info generation: every automaton gets an
-# anonymous state (empty name, scstate.c automaton_add) that append_dbginfo()
-# walked bare. Plugins using state machines (eg ze_extra_star_chaser.sma) then
-# aborted amxxpc with 'assert "strlen(constptr->name)>0" failed'. Skip empty
-# names like the automaton table already does.
-apply_patch "$PATCHES/amxmodx-sc6-state-dbginfo.patch" "$SRC/amxmodx"
-# AMXX core is still compiled against metamod-p's meta_api.h (METAMOD above),
-# which requires this ARM64 shim (cs16_amxx_compat.h + const SET_LOCALINFO).
-# Android native lib: also try libamxxpc32.so (APK lib prefix) when driver is libamxxpc.so
-if [ -f "$SRC/amxmodx/compiler/amxxpc/amxxpc.cpp" ]; then
-  python3 - "$SRC" <<'PYEOF' || true
-import sys, os
-src = sys.argv[1]
-p = os.path.join(src, "amxmodx/compiler/amxxpc/amxxpc.cpp")
-data = open(p, encoding="utf-8").read()
-old = '\tHINSTANCE lib = NULL;\n\tdlopen("libm.so", RTLD_NOW | RTLD_GLOBAL);\n\tif (FileExists("./amxxpc32.so"))\n\t\tlib = dlmount("./amxxpc32.so");\n\telse\n\t\tlib = dlmount("amxxpc32.so");'
-new = (
-    '\tHINSTANCE lib = NULL;\n'
-    '\tdlopen("libm.so", RTLD_NOW | RTLD_GLOBAL);\n'
-    '\t{\n'
-    '\t\t/* Android: resolve library path relative to this binary */\n'
-    '\t\tchar selfpath[4096] = "./";\n'
-    '\t\tssize_t len = readlink("/proc/self/exe", selfpath, sizeof(selfpath) - 1);\n'
-    '\t\tif (len > 0) {\n'
-    '\t\t\tselfpath[len] = \'\\0\';\n'
-    '\t\t\tfor (int i = len - 1; i > 0; i--)\n'
-    '\t\t\t\tif (selfpath[i] == \'/\') { selfpath[i] = \'\\0\'; break; }\n'
-    '\t\t}\n'
-    '\t\t/* Try: <bindir>/libamxxpc32.so, <bindir>/amxxpc32.so, ./libamxxpc32.so, ./amxxpc32.so */\n'
-    '\t\tchar fullpath[4096];\n'
-    '\t\tsnprintf(fullpath, sizeof(fullpath), "%s/libamxxpc32.so", selfpath);\n'
-    '\t\tif (FileExists(fullpath))\n'
-    '\t\t\tlib = dlmount(fullpath);\n'
-    '\t\telse {\n'
-    '\t\t\tsnprintf(fullpath, sizeof(fullpath), "%s/amxxpc32.so", selfpath);\n'
-    '\t\t\tif (FileExists(fullpath))\n'
-    '\t\t\t\tlib = dlmount(fullpath);\n'
-    '\t\t\telse if (FileExists("./libamxxpc32.so"))\n'
-    '\t\t\t\tlib = dlmount("./libamxxpc32.so");\n'
-    '\t\t\telse if (FileExists("./amxxpc32.so"))\n'
-    '\t\t\t\tlib = dlmount("./amxxpc32.so");\n'
-    '\t\t\telse\n'
-    '\t\t\t\tlib = dlmount("amxxpc32.so");\n'
-    '\t\t}\n'
-    '\t}\n'
-)
-if old in data:
-    open(p, "w", encoding="utf-8").write(data.replace(old, new))
-    print("patched amxxpc for lib prefix")
-else:
-    if 'lib = dlmount("./amxxpc32.so");' in data and 'libamxxpc32.so' not in data:
-        data = data.replace('lib = dlmount("./amxxpc32.so");', 'lib = dlmount("./amxxpc32.so");\n\telse if (FileExists("./libamxxpc32.so"))\n\t\tlib = dlmount("./libamxxpc32.so");\n\telse if (FileExists("libamxxpc32.so"))\n\t\tlib = dlmount("libamxxpc32.so");')
-        open(p, "w", encoding="utf-8").write(data)
-        print("patched amxxpc (fallback)")
-PYEOF
-fi
+git -C "$REPO_ROOT/3rdparty/amxmodx" checkout -q "$AMXX_REF"
+git -C "$REPO_ROOT/3rdparty/amxmodx" submodule update --init --recursive --depth 1 2>&1 | tail -2 || true
 
-# MemoryUtils: skip the ELF-parsing fallback in ResolveSymbol on Android.
-# dlmap->l_name is NULL/invalid on bionic, causing SIGSEGV in open().
-# dlsym() is reliable on Android, so the fallback is unnecessary.
-if [ -f "$SRC/amxmodx/public/memtools/MemoryUtils.cpp" ]; then
-  MF="$SRC/amxmodx/public/memtools/MemoryUtils.cpp"
-  if ! grep -q '__ANDROID__' "$MF"; then
-    echo "   patching MemoryUtils.cpp for Android"
-    python3 -c "
-import sys
-p = sys.argv[1]
-d = open(p).read()
-d = d.replace(
-    'void *addr = dlsym(handle, symbol);\n\n\tif (addr)\n\t{\n\t\treturn addr;\n\t}\n\n\tstruct link_map',
-    'void *addr = dlsym(handle, symbol);\n#if defined(__ANDROID__)\n\t/* On Android, dlsym is reliable.\n\t   The manual ELF fallback dereferences dlmap->l_name which\n\t   can be NULL on bionic, causing SIGSEGV. */\n\treturn addr;\n#else\n\n\tif (addr)\n\t{\n\t\treturn addr;\n\t}\n\n\tstruct link_map'
-)
-d = d.replace(
-    '\treturn symbol_entry ? symbol_entry->address : NULL;\n\n#elif defined(__APPLE__)',
-    '\treturn symbol_entry ? symbol_entry->address : NULL;\n#endif /* !__ANDROID__ */\n\treturn NULL;\n\n#elif defined(__APPLE__)'
-)
-open(p,'w').write(d)
-print('   MemoryUtils patched for Android')
-" "$MF"
-  else
-    echo "   MemoryUtils already patched"
-  fi
-fi
-
-# CDetour: x86-only trampoline generator crashes on ARM64 (copy_bytes/check_thunks
-# decode x86 instructions).  Make CreateDetour return false on ARM64 so the
-# cstrike module loads without hooks (offsets/sigs still work).
-if [ -f "$SRC/amxmodx/public/memtools/CDetour/detours.cpp" ]; then
-  DT="$SRC/amxmodx/public/memtools/CDetour/detours.cpp"
-  if ! grep -q '__aarch64__' "$DT"; then
-    echo "   patching CDetour detours.cpp for ARM64"
-    python3 -c "
-import sys
-p = sys.argv[1]
-d = open(p).read()
-d = d.replace(
-    '\treturn false;\n\t}*/\n\n\tif (address != NULL)',
-    '\treturn false;\n\t}*/\n\n#if defined(__aarch64__)\n\t/* x86 trampoline generator is not valid on ARM64 */\n\treturn false;\n#else\n\tif (address != NULL)'
-)
-d = d.replace(
-    '\treturn true;\n}\n\nvoid CDetour::DeleteDetour()',
-    '\treturn true;\n#endif /* !__aarch64__ */\n}\n\nvoid CDetour::DeleteDetour()'
-)
-open(p,'w').write(d)
-print('   CDetour patched for ARM64')
-" "$DT"
-  else
-    echo "   CDetour already patched"
-  fi
-fi
 
 # ----------------------------------------------------------------- toolchain
 HOST=$(uname -s | tr 'A-Z' 'a-z')
@@ -409,8 +103,8 @@ case "$ABI" in
     SYSROOT_ARCH=arm-linux-androideabi
     PCRE_HOST=arm-linux-androideabi
     RUNTIME_SUFFIX=armv7l
-    # ARM32 AMXX modules are named "_arm" (not "_amd64"): the loader suffix
-    # logic in the amxmodx-module-suffix-arm patch mirrors this.
+    # ARM32 AMXX modules are named "_arm" (not "_amd64"): the amxmodx loader's
+    # suffix logic matches this (see "name ARM32 modules _arm" in the fork).
     MOD_SUFFIX=arm
     # 32-bit cells on purpose. amx_Exec asserts sizeof(cell)==sizeof(void *),
     # so a 64-bit-cell build on 32-bit pointers aborts the moment a plugin
@@ -429,7 +123,7 @@ HOSTCC=${HOSTCC:-gcc}
 HOSTCXX=${HOSTCXX:-g++}
 SYSROOT_LIB=$NDK/toolchains/llvm/prebuilt/$HOST-x86_64/sysroot/usr/lib/$SYSROOT_ARCH
 
-AMXX=$SRC/amxmodx
+AMXX=$REPO_ROOT/3rdparty/amxmodx
 HLSDK=$REPO_ROOT/3rdparty/hlsdk
 METAMOD=$REPO_ROOT/3rdparty/mm-p/metamod
 MMHLSDK=$REPO_ROOT/3rdparty/mm-p/hlsdk
