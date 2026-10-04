@@ -41,6 +41,14 @@ data class SourceInfo(
     val abis: List<String> = emptyList(),
 )
 
+/** Progress of the "download the client APK from GitHub" action. */
+sealed interface SourceDownloadState {
+    data object Fetching : SourceDownloadState
+    data class Downloading(val downloaded: Long, val total: Long) : SourceDownloadState
+    data class Done(val name: String) : SourceDownloadState
+    data class Failed(val message: String) : SourceDownloadState
+}
+
 sealed interface BundleState {
     data object None : BundleState
     data object Loaded : BundleState
@@ -108,6 +116,9 @@ class PatcherViewModel(app: Application) : AndroidViewModel(app) {
     val source: StateFlow<SourceInfo?> = _source.asStateFlow()
 
     private val _receivedSource: MutableStateFlow<File?> = MutableStateFlow(null)
+
+    private val _sourceDownload = MutableStateFlow<SourceDownloadState?>(null)
+    val sourceDownload: StateFlow<SourceDownloadState?> = _sourceDownload.asStateFlow()
 
     private val _bundle = MutableStateFlow<BundleState>(BundleState.None)
     val bundle: StateFlow<BundleState> = _bundle.asStateFlow()
@@ -365,25 +376,104 @@ class PatcherViewModel(app: Application) : AndroidViewModel(app) {
                 getApplication<Application>().contentResolver.openInputStream(uri)?.use { input ->
                     out.outputStream().use { output -> input.copyTo(output) }
                 }
-                val info = ZipAnalyzer.analyze(out)
-                val supported = info.abis.filter { it in SUPPORTED_ABIS }
-                if (supported.isEmpty()) {
-                    _patch.value = PatchUiState.Failed(
-                        "This APK has no supported native ABIs (found: " +
-                            "${info.abis.ifEmpty { listOf("none") }.joinToString(", ")}). " +
-                            "Supported: ${SUPPORTED_ABIS.joinToString(", ")}."
-                    )
-                    _receivedSource.value = null
-                    return@launch
-                }
-                if (_abi.value !in supported) setAbi(supported.first())
-                _source.value = SourceInfo(name, out.length(), info.entryCount, supported)
-                _receivedSource.value = out
-                refreshAbiStatus()
+                useSourceFile(out, name)
             } catch (t: Throwable) {
                 _patch.value = PatchUiState.Failed("Could not copy source APK: ${t.message}")
             }
         }
+    }
+
+    /**
+     * Analyzes an APK already sitting in app storage and adopts it as the
+     * source. Shared by the SAF path and the GitHub download path, so both
+     * validate the ABI the same way.
+     */
+    private fun useSourceFile(file: File, label: String) {
+        val info = ZipAnalyzer.analyze(file)
+        val supported = info.abis.filter { it in SUPPORTED_ABIS }
+        if (supported.isEmpty()) {
+            _patch.value = PatchUiState.Failed(
+                "This APK has no supported native ABIs (found: " +
+                    "${info.abis.ifEmpty { listOf("none") }.joinToString(", ")}). " +
+                    "Supported: ${SUPPORTED_ABIS.joinToString(", ")}."
+            )
+            _receivedSource.value = null
+            return
+        }
+        if (_abi.value !in supported) setAbi(supported.first())
+        _source.value = SourceInfo(label, file.length(), info.entryCount, supported)
+        _receivedSource.value = file
+        refreshAbiStatus()
+    }
+
+    /**
+     * Downloads the client APK from the vcs16 Continuous release into
+     * filesDir/apk-source and adopts it. The patcher already talks to that
+     * release for the native libraries, so this reuses the same quota-free
+     * download path instead of asking the user to hunt for a file.
+     */
+    fun downloadSourceApk() {
+        if (_sourceDownload.value != null) return
+        viewModelScope.launch(Dispatchers.IO) {
+            _sourceDownload.value = SourceDownloadState.Fetching
+            try {
+                val repo = CLIENT_APK_REPO
+                val tag = ReleaseRepository.latestTagRedirect(repo)
+                    ?: throw IOException("Could not resolve the latest $repo release")
+                val name = CLIENT_APK_ASSET
+                val url = ReleaseRepository.assetUrl(repo, tag, name)
+                val total = ReleaseRepository.probeSize(url) ?: 0L
+                val dir = File(getApplication<Application>().filesDir, "apk-source").apply { mkdirs() }
+                val dest = File(dir, name)
+                val partial = File(dir, "$name.part")
+                partial.delete()
+                ReleaseRepository.downloadUrl(url, partial, total) { done, size ->
+                    _sourceDownload.value = SourceDownloadState.Downloading(done, size)
+                }
+                if (!partial.renameTo(dest)) {
+                    partial.copyTo(dest, overwrite = true)
+                    partial.delete()
+                }
+                useSourceFile(dest, "$name ($tag)")
+                _sourceDownload.value = SourceDownloadState.Done(name)
+            } catch (t: Throwable) {
+                _sourceDownload.value = SourceDownloadState.Failed(t.message ?: "Download failed")
+            }
+        }
+    }
+
+    /** Re-adopts an APK that was downloaded earlier, without another download. */
+    fun useDownloadedSource(file: File) {
+        viewModelScope.launch(Dispatchers.IO) {
+            try {
+                useSourceFile(file, file.name)
+            } catch (t: Throwable) {
+                _patch.value = PatchUiState.Failed("Could not read ${file.name}: ${t.message}")
+            }
+        }
+    }
+
+    /** Previously downloaded APKs, newest first. */
+    fun downloadedSources(): List<File> {
+        val dir = File(getApplication<Application>().filesDir, "apk-source")
+        return dir.listFiles { f -> f.isFile && f.extension.equals("apk", ignoreCase = true) }
+            ?.sortedByDescending { it.lastModified() }
+            ?: emptyList()
+    }
+
+    fun deleteDownloadedSource(file: File) {
+        viewModelScope.launch(Dispatchers.IO) {
+            file.delete()
+            if (_receivedSource.value?.absolutePath == file.absolutePath) {
+                _receivedSource.value = null
+                _source.value = null
+            }
+            refreshAbiStatus()
+        }
+    }
+
+    fun clearSourceDownloadState() {
+        _sourceDownload.value = null
     }
 
     private fun queryName(uri: Uri): String? {
@@ -1842,6 +1932,13 @@ class PatcherViewModel(app: Application) : AndroidViewModel(app) {
         const val LEGACY_GAMEDATA_NAME = "offsets-cstrike-replugged.txt"
         /** Releases (tags + patcher APK) are published here by CI. */
         const val APP_RELEASE_REPO = "berkchy/nexora"
+        /**
+         * The client app itself is built by the vcs16 repository and published
+         * under the same rolling Continuous tag. The patcher can fetch that
+         * APK directly instead of asking the user to locate it on the device.
+         */
+        const val CLIENT_APK_REPO = "berkchy/vcs16"
+        const val CLIENT_APK_ASSET = "CS16Client-Android.apk"
         /**
          * Single rolling release: one "Continuous" tag whose assets are
          * replaced on every build. Update check = version.txt string compare

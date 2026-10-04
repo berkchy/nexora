@@ -70,6 +70,7 @@ import com.pickle.patcher.lib.ApkPatcher
 import com.pickle.patcher.patcher.BundleState
 import com.pickle.patcher.patcher.LibInfo
 import com.pickle.patcher.patcher.PatchUiState
+import com.pickle.patcher.patcher.SourceDownloadState
 import com.pickle.patcher.patcher.PatcherViewModel
 import com.pickle.patcher.ui.theme.Accent
 import com.pickle.patcher.ui.theme.AlertRed
@@ -143,6 +144,10 @@ private fun SourceCard(vm: PatcherViewModel) {
         }
     }
     val source by vm.source.collectAsState()
+    val download by vm.sourceDownload.collectAsState()
+    // Re-read on every recomposition while a download runs, so the cached
+    // list shows the new file as soon as it lands.
+    val cached = vm.downloadedSources()
 
     AppCard {
         if (source == null) {
@@ -152,11 +157,67 @@ private fun SourceCard(vm: PatcherViewModel) {
                 color = Gray40,
             )
             Spacer(Modifier.height(10.dp))
-            PrimaryButton(
-                text = "Select APK",
-                onClick = { picker.launch(arrayOf("application/vnd.android.package-archive")) },
-                icon = { Icon(Icons.Filled.FolderOpen, null, modifier = Modifier.size(18.dp)) },
-            )
+            Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                PrimaryButton(
+                    text = "Select APK",
+                    onClick = { picker.launch(arrayOf("application/vnd.android.package-archive")) },
+                    icon = { Icon(Icons.Filled.FolderOpen, null, modifier = Modifier.size(18.dp)) },
+                )
+                GhostButton(
+                    text = when (download) {
+                        is SourceDownloadState.Fetching -> "Finding release..."
+                        is SourceDownloadState.Downloading ->
+                            if (download.total > 0)
+                                "%.0f / %.0f MB".format(
+                                    download.downloaded / 1048576.0,
+                                    download.total / 1048576.0,
+                                )
+                            else "%.0f MB".format(download.downloaded / 1048576.0)
+                        is SourceDownloadState.Done -> "Download again"
+                        is SourceDownloadState.Failed -> "Retry download"
+                        null -> "Download from GitHub"
+                    },
+                    enabled = download !is SourceDownloadState.Fetching &&
+                        download !is SourceDownloadState.Downloading,
+                    onClick = { vm.downloadSourceApk() },
+                )
+            }
+            (download as? SourceDownloadState.Failed)?.let {
+                Spacer(Modifier.height(8.dp))
+                Text(
+                    it.message,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.error,
+                )
+            }
+            if (cached.isNotEmpty()) {
+                Spacer(Modifier.height(12.dp))
+                Text(
+                    "DOWNLOADED",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = Gray40,
+                )
+                Spacer(Modifier.height(6.dp))
+                cached.forEach { file ->
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(vertical = 2.dp),
+                    ) {
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(file.name, style = MaterialTheme.typography.titleSmall)
+                            Text(
+                                "%.1f MB".format(file.length() / 1048576.0),
+                                style = MaterialTheme.typography.bodySmall,
+                                color = Gray40,
+                            )
+                        }
+                        GhostButton("Use", onClick = { vm.useDownloadedSource(file) })
+                        GhostButton("Delete", onClick = { vm.deleteDownloadedSource(file) })
+                    }
+                }
+            }
         } else {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Surface(
