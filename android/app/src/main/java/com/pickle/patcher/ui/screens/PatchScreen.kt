@@ -1,7 +1,5 @@
 package com.pickle.patcher.ui.screens
 
-import androidx.activity.compose.rememberLauncherForActivityResult
-import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.tween
@@ -48,6 +46,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -134,96 +133,19 @@ private fun displayAbi(abi: String): String = when (abi) {
 
 @Composable
 private fun SourceCard(vm: PatcherViewModel) {
-    val context = LocalContext.current
-    val picker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
-        uri?.let {
-            context.contentResolver.takePersistableUriPermission(
-                it, android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION,
-            )
-            vm.pickSource(it)
-        }
-    }
     val source by vm.source.collectAsState()
     val download by vm.sourceDownload.collectAsState()
-    // Re-read on every recomposition while a download runs, so the cached
-    // list shows the new file as soon as it lands.
-    val cached = vm.downloadedSources()
+    // Bind the state to a local first: a delegated property cannot be smart
+    // cast, so every branch below needs a stable reference.
+    val state = download
+
+    // The client APK always comes from GitHub: check what is cached whenever
+    // the card appears, adopt a good one silently and flag a broken or stale
+    // one instead of patching with half a file.
+    LaunchedEffect(Unit) { vm.refreshSourceApkStatus() }
 
     AppCard {
-        if (source == null) {
-            Text(
-                "No APK selected.",
-                style = MaterialTheme.typography.bodyMedium,
-                color = Gray40,
-            )
-            Spacer(Modifier.height(10.dp))
-            Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                PrimaryButton(
-                    text = "Select APK",
-                    onClick = { picker.launch(arrayOf("application/vnd.android.package-archive")) },
-                    icon = { Icon(Icons.Filled.FolderOpen, null, modifier = Modifier.size(18.dp)) },
-                    modifier = Modifier.weight(1f),
-                )
-                // Bind the state to a local first: a delegated property cannot be
-                // smart cast, so the Downloading branch needs a stable reference.
-                val state = download
-                GhostButton(
-                    text = when (state) {
-                        is SourceDownloadState.Fetching -> "Finding release..."
-                        is SourceDownloadState.Downloading ->
-                            if (state.total > 0)
-                                "%.0f / %.0f MB".format(
-                                    state.downloaded / 1048576.0,
-                                    state.total / 1048576.0,
-                                )
-                            else "%.0f MB".format(state.downloaded / 1048576.0)
-                        is SourceDownloadState.Done -> "Download again"
-                        is SourceDownloadState.Failed -> "Retry download"
-                        null -> "Download from GitHub"
-                    },
-                    enabled = state !is SourceDownloadState.Fetching &&
-                        state !is SourceDownloadState.Downloading,
-                    onClick = { vm.downloadSourceApk() },
-                    modifier = Modifier.weight(1f),
-                )
-            }
-            (download as? SourceDownloadState.Failed)?.let {
-                Spacer(Modifier.height(8.dp))
-                Text(
-                    it.message,
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.error,
-                )
-            }
-            if (cached.isNotEmpty()) {
-                Spacer(Modifier.height(12.dp))
-                Text(
-                    "DOWNLOADED",
-                    style = MaterialTheme.typography.labelSmall,
-                    color = Gray40,
-                )
-                Spacer(Modifier.height(6.dp))
-                cached.forEach { file ->
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(vertical = 2.dp),
-                    ) {
-                        Column(modifier = Modifier.weight(1f)) {
-                            Text(file.name, style = MaterialTheme.typography.titleSmall)
-                            Text(
-                                "%.1f MB".format(file.length() / 1048576.0),
-                                style = MaterialTheme.typography.bodySmall,
-                                color = Gray40,
-                            )
-                        }
-                        GhostButton("Use", onClick = { vm.useDownloadedSource(file) })
-                        GhostButton("Delete", onClick = { vm.deleteDownloadedSource(file) })
-                    }
-                }
-            }
-        } else {
+        if (source != null) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Surface(
                     shape = RoundedCornerShape(8.dp),
@@ -250,8 +172,65 @@ private fun SourceCard(vm: PatcherViewModel) {
                         color = Gray40,
                     )
                 }
-                GhostButton("Change", onClick = { picker.launch(arrayOf("application/vnd.android.package-archive")) })
             }
+        } else {
+            Text(
+                "No client APK yet.",
+                style = MaterialTheme.typography.bodyMedium,
+                color = Gray40,
+            )
+        }
+
+        Spacer(Modifier.height(12.dp))
+
+        PrimaryButton(
+            text = when (state) {
+                is SourceDownloadState.Fetching -> "Finding release..."
+                is SourceDownloadState.Downloading ->
+                    if (state.total > 0) {
+                        "%.0f / %.0f MB".format(
+                            state.downloaded / 1048576.0,
+                            state.total / 1048576.0,
+                        )
+                    } else {
+                        "%.0f MB".format(state.downloaded / 1048576.0)
+                    }
+                is SourceDownloadState.Done -> "Download again"
+                is SourceDownloadState.Outdated -> "Update"
+                is SourceDownloadState.Corrupt -> "Re-download"
+                is SourceDownloadState.Failed -> "Retry download"
+                null -> "Download from GitHub"
+            },
+            enabled = state !is SourceDownloadState.Fetching &&
+                state !is SourceDownloadState.Downloading,
+            icon = { Icon(Icons.Filled.Download, null, modifier = Modifier.size(18.dp)) },
+            onClick = { vm.downloadSourceApk() },
+        )
+
+        val note = when (state) {
+            is SourceDownloadState.Outdated ->
+                "GitHub has a newer client build (%s here, %s there). Update to patch with it."
+                    .format(state.localSize.mb(), state.remoteSize.mb())
+            is SourceDownloadState.Corrupt ->
+                "The downloaded client APK is broken (${state.reason}). Download it again."
+            is SourceDownloadState.Failed -> state.message
+            is SourceDownloadState.Done ->
+                "Client APK ready." + if (source == null) "" else " Up to date."
+            else -> null
+        }
+        if (note != null) {
+            Spacer(Modifier.height(8.dp))
+            Text(
+                note,
+                style = MaterialTheme.typography.bodySmall,
+                color = if (state is SourceDownloadState.Failed ||
+                    state is SourceDownloadState.Corrupt
+                ) {
+                    MaterialTheme.colorScheme.error
+                } else {
+                    Gray40
+                },
+            )
         }
     }
 }

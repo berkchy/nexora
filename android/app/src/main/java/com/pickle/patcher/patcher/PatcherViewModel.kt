@@ -47,6 +47,16 @@ sealed interface SourceDownloadState {
     data class Downloading(val downloaded: Long, val total: Long) : SourceDownloadState
     data class Done(val name: String) : SourceDownloadState
     data class Failed(val message: String) : SourceDownloadState
+
+    /** The cached APK is smaller than the asset on GitHub: an older build. */
+    data class Outdated(
+        val name: String,
+        val localSize: Long,
+        val remoteSize: Long,
+    ) : SourceDownloadState
+
+    /** The cached APK is broken (truncated download, unreadable zip). */
+    data class Corrupt(val name: String, val reason: String) : SourceDownloadState
 }
 
 sealed interface BundleState {
@@ -366,21 +376,26 @@ class PatcherViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
-    /** Copies a SAF-picked source APK into app storage. */
-    fun pickSource(uri: Uri) {
-        viewModelScope.launch(Dispatchers.IO) {
-            try {
-                val name = queryName(uri) ?: "source.apk"
-                val out = File(workDir, name)
-                out.parentFile?.mkdirs()
-                getApplication<Application>().contentResolver.openInputStream(uri)?.use { input ->
-                    out.outputStream().use { output -> input.copyTo(output) }
-                }
-                useSourceFile(out, name)
-            } catch (t: Throwable) {
-                _patch.value = PatchUiState.Failed("Could not copy source APK: ${t.message}")
-            }
+    /** The single APK the patcher ever patches with, straight from GitHub. */
+    private fun cachedClientApk(): File? =
+        File(File(getApplication<Application>().filesDir, "apk-source"), CLIENT_APK_ASSET)
+            .takeIf { it.isFile }
+
+    /**
+     * Null when the file is a usable client APK, otherwise why it is not.
+     * A download that died halfway leaves a zip the analyzer cannot read, so
+     * this is what tells "needs another download" apart from "good to patch".
+     */
+    private fun apkProblem(file: File): String? = try {
+        val info = ZipAnalyzer.analyze(file)
+        if (info.abis.none { it in SUPPORTED_ABIS }) {
+            "no supported native ABI (" +
+                "${info.abis.ifEmpty { listOf("none") }.joinToString(", ")})"
+        } else {
+            null
         }
+    } catch (t: Throwable) {
+        t.message?.takeIf { it.isNotBlank() } ?: "unreadable archive"
     }
 
     /**
@@ -407,6 +422,47 @@ class PatcherViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     /**
+     * Checks the cached client APK against the current GitHub release whenever
+     * the source card shows up: a good APK is adopted without any tap, an
+     * outdated one is reported as updatable and a broken one as corrupt, so the
+     * patcher never runs against half a download.
+     */
+    fun refreshSourceApkStatus() {
+        if (_sourceDownload.value is SourceDownloadState.Fetching ||
+            _sourceDownload.value is SourceDownloadState.Downloading
+        ) {
+            return
+        }
+        viewModelScope.launch(Dispatchers.IO) {
+            val cached = cachedClientApk()
+            if (cached == null) {
+                _sourceDownload.value = null
+                return@launch
+            }
+            val tag = ReleaseRepository.latestTagRedirect(CLIENT_APK_REPO)
+            val remote = tag
+                ?.let { ReleaseRepository.probeSize(ReleaseRepository.assetUrl(CLIENT_APK_REPO, it, CLIENT_APK_ASSET)) }
+                ?: 0L
+            val problem = apkProblem(cached)
+            _sourceDownload.value = when {
+                problem != null -> SourceDownloadState.Corrupt(CLIENT_APK_ASSET, problem)
+                remote > 0 && cached.length() < remote ->
+                    SourceDownloadState.Outdated(CLIENT_APK_ASSET, cached.length(), remote)
+                remote > 0 && cached.length() != remote ->
+                    SourceDownloadState.Corrupt(CLIENT_APK_ASSET, "size mismatch")
+                else -> SourceDownloadState.Done(CLIENT_APK_ASSET)
+            }
+            // A cached APK that passed every check becomes the source by itself.
+            if (_sourceDownload.value is SourceDownloadState.Done &&
+                _receivedSource.value?.absolutePath != cached.absolutePath &&
+                tag != null
+            ) {
+                useSourceFile(cached, "$CLIENT_APK_ASSET ($tag)")
+            }
+        }
+    }
+
+    /**
      * Downloads the client APK from the vcs16 Continuous release into
      * filesDir/apk-source and adopts it. The patcher already talks to that
      * release for the native libraries, so this reuses the same quota-free
@@ -416,6 +472,7 @@ class PatcherViewModel(app: Application) : AndroidViewModel(app) {
         if (_sourceDownload.value != null) return
         viewModelScope.launch(Dispatchers.IO) {
             _sourceDownload.value = SourceDownloadState.Fetching
+            var partial: File? = null
             try {
                 val repo = CLIENT_APK_REPO
                 val tag = ReleaseRepository.latestTagRedirect(repo)
@@ -425,61 +482,41 @@ class PatcherViewModel(app: Application) : AndroidViewModel(app) {
                 val total = ReleaseRepository.probeSize(url) ?: 0L
                 val dir = File(getApplication<Application>().filesDir, "apk-source").apply { mkdirs() }
                 val dest = File(dir, name)
-                val partial = File(dir, "$name.part")
-                partial.delete()
-                ReleaseRepository.downloadUrl(url, partial, total) { done, size ->
+                val part = File(dir, "$name.part").also { it.delete() }
+                partial = part
+                ReleaseRepository.downloadUrl(url, part, total) { done, size ->
                     _sourceDownload.value = SourceDownloadState.Downloading(done, size)
                 }
-                if (!partial.renameTo(dest)) {
-                    partial.copyTo(dest, overwrite = true)
-                    partial.delete()
+                // A short read means the connection died mid-file: keep the
+                // broken bytes out of the cache and say so.
+                if (total > 0 && part.length() != total) {
+                    part.delete()
+                    throw IOException(
+                        "Download stopped at %.1f MB of %.1f MB".format(
+                            part.length() / 1048576.0,
+                            total / 1048576.0,
+                        )
+                    )
+                }
+                if (!part.renameTo(dest)) {
+                    part.copyTo(dest, overwrite = true)
+                    part.delete()
+                }
+                apkProblem(dest)?.let {
+                    dest.delete()
+                    throw IOException("The downloaded APK is broken: $it")
                 }
                 useSourceFile(dest, "$name ($tag)")
                 _sourceDownload.value = SourceDownloadState.Done(name)
             } catch (t: Throwable) {
+                partial?.delete()
                 _sourceDownload.value = SourceDownloadState.Failed(t.message ?: "Download failed")
             }
         }
     }
 
-    /** Re-adopts an APK that was downloaded earlier, without another download. */
-    fun useDownloadedSource(file: File) {
-        viewModelScope.launch(Dispatchers.IO) {
-            try {
-                useSourceFile(file, file.name)
-            } catch (t: Throwable) {
-                _patch.value = PatchUiState.Failed("Could not read ${file.name}: ${t.message}")
-            }
-        }
-    }
-
-    /** Previously downloaded APKs, newest first. */
-    fun downloadedSources(): List<File> {
-        val dir = File(getApplication<Application>().filesDir, "apk-source")
-        return dir.listFiles { f -> f.isFile && f.extension.equals("apk", ignoreCase = true) }
-            ?.sortedByDescending { it.lastModified() }
-            ?: emptyList()
-    }
-
-    fun deleteDownloadedSource(file: File) {
-        viewModelScope.launch(Dispatchers.IO) {
-            file.delete()
-            if (_receivedSource.value?.absolutePath == file.absolutePath) {
-                _receivedSource.value = null
-                _source.value = null
-            }
-            refreshAbiStatus()
-        }
-    }
-
     fun clearSourceDownloadState() {
         _sourceDownload.value = null
-    }
-
-    private fun queryName(uri: Uri): String? {
-        val resolver = getApplication<Application>().contentResolver
-        return resolver.query(uri, arrayOf(android.provider.OpenableColumns.DISPLAY_NAME), null, null, null)
-            ?.use { c -> if (c.moveToFirst()) c.getString(0) else null }
     }
 
     fun useCachedBundle() {
