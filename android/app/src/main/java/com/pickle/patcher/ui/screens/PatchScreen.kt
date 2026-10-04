@@ -163,22 +163,25 @@ private fun SourceCard(vm: PatcherViewModel) {
                     onClick = { picker.launch(arrayOf("application/vnd.android.package-archive")) },
                     icon = { Icon(Icons.Filled.FolderOpen, null, modifier = Modifier.size(18.dp)) },
                 )
+                // Bind the state to a local first: a delegated property cannot be
+                // smart cast, so the Downloading branch needs a stable reference.
+                val state = download
                 GhostButton(
-                    text = when (download) {
+                    text = when (state) {
                         is SourceDownloadState.Fetching -> "Finding release..."
                         is SourceDownloadState.Downloading ->
-                            if (download.total > 0)
+                            if (state.total > 0)
                                 "%.0f / %.0f MB".format(
-                                    download.downloaded / 1048576.0,
-                                    download.total / 1048576.0,
+                                    state.downloaded / 1048576.0,
+                                    state.total / 1048576.0,
                                 )
-                            else "%.0f MB".format(download.downloaded / 1048576.0)
+                            else "%.0f MB".format(state.downloaded / 1048576.0)
                         is SourceDownloadState.Done -> "Download again"
                         is SourceDownloadState.Failed -> "Retry download"
                         null -> "Download from GitHub"
                     },
-                    enabled = download !is SourceDownloadState.Fetching &&
-                        download !is SourceDownloadState.Downloading,
+                    enabled = state !is SourceDownloadState.Fetching &&
+                        state !is SourceDownloadState.Downloading,
                     onClick = { vm.downloadSourceApk() },
                 )
             }
