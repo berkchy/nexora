@@ -310,7 +310,7 @@ object IncrementalUpdateManager {
      */
     private fun getTargetPath(name: String, abi: String, suffix: String, modSuffix: String): String? {
         return when {
-            name == "libmetamod.so" -> "lib/$abi/libyapb_android_$suffix.so"
+            name == "libmetamod.so" -> "lib/$abi/libmetamod_android_$suffix.so"
             name.startsWith("lib") && name.endsWith(".so") -> "lib/$abi/$name"
             name.endsWith(".so") -> "lib/$abi/lib$name"
             else -> null

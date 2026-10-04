@@ -630,7 +630,7 @@ class PatcherViewModel(app: Application) : AndroidViewModel(app) {
             val name = targetPath.substringAfterLast("/")
             val desc = when {
                 name == "libamxmodx.so" -> "AMX Mod X core"
-                name == "libmetamod.so" || name.startsWith("libyapb_android_") -> "Metamod HL1"
+                name == "libmetamod.so" || name.startsWith("libmetamod_android_") -> "Metamod HL1"
                 name == "libyapb.so" -> "YaPB bot plugin"
                 name == "libclient_android_$suffix.so" -> "CS16Client client DLL"
                 name == "libmenu_android_$suffix.so" -> "CS16Client main menu"
@@ -672,7 +672,7 @@ class PatcherViewModel(app: Application) : AndroidViewModel(app) {
         val name = target.substringAfterLast("/")
         return when {
             name == "libamxmodx.so" -> "amxx"
-            name == "libmetamod.so" || name.startsWith("libyapb_android_") -> "metamod"
+            name == "libmetamod.so" || name.startsWith("libmetamod_android_") -> "metamod"
             name == "libyapb.so" -> "yapb"
             name.startsWith("libclient_android_") -> "client"
             name.startsWith("libmenu_android_") -> "menu"
