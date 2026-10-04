@@ -162,6 +162,7 @@ private fun SourceCard(vm: PatcherViewModel) {
                     text = "Select APK",
                     onClick = { picker.launch(arrayOf("application/vnd.android.package-archive")) },
                     icon = { Icon(Icons.Filled.FolderOpen, null, modifier = Modifier.size(18.dp)) },
+                    modifier = Modifier.weight(1f),
                 )
                 // Bind the state to a local first: a delegated property cannot be
                 // smart cast, so the Downloading branch needs a stable reference.
@@ -183,6 +184,7 @@ private fun SourceCard(vm: PatcherViewModel) {
                     enabled = state !is SourceDownloadState.Fetching &&
                         state !is SourceDownloadState.Downloading,
                     onClick = { vm.downloadSourceApk() },
+                    modifier = Modifier.weight(1f),
                 )
             }
             (download as? SourceDownloadState.Failed)?.let {
