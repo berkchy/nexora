@@ -498,9 +498,9 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          # Rolling release: the tag + release stay, only assets are replaced.
-          # On a bundle-only build the APK + version.txt are left untouched
-          # (no APK is built, so they must survive).
+          # Rolling release: the tag + release stay, only the assets of the side
+          # that was rebuilt are replaced. An [android]-only build must not drop
+          # the .so assets and a [libs]-only build must not drop the APK.
           if ! gh release view continuous >/dev/null 2>&1; then
             git config user.name "github-actions[bot]"
             git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
@@ -510,25 +510,24 @@ jobs:
               --title "Nexora Continuous" \
               --notes "Nexora Continuous build"
           fi
-          # Only the side that was actually rebuilt is replaced: an [android]
-          # build must not drop the .so assets, a [libs] build must not drop
-          # the APK.
+          # An asset is dropped only when the side it belongs to was rebuilt;
+          # everything else stays untouched (upload --clobber replaces it).
           NEEDS_ANDROID="${{ steps.build_type.outputs.needs_android }}"
           NEEDS_LIBS="${{ steps.build_type.outputs.needs_libs }}"
-          PRESERVE='^$'
-          if [ "$NEEDS_LIBS" != "true" ]; then
-            PRESERVE='^(nexora_continuous\.apk|version\.txt)$'
-          fi
-          if [ "$NEEDS_ANDROID" != "true" ]; then
-            PRESERVE='^(nexora_continuous\.apk|version\.txt)$'
-          fi
           gh release view continuous --json assets | jq -r '.assets[] | .name' | while read -r name; do
             [ -z "$name" ] && continue
-            if echo "$name" | grep -qE "$PRESERVE"; then
-              echo "Keeping: $name"
-            else
+            DROP=false
+            case "$name" in
+              nexora_*.apk|version.txt)
+                [ "$NEEDS_ANDROID" = "true" ] && DROP=true ;;
+              *)
+                [ "$NEEDS_LIBS" = "true" ] && DROP=true ;;
+            esac
+            if [ "$DROP" = "true" ]; then
               echo "Deleting: $name"
               gh release delete-asset continuous "$name" -y || true
+            else
+              echo "Keeping: $name"
             fi
           done
           BODY="Nexora Continuous build ${APP_VERSION_NAME:-}
