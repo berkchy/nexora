@@ -21,6 +21,9 @@ import com.pickle.patcher.lib.SigningKeystore
 import com.pickle.patcher.lib.ZipAnalyzer
 import com.pickle.patcher.lib.ZipRaw
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -28,6 +31,9 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
+import kotlinx.coroutines.sync.Semaphore
+import kotlinx.coroutines.sync.withPermit
+import java.util.concurrent.atomic.AtomicInteger
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.io.File
@@ -2003,9 +2009,6 @@ class PatcherViewModel(app: Application) : AndroidViewModel(app) {
         if (sources.isEmpty()) return
         viewModelScope.launch(Dispatchers.IO) {
             val total = sources.size
-            val log = StringBuilder()
-            val failures = LinkedHashMap<String, String>()
-            var failed = 0
             // Script Folder holds the folder the user picked for plugins
             // (e.g. .../amxmodx/scripting). Log files live in exactly
             // ScriptFolder/logs/ (only "logs/" appended, never another
@@ -2013,31 +2016,62 @@ class PatcherViewModel(app: Application) : AndroidViewModel(app) {
             // scripting folder).
             val scriptFolder = File(sources.first().path).parentFile
             val logDir = if (scriptFolder != null) File(scriptFolder, "logs") else null
-            val compilerLog = logDir?.let { File(it, "compiler.log") }
-            val errorLog = logDir?.let { File(it, "error.log") }
             logDir?.mkdirs()
+
+            // Every plugin is a separate amxxpc process, so compiling several at
+            // once is real parallelism on the phone's cores. One core is left
+            // for the UI/game, and the cap keeps a 12-plugin folder from
+            // spawning a dozen pawncc instances that fight each other for RAM.
+            val parallelism = (Runtime.getRuntime().availableProcessors() - 1)
+                .coerceIn(2, 8)
+            val gate = Semaphore(parallelism)
+            val finished = AtomicInteger(0)
+            val results = arrayOfNulls<Pair<Boolean, String>>(total)
+
+            coroutineScope {
+                sources.mapIndexed { index, source ->
+                    async(Dispatchers.IO) {
+                        gate.withPermit {
+                            val outcome = try {
+                                compileOne(source)
+                            } catch (t: Throwable) {
+                                false to (t.message ?: "Compile error")
+                            }
+                            results[index] = outcome
+                            val done = finished.incrementAndGet()
+                            _compile.value = CompileState.Compiling(
+                                "$done of $total compiled (${source.name})"
+                            )
+                        }
+                    }
+                }.awaitAll()
+            }
+
+            // The log is written in the order the user selected, not in the
+            // order the compiles happened to finish, so two runs over the same
+            // folder produce the same compiler.log.
+            val log = StringBuilder()
+            val failures = LinkedHashMap<String, String>()
+            var failed = 0
+            val stamp = java.text.SimpleDateFormat("yyyy-MM-dd HH:mm:ss", java.util.Locale.US)
             for ((i, source) in sources.withIndex()) {
-                _compile.value = CompileState.Compiling("${source.name} ($i of $total)")
-                val (ok, body) = try {
-                    compileOne(source)
-                } catch (t: Throwable) {
-                    false to (t.message ?: "Compile error")
-                }
+                val (ok, body) = results[i] ?: (false to "Compile did not run.")
                 log
                     .append("── ${source.name} ──\n")
                     .append(body.trim().ifEmpty { if (ok) "Done." else "Compile failed." })
                     .append('\n')
                     .append('\n')
                 val entry = "── ${source.name} ──\n${body.trim()}\n\n"
-                val target = if (ok) compilerLog else errorLog
+                val target = if (ok) {
+                    logDir?.let { File(it, "compiler.log") }
+                } else {
+                    logDir?.let { File(it, "error.log") }
+                }
                 if (target != null) {
                     try {
-                        val stamp = java.text.SimpleDateFormat(
-                            "yyyy-MM-dd HH:mm:ss", java.util.Locale.US
-                        ).format(java.util.Date())
                         target.appendText(
                             if (ok) entry
-                            else "===== $stamp ${source.name} =====\n$entry"
+                            else "===== ${stamp.format(java.util.Date())} ${source.name} =====\n$entry"
                         )
                     } catch (_: Throwable) {}
                 }
@@ -2047,7 +2081,7 @@ class PatcherViewModel(app: Application) : AndroidViewModel(app) {
                 }
             }
             val okCount = total - failed
-            val summary = "\n=== $okCount ok, $failed failed ==="
+            val summary = "\n=== $okCount ok, $failed failed ($parallelism at a time) ==="
             _compile.value = CompileState.Done(log.toString() + summary, failures)
         }
     }
