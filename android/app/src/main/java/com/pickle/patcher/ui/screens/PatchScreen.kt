@@ -553,7 +553,9 @@ private fun PatchCard(vm: PatcherViewModel) {
                     vm = vm,
                     report = s.report,
                     log = s.log,
-                    onInstall = { context.startActivity(vm.installIntent()) },
+                    // Goes through the view model so an installed copy of the
+                    // client is removed first, with a dialog first.
+                    onInstall = { vm.requestInstall() },
                     onPatchAgain = { vm.reset() },
                 )
             }

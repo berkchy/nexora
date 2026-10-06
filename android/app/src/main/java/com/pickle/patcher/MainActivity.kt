@@ -279,6 +279,15 @@ fun PatcherApp(vm: PatcherViewModel) {
         )
     }
 
+    val uninstallPrompt by vm.uninstallPrompt.collectAsState()
+    if (uninstallPrompt.isNotEmpty()) {
+        UninstallDialog(
+            packages = uninstallPrompt,
+            onConfirm = { vm.confirmUninstallAndPatch() },
+            onDismiss = { vm.dismissUninstallPrompt() },
+        )
+    }
+
     val showUpdateDialog = update is PatcherViewModel.AppUpdate.Available ||
         update is PatcherViewModel.AppUpdate.Downloading ||
         update is PatcherViewModel.AppUpdate.UpToDate ||
@@ -286,6 +295,37 @@ fun PatcherApp(vm: PatcherViewModel) {
     if (showUpdateDialog) {
         UpdateDialog(vm, update)
     }
+}
+
+/**
+ * Install asked twice, in two steps, for a reason: the patched APK is signed
+ * with our key and cannot go on top of a differently signed copy, so the old
+ * one has to go first. Confirming removes it and rebuilds the patch right away.
+ */
+@Composable
+private fun UninstallDialog(
+    packages: List<String>,
+    onConfirm: () -> Unit,
+    onDismiss: () -> Unit,
+) {
+    androidx.compose.material3.AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Remove the installed client?") },
+        text = {
+            Text(
+                "These are installed on the device:\n\n" +
+                    packages.joinToString("\n") +
+                    "\n\nAndroid refuses to replace them with the patched APK " +
+                    "(different signature). Removing them starts a fresh patch right away."
+            )
+        },
+        confirmButton = {
+            TextButton(onClick = onConfirm) { Text("Remove and patch") }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) { Text("Cancel") }
+        },
+    )
 }
 
 /**

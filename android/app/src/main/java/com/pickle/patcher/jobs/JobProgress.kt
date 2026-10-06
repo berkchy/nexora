@@ -120,6 +120,9 @@ object JobProgress {
         _jobs.value = _jobs.value.filterValues { it.running }
     }
 
+    /** Notification id of a job, shared with the service's foreground slot. */
+    fun idOf(job: Job): Int = job.id.hashCode()
+
     fun current(id: String): Job? = _jobs.value[id]
 
     fun has(id: String): Boolean = _jobs.value.containsKey(id)
@@ -128,12 +131,17 @@ object JobProgress {
         _jobs.value = _jobs.value + (job.id to job)
         val ctx = context ?: return
         NotificationManagerCompat.from(ctx).notify(
-            job.id.hashCode(),
+            idOf(job),
             notificationFor(ctx, job),
         )
     }
 
-    private fun notificationFor(ctx: Context, job: Job) =
+    /**
+     * The job's notification. The service promotes this exact notification to
+     * the foreground one instead of posting a summary of its own, so a running
+     * job is a single notification on the shade and not two.
+     */
+    fun notificationFor(ctx: Context, job: Job): android.app.Notification =
         NotificationCompat.Builder(ctx, CHANNEL_ID)
             .setSmallIcon(android.R.drawable.stat_sys_download)
             .setContentTitle(job.title)
@@ -144,7 +152,7 @@ object JobProgress {
             .setContentIntent(
                 android.app.PendingIntent.getActivity(
                     ctx,
-                    job.id.hashCode(),
+                    idOf(job),
                     Intent(ctx, MainActivity::class.java)
                         .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP),
                     android.app.PendingIntent.FLAG_UPDATE_CURRENT or

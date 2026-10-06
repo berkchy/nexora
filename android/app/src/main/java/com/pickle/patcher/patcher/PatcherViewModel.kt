@@ -822,7 +822,7 @@ class PatcherViewModel(app: Application) : AndroidViewModel(app) {
         refreshAbiStatus()
         viewModelScope.launch(Dispatchers.IO) {
             _bundle.value = BundleState.Downloading(0.04f)
-            JobProgress.begin(app, JOB_LIBS, "Libraries", "Resolving the release…")
+            var jobStarted = false
             try {
                 val tagName = ReleaseRepository.latestTagRedirect(repo)
                     ?: throw IOException("Could not reach GitHub releases")
@@ -842,8 +842,13 @@ class PatcherViewModel(app: Application) : AndroidViewModel(app) {
                     _bundle.value = BundleState.Loaded
                     loadedBundle = b
                     scanLibs()
+                    // Nothing changed, so no job was ever announced: leaving a
+                    // notification up for a download that never happened is
+                    // exactly what used to look like a stuck progress bar.
                     return@launch
                 }
+                JobProgress.begin(app, JOB_LIBS, "Libraries", "Downloading ${diff.toDownload.size} files…")
+                jobStarted = true
 
                 // Download changed files with per-lib progress
                 IncrementalUpdateManager.downloadChanged(
@@ -904,10 +909,14 @@ class PatcherViewModel(app: Application) : AndroidViewModel(app) {
                     loadedBundle = b
                     _bundle.value = BundleState.Loaded
                     scanLibs()
-                    JobProgress.finish(app, JOB_LIBS, "Using the libraries already on disk")
+                    if (jobStarted) {
+                        JobProgress.finish(app, JOB_LIBS, "Using the libraries already on disk")
+                    }
                 } else {
                     _bundle.value = BundleState.DownloadError(t.message ?: "Unknown error")
-                    JobProgress.finish(app, JOB_LIBS, t.message ?: "Download failed", ok = false)
+                    if (jobStarted) {
+                        JobProgress.finish(app, JOB_LIBS, t.message ?: "Download failed", ok = false)
+                    }
                 }
                 downloadingAbi = null
                 refreshAbiStatus()
@@ -1346,6 +1355,63 @@ class PatcherViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     fun outputApk(): File? = lastReport?.let { workFile("patched.apk") }
+
+    /**
+     * Client packages already installed on the device. Installing the patched
+     * APK over an existing one fails when the signature differs, and users keep
+     * several copies around, so Install asks before touching any of them.
+     */
+    fun installedClientPackages(): List<String> {
+        val pm = app.packageManager
+        return runCatching {
+            pm.getInstalledPackages(0)
+                .map { it.packageName }
+                .filter { it != app.packageName && isClientPackage(it) }
+                .sorted()
+        }.getOrElse { emptyList() }
+    }
+
+    private fun isClientPackage(name: String): Boolean =
+        name.contains("cs16client", ignoreCase = true) || name.contains("xash", ignoreCase = true)
+
+    /** The packages Install is about to offer removing, if any. */
+    private val _uninstallPrompt = MutableStateFlow<List<String>>(emptyList())
+    val uninstallPrompt: StateFlow<List<String>> = _uninstallPrompt.asStateFlow()
+
+    fun dismissUninstallPrompt() {
+        _uninstallPrompt.value = emptyList()
+    }
+
+    /**
+     * Install entry point: when an older client is still on the device the user
+     * is asked to remove it first, and confirming launches the uninstall and the
+     * patch in one go - the new APK is built without a second tap.
+     */
+    fun requestInstall() {
+        val installed = installedClientPackages()
+        if (installed.isNotEmpty()) {
+            _uninstallPrompt.value = installed
+            return
+        }
+        installIntent()?.let { app.startActivity(it) }
+    }
+
+    /** Dialog confirmed: remove the installed copies, then patch afresh. */
+    fun confirmUninstallAndPatch() {
+        val packages = _uninstallPrompt.value
+        _uninstallPrompt.value = emptyList()
+        for (pkg in packages) {
+            runCatching {
+                app.startActivity(
+                    Intent(Intent.ACTION_DELETE, android.net.Uri.parse("package:$pkg"))
+                        .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                )
+            }
+        }
+        // The uninstall UI comes back after us; the patched APK is produced now
+        // so it is ready by the time the user goes back to Install.
+        startPatch()
+    }
 
     fun installIntent(): Intent? {
         val out = outputApk() ?: return null

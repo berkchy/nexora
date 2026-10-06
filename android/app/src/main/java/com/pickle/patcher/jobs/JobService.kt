@@ -47,43 +47,34 @@ class JobService : Service() {
     }
 
     private fun startInForeground(job: JobProgress.Job?) {
-        val notification = buildNotification(job)
+        val ctx = applicationContext
+        JobProgress.ensureChannel()
+        val notification = job?.let { JobProgress.notificationFor(ctx, it) }
+            ?: NotificationCompat.Builder(ctx, JobProgress.CHANNEL_ID)
+                .setSmallIcon(android.R.drawable.stat_sys_download)
+                .setContentTitle("Nexora")
+                .setContentText("Starting…")
+                .setOngoing(true)
+                .setProgress(0, 0, true)
+                .build()
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
             startForeground(
-                JobService.SUMMARY_ID,
+                notificationId(job),
                 notification,
                 ServiceInfo.FOREGROUND_SERVICE_TYPE_DATA_SYNC,
             )
         } else {
-            startForeground(JobService.SUMMARY_ID, notification)
+            startForeground(notificationId(job), notification)
         }
     }
 
-    private fun buildNotification(job: JobProgress.Job?): Notification {
-        val builder = NotificationCompat.Builder(this, JobProgress.CHANNEL_ID)
-            .setSmallIcon(android.R.drawable.stat_sys_download)
-            .setContentTitle(job?.title ?: "Nexora")
-            .setContentText(job?.detail?.ifBlank { job.message } ?: "Starting…")
-            .setOngoing(true)
-            .setOnlyAlertOnce(true)
-            .setPriority(NotificationCompat.PRIORITY_LOW)
-            .setContentIntent(
-                android.app.PendingIntent.getActivity(
-                    this,
-                    0,
-                    Intent(this, MainActivity::class.java)
-                        .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP),
-                    android.app.PendingIntent.FLAG_UPDATE_CURRENT or
-                        android.app.PendingIntent.FLAG_IMMUTABLE,
-                )
-            )
-        when {
-            job == null -> builder.setProgress(0, 0, true)
-            job.percent >= 0 -> builder.setProgress(100, job.percent, false)
-            else -> builder.setProgress(0, 0, true)
-        }
-        return builder.build()
-    }
+    /**
+     * The foreground notification carries the running job's own id, so Android
+     * shows one notification that keeps being updated rather than a permanent
+     * summary plus a per-job copy of the same download.
+     */
+    private fun notificationId(job: JobProgress.Job?): Int =
+        job?.let { JobProgress.idOf(it) } ?: JobService.SUMMARY_ID
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int = START_NOT_STICKY
 
