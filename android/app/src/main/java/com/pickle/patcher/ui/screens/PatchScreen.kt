@@ -221,8 +221,12 @@ private fun SourceCard(vm: PatcherViewModel) {
 
         val note = when (state) {
             is SourceDownloadState.Outdated ->
-                "GitHub has a newer client build (%s here, %s there). Tap Update to get it."
-                    .format(state.localSize.mb(), state.remoteSize.mb())
+                "Update available (%s). Local %s vs GitHub %s."
+                    .format(
+                        state.reason,
+                        state.localSize.mb(),
+                        state.remoteSize.mb(),
+                    )
             is SourceDownloadState.Corrupt ->
                 "The downloaded client APK is broken (${state.reason}). Download it again."
             is SourceDownloadState.Failed -> state.message

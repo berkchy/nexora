@@ -113,7 +113,14 @@ object ReleaseRepository {
      * timestamp, so a cached APK can be compared on more than its length (a
      * rebuilt client can come out the same size).
      */
-    data class RemoteInfo(val size: Long, val lastModifiedMillis: Long)
+    data class RemoteInfo(
+        val size: Long,
+        val lastModifiedMillis: Long,
+        // GitHub serves release assets from a blob store whose ETag changes
+        // with the content, so it works as a cheap fingerprint: no download and
+        // no api.github.com quota needed to tell two builds apart.
+        val etag: String,
+    )
 
     suspend fun probe(url: String): RemoteInfo? {
         return try {
@@ -132,6 +139,7 @@ object ReleaseRepository {
                     RemoteInfo(
                         size = resp.body?.contentLength()?.coerceAtLeast(0L) ?: 0L,
                         lastModifiedMillis = stamp,
+                        etag = resp.header("ETag")?.trim('"', ' ', 'W/')?.trim('"') ?: "",
                     )
                 }
             }

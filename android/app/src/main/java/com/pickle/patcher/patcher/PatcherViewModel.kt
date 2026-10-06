@@ -48,11 +48,13 @@ sealed interface SourceDownloadState {
     data class Done(val name: String) : SourceDownloadState
     data class Failed(val message: String) : SourceDownloadState
 
-    /** The cached APK is smaller than the asset on GitHub: an older build. */
+    /** The cached APK is not what GitHub serves any more. */
     data class Outdated(
         val name: String,
         val localSize: Long,
         val remoteSize: Long,
+        /** Which check tripped: size, content hash, or build date. */
+        val reason: String,
     ) : SourceDownloadState
 
     /** The cached APK is broken (truncated download, unreadable zip). */
@@ -412,9 +414,26 @@ class PatcherViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
-    /** The single APK the patcher ever patches with, straight from GitHub. */
-    private fun cachedClientApk(): File? =
-        File(sourceCacheDir, CLIENT_APK_ASSET).takeIf { it.isFile }
+    /**
+     * The client APK the patcher would use: the canonical name first, then the
+     * newest APK in either cache location. Both places are checked because the
+     * cache moved from internal storage to Android/data, and an APK dropped in
+     * by hand under a different name still has to be compared against GitHub
+     * instead of looking like there is no client at all.
+     */
+    private fun cachedClientApk(): File? {
+        val candidates = (listOf(sourceCacheDir, legacySourceDir)).flatMap { dir ->
+            dir.listFiles { f -> f.isFile && f.extension.equals("apk", ignoreCase = true) }
+                ?.toList()
+                ?: emptyList()
+        }
+        if (candidates.isEmpty()) return null
+        return candidates.firstOrNull { it.name == CLIENT_APK_ASSET }
+            ?: candidates.maxByOrNull { it.lastModified() }
+    }
+
+    /** Where the cache lived before it moved next to the patch output. */
+    private val legacySourceDir = File(getApplication<Application>().filesDir, "apk-source")
 
     /**
      * Null when the file is a usable client APK, otherwise why it is not.
@@ -478,79 +497,109 @@ class PatcherViewModel(app: Application) : AndroidViewModel(app) {
             val remote = tag?.let {
                 ReleaseRepository.probe(ReleaseRepository.assetUrl(CLIENT_APK_REPO, it, CLIENT_APK_ASSET))
             }
-            val recorded = readSourceStamp()
-            val problem = apkProblem(cached)
+            val recorded = cached?.let { readSourceStamp(it) }
+            val problem = cached?.let { apkProblem(it) }
+            val outdated = if (cached != null && remote != null) {
+                outdatedReasons(cached, remote, recorded)
+            } else {
+                emptyList()
+            }
             _sourceDownload.value = when {
                 problem != null -> SourceDownloadState.Corrupt(CLIENT_APK_ASSET, problem)
-                remote == null || remote.size <= 0L ->
-                    // No answer from GitHub: keep what we have, it was valid
-                    // enough to be adopted.
-                    SourceDownloadState.Done(CLIENT_APK_ASSET)
-                isOutdated(cached, remote, recorded) ->
-                    SourceDownloadState.Outdated(CLIENT_APK_ASSET, cached.length(), remote.size)
+                outdated.isNotEmpty() && cached != null -> SourceDownloadState.Outdated(
+                    CLIENT_APK_ASSET,
+                    cached.length(),
+                    remote?.size ?: 0L,
+                    outdated.joinToString(", "),
+                )
                 else -> SourceDownloadState.Done(CLIENT_APK_ASSET)
             }
             // A cached APK that passed every check becomes the source by itself.
             if (_sourceDownload.value is SourceDownloadState.Done &&
+                cached != null &&
                 _receivedSource.value?.absolutePath != cached.absolutePath &&
                 tag != null
             ) {
-                useSourceFile(cached, "$CLIENT_APK_ASSET ($tag)")
+                useSourceFile(cached, "$cached.name ($tag)")
             }
         }
     }
 
     /**
-     * Decides whether the cached APK is an older build than the release.
+     * Every reason the cached APK differs from the asset on GitHub. An empty list
+     * means they are the same build.
      *
-     * The length alone is not enough: the client is rebuilt often and two
-     * releases can land on the same byte count. What is compared is the stamp
-     * written next to the file when it was downloaded (size + the asset's
-     * Last-Modified), and the file's own timestamp as the fallback for an APK
-     * that was put there some other way.
+     * Three independent checks, any of which is enough to offer the update,
+     * because each one can be blind on its own: the length is the same for two
+     * consecutive client builds, the date is unusable when the file was copied
+     * around, and the fingerprint is only known for a file this app downloaded.
      */
-    private fun isOutdated(
+    private fun outdatedReasons(
         cached: File,
         remote: ReleaseRepository.RemoteInfo,
-        recorded: Pair<Long, Long>?,
-    ): Boolean {
+        recorded: SourceStamp?,
+    ): List<String> {
+        val reasons = mutableListOf<String>()
         val localSize = cached.length()
-        val remoteStamp = remote.lastModifiedMillis
 
-        if (recorded != null && remoteStamp > 0L) {
-            val (size, stamp) = recorded
-            // Same bytes we downloaded, and the release is still that build.
-            if (size == localSize && stamp == remoteStamp) return false
-            // The file was downloaded from this very asset, so an unchanged
-            // size means it is the same build even without a usable date.
-            if (size == localSize && stamp > 0L) return false
+        if (recorded != null) {
+            // Something replaced or truncated the file after it was downloaded.
+            if (recorded.size != localSize) reasons += "size changed since download"
+            // The release asset itself moved on: different content or a rebuild.
+            if (remote.etag.isNotEmpty() && recorded.etag.isNotEmpty() &&
+                remote.etag != recorded.etag
+            ) {
+                reasons += "newer build on GitHub"
+            }
+            if (remote.lastModifiedMillis > 0L && recorded.lastModifiedMillis > 0L &&
+                remote.lastModifiedMillis != recorded.lastModifiedMillis
+            ) {
+                reasons += "rebuilt since download"
+            }
+        } else {
+            // No stamp: the APK was put there by hand. Length and date are all
+            // there is, and either one disagreeing means it is not the release.
+            if (remote.size > 0L && localSize != remote.size) {
+                reasons += "size differs from GitHub"
+            }
+            if (remote.lastModifiedMillis > 0L &&
+                cached.lastModified() + ASSET_DATE_SLOP < remote.lastModifiedMillis
+            ) {
+                reasons += "older than the GitHub build"
+            }
         }
 
-        if (localSize != remote.size) return true
-        if (remoteStamp > 0L && cached.lastModified() < remoteStamp) return true
-
-        return false
+        return reasons
     }
 
-    /** size + Last-Modified of the asset the cached APK came from, or null. */
-    private fun readSourceStamp(): Pair<Long, Long>? {
-        val file = File(sourceCacheDir, "$CLIENT_APK_ASSET.stamp")
+    /** What the cached APK was downloaded from, for the checks above. */
+    private data class SourceStamp(val size: Long, val etag: String, val lastModifiedMillis: Long)
+
+    /** What the cached APK was downloaded from, or null if unknown. */
+    private fun readSourceStamp(cached: File): SourceStamp? {
+        val file = File(cached.parentFile ?: return null, "${cached.name}.stamp")
         if (!file.isFile) return null
         return try {
             val parts = file.readText().trim().split(' ')
-            if (parts.size < 2) null else parts[0].toLong() to parts[1].toLong()
+            if (parts.size < 3) {
+                null
+            } else {
+                SourceStamp(parts[0].toLong(), parts[1], parts[2].toLong())
+            }
         } catch (_: Throwable) {
             null
         }
     }
 
-    private fun writeSourceStamp(size: Long, lastModified: Long) {
+    private fun writeSourceStamp(cached: File, remote: ReleaseRepository.RemoteInfo?) {
         try {
-            sourceCacheDir.mkdirs()
-            File(sourceCacheDir, "$CLIENT_APK_ASSET.stamp").writeText("$size $lastModified")
+            cached.parentFile?.mkdirs()
+            File(cached.parentFile, "${cached.name}.stamp").writeText(
+                "${cached.length()} ${remote?.etag.orEmpty()} ${remote?.lastModifiedMillis ?: 0L}"
+            )
         } catch (_: Throwable) {
-            // The stamp is an optimisation for the update check; losing it only
-            // means the next check falls back to timestamps.
+            // The stamp only sharpens the update check; losing it means the next
+            // check falls back to size and timestamps.
         }
     }
 
@@ -606,7 +655,7 @@ class PatcherViewModel(app: Application) : AndroidViewModel(app) {
                     dest.delete()
                     throw IOException("The downloaded APK is broken: $it")
                 }
-                writeSourceStamp(dest.length(), remote?.lastModifiedMillis ?: 0L)
+                writeSourceStamp(dest, remote)
                 useSourceFile(dest, "$name ($tag)")
                 _sourceDownload.value = SourceDownloadState.Done(name)
             } catch (t: Throwable) {
@@ -2062,6 +2111,13 @@ class PatcherViewModel(app: Application) : AndroidViewModel(app) {
         const val GAME_CZERO = "czero"
         /** ABIs the patcher can build for, in priority order. */
         val SUPPORTED_ABIS = listOf("arm64-v8a", "armeabi-v7a")
+
+        /**
+         * Slack for the "is the cached APK older than the release" check: files
+         * copied over USB or written by hand can easily end up a minute or two
+         * off without meaning anything.
+         */
+        const val ASSET_DATE_SLOP = 5 * 60 * 1000L
         /** Suffix that keeps the non-matching gamedata variant out of AMXX's *.txt scan. */
         const val GAMEDATA_DISABLED_SUFFIX = ".disabled"
         /** Per-ABI gamedata override files: offsets-cstrike-replugged.<arm64|arm32>.txt */
