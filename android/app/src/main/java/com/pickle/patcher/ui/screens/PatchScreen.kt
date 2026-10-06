@@ -32,6 +32,7 @@ import androidx.compose.material.icons.filled.Bolt
 import androidx.compose.material.icons.filled.Build
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Download
+import androidx.compose.material.icons.filled.SystemUpdateAlt
 import androidx.compose.material.icons.filled.Extension
 import androidx.compose.material.icons.filled.FolderOpen
 import androidx.compose.material.icons.filled.InstallDesktop
@@ -183,6 +184,9 @@ private fun SourceCard(vm: PatcherViewModel) {
 
         Spacer(Modifier.height(12.dp))
 
+        // An available update turns the whole button red: the cached APK is
+        // usable, but what is on GitHub is newer and that is the one to patch.
+        val isUpdate = state is SourceDownloadState.Outdated
         PrimaryButton(
             text = when (state) {
                 is SourceDownloadState.Fetching -> "Finding release..."
@@ -203,13 +207,21 @@ private fun SourceCard(vm: PatcherViewModel) {
             },
             enabled = state !is SourceDownloadState.Fetching &&
                 state !is SourceDownloadState.Downloading,
-            icon = { Icon(Icons.Filled.Download, null, modifier = Modifier.size(18.dp)) },
+            icon = {
+                Icon(
+                    if (isUpdate) Icons.Filled.SystemUpdateAlt else Icons.Filled.Download,
+                    null,
+                    modifier = Modifier.size(18.dp),
+                )
+            },
+            containerColor = if (isUpdate) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary,
+            contentColor = if (isUpdate) MaterialTheme.colorScheme.onError else MaterialTheme.colorScheme.onPrimary,
             onClick = { vm.downloadSourceApk() },
         )
 
         val note = when (state) {
             is SourceDownloadState.Outdated ->
-                "GitHub has a newer client build (%s here, %s there). Update to patch with it."
+                "GitHub has a newer client build (%s here, %s there). Tap Update to get it."
                     .format(state.localSize.mb(), state.remoteSize.mb())
             is SourceDownloadState.Corrupt ->
                 "The downloaded client APK is broken (${state.reason}). Download it again."

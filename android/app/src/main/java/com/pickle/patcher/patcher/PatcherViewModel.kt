@@ -475,16 +475,19 @@ class PatcherViewModel(app: Application) : AndroidViewModel(app) {
                 return@launch
             }
             val tag = ReleaseRepository.latestTagRedirect(CLIENT_APK_REPO)
-            val remote = tag
-                ?.let { ReleaseRepository.probeSize(ReleaseRepository.assetUrl(CLIENT_APK_REPO, it, CLIENT_APK_ASSET)) }
-                ?: 0L
+            val remote = tag?.let {
+                ReleaseRepository.probe(ReleaseRepository.assetUrl(CLIENT_APK_REPO, it, CLIENT_APK_ASSET))
+            }
+            val recorded = readSourceStamp()
             val problem = apkProblem(cached)
             _sourceDownload.value = when {
                 problem != null -> SourceDownloadState.Corrupt(CLIENT_APK_ASSET, problem)
-                remote > 0 && cached.length() < remote ->
-                    SourceDownloadState.Outdated(CLIENT_APK_ASSET, cached.length(), remote)
-                remote > 0 && cached.length() != remote ->
-                    SourceDownloadState.Corrupt(CLIENT_APK_ASSET, "size mismatch")
+                remote == null || remote.size <= 0L ->
+                    // No answer from GitHub: keep what we have, it was valid
+                    // enough to be adopted.
+                    SourceDownloadState.Done(CLIENT_APK_ASSET)
+                isOutdated(cached, remote, recorded) ->
+                    SourceDownloadState.Outdated(CLIENT_APK_ASSET, cached.length(), remote.size)
                 else -> SourceDownloadState.Done(CLIENT_APK_ASSET)
             }
             // A cached APK that passed every check becomes the source by itself.
@@ -498,13 +501,74 @@ class PatcherViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     /**
+     * Decides whether the cached APK is an older build than the release.
+     *
+     * The length alone is not enough: the client is rebuilt often and two
+     * releases can land on the same byte count. What is compared is the stamp
+     * written next to the file when it was downloaded (size + the asset's
+     * Last-Modified), and the file's own timestamp as the fallback for an APK
+     * that was put there some other way.
+     */
+    private fun isOutdated(
+        cached: File,
+        remote: ReleaseRepository.RemoteInfo,
+        recorded: Pair<Long, Long>?,
+    ): Boolean {
+        val localSize = cached.length()
+        val remoteStamp = remote.lastModifiedMillis
+
+        if (recorded != null && remoteStamp > 0L) {
+            val (size, stamp) = recorded
+            // Same bytes we downloaded, and the release is still that build.
+            if (size == localSize && stamp == remoteStamp) return false
+            // The file was downloaded from this very asset, so an unchanged
+            // size means it is the same build even without a usable date.
+            if (size == localSize && stamp > 0L) return false
+        }
+
+        if (localSize != remote.size) return true
+        if (remoteStamp > 0L && cached.lastModified() < remoteStamp) return true
+
+        return false
+    }
+
+    /** size + Last-Modified of the asset the cached APK came from, or null. */
+    private fun readSourceStamp(): Pair<Long, Long>? {
+        val file = File(sourceCacheDir, "$CLIENT_APK_ASSET.stamp")
+        if (!file.isFile) return null
+        return try {
+            val parts = file.readText().trim().split(' ')
+            if (parts.size < 2) null else parts[0].toLong() to parts[1].toLong()
+        } catch (_: Throwable) {
+            null
+        }
+    }
+
+    private fun writeSourceStamp(size: Long, lastModified: Long) {
+        try {
+            sourceCacheDir.mkdirs()
+            File(sourceCacheDir, "$CLIENT_APK_ASSET.stamp").writeText("$size $lastModified")
+        } catch (_: Throwable) {
+            // The stamp is an optimisation for the update check; losing it only
+            // means the next check falls back to timestamps.
+        }
+    }
+
+    /**
      * Downloads the client APK from the vcs16 Continuous release into
      * filesDir/apk-source and adopts it. The patcher already talks to that
      * release for the native libraries, so this reuses the same quota-free
      * download path instead of asking the user to hunt for a file.
      */
     fun downloadSourceApk() {
-        if (_sourceDownload.value != null) return
+        // Only an in-flight download blocks a new one. Returning early on any
+        // non-null state is what made the Update button do nothing: the status
+        // check always leaves a state behind.
+        if (_sourceDownload.value is SourceDownloadState.Fetching ||
+            _sourceDownload.value is SourceDownloadState.Downloading
+        ) {
+            return
+        }
         viewModelScope.launch(Dispatchers.IO) {
             _sourceDownload.value = SourceDownloadState.Fetching
             var partial: File? = null
@@ -514,7 +578,8 @@ class PatcherViewModel(app: Application) : AndroidViewModel(app) {
                     ?: throw IOException("Could not resolve the latest $repo release")
                 val name = CLIENT_APK_ASSET
                 val url = ReleaseRepository.assetUrl(repo, tag, name)
-                val total = ReleaseRepository.probeSize(url) ?: 0L
+                val remote = ReleaseRepository.probe(url)
+                val total = remote?.size ?: 0L
                 val dir = sourceCacheDir.apply { mkdirs() }
                 val dest = File(dir, name)
                 val part = File(dir, "$name.part").also { it.delete() }
@@ -541,6 +606,7 @@ class PatcherViewModel(app: Application) : AndroidViewModel(app) {
                     dest.delete()
                     throw IOException("The downloaded APK is broken: $it")
                 }
+                writeSourceStamp(dest.length(), remote?.lastModifiedMillis ?: 0L)
                 useSourceFile(dest, "$name ($tag)")
                 _sourceDownload.value = SourceDownloadState.Done(name)
             } catch (t: Throwable) {

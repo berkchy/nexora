@@ -4,6 +4,9 @@ import okhttp3.OkHttpClient
 import okhttp3.Request
 import java.io.File
 import java.io.IOException
+import java.text.SimpleDateFormat
+import java.util.Locale
+import java.util.TimeZone
 import java.util.concurrent.TimeUnit
 import kotlin.io.DEFAULT_BUFFER_SIZE
 
@@ -103,7 +106,16 @@ object ReleaseRepository {
      * HEAD-probes a release asset. Returns its Content-Length (0 = no length)
      * or null when the asset does not exist / the request failed. Zero API cost.
      */
-    suspend fun probeSize(url: String): Long? {
+    suspend fun probeSize(url: String): Long? = probe(url)?.size
+
+    /**
+     * What the remote asset looks like right now: byte size plus the server's
+     * timestamp, so a cached APK can be compared on more than its length (a
+     * rebuilt client can come out the same size).
+     */
+    data class RemoteInfo(val size: Long, val lastModifiedMillis: Long)
+
+    suspend fun probe(url: String): RemoteInfo? {
         return try {
             val req = Request.Builder()
                 .url(url)
@@ -111,12 +123,30 @@ object ReleaseRepository {
                 .head()
                 .build()
             webClient.newCall(req).execute().use { resp ->
-                if (!resp.isSuccessful) null
-                else resp.body?.contentLength()?.coerceAtLeast(0L) ?: 0L
+                if (!resp.isSuccessful) {
+                    null
+                } else {
+                    val stamp = resp.header("Last-Modified")
+                        ?.let { parseHttpDate(it) }
+                        ?: 0L
+                    RemoteInfo(
+                        size = resp.body?.contentLength()?.coerceAtLeast(0L) ?: 0L,
+                        lastModifiedMillis = stamp,
+                    )
+                }
             }
         } catch (_: Throwable) {
             null
         }
+    }
+
+    /** RFC 1123 date ("Wed, 05 Oct 2026 12:48:24 GMT") to epoch millis. */
+    private fun parseHttpDate(value: String): Long = try {
+        val fmt = SimpleDateFormat("EEE, dd MMM yyyy HH:mm:ss zzz", Locale.US)
+        fmt.timeZone = TimeZone.getTimeZone("GMT")
+        fmt.parse(value)?.time ?: 0L
+    } catch (_: Throwable) {
+        0L
     }
 
     /**

@@ -91,6 +91,10 @@ fun PrimaryButton(
     modifier: Modifier = Modifier,
     enabled: Boolean = true,
     icon: @Composable (() -> Unit)? = null,
+    // Set for actions that replace something the user already has (an APK
+    // update, for instance): the button itself has to look like the update.
+    containerColor: Color = MaterialTheme.colorScheme.primary,
+    contentColor: Color = MaterialTheme.colorScheme.onPrimary,
 ) {
     Button(
         onClick = onClick,
@@ -98,8 +102,8 @@ fun PrimaryButton(
         modifier = modifier.fillMaxWidth().height(48.dp),
         shape = ButtonShape,
         colors = ButtonDefaults.buttonColors(
-            containerColor = MaterialTheme.colorScheme.primary,
-            contentColor = MaterialTheme.colorScheme.onPrimary,
+            containerColor = containerColor,
+            contentColor = contentColor,
             disabledContainerColor = MaterialTheme.colorScheme.surfaceContainerHighest,
             disabledContentColor = MaterialTheme.colorScheme.onSurfaceVariant,
         ),
