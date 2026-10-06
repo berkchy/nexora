@@ -1346,10 +1346,15 @@ class PatcherViewModel(app: Application) : AndroidViewModel(app) {
                     "Patched APK is ready",
                     apkPath = out.path,
                 )
+                if (installAfterPatch) {
+                    installAfterPatch = false
+                    _pendingInstall.value = installIntentFor(out)
+                }
             } catch (t: Throwable) {
                 _patch.value = PatchUiState.Failed(t.message ?: "Unknown error")
                 writePatchLog(selAbi, null, _patchLog.value, t.message ?: "Unknown error")
                 JobProgress.finish(app, JOB_PATCH, t.message ?: "Patch failed", ok = false)
+                installAfterPatch = false
             }
         }
     }
@@ -1387,16 +1392,31 @@ class PatcherViewModel(app: Application) : AndroidViewModel(app) {
      * is asked to remove it first, and confirming launches the uninstall and the
      * patch in one go - the new APK is built without a second tap.
      */
+    /** Install action to run once the uninstall is behind us, if any. */
+    private val _pendingInstall = MutableStateFlow<Intent?>(null)
+    val pendingInstall: StateFlow<Intent?> = _pendingInstall.asStateFlow()
+
+    fun consumePendingInstall() {
+        _pendingInstall.value = null
+    }
+
     fun requestInstall() {
         val installed = installedClientPackages()
         if (installed.isNotEmpty()) {
             _uninstallPrompt.value = installed
             return
         }
-        installIntent()?.let { app.startActivity(it) }
+        _pendingInstall.value = installIntent()
     }
 
-    /** Dialog confirmed: remove the installed copies, then patch afresh. */
+    /** Set when a patch was started only so the install could follow it. */
+    private var installAfterPatch = false
+
+    /**
+     * Dialog confirmed. The removal itself is left to the system package
+     * installer, and the patched APK is installed right after it returns, so the
+     * whole replace is one flow: remove, then install, no second tap.
+     */
     fun confirmUninstallAndPatch() {
         val packages = _uninstallPrompt.value
         _uninstallPrompt.value = emptyList()
@@ -1408,8 +1428,16 @@ class PatcherViewModel(app: Application) : AndroidViewModel(app) {
                 )
             }
         }
-        // The uninstall UI comes back after us; the patched APK is produced now
-        // so it is ready by the time the user goes back to Install.
+
+        val out = outputApk()
+        if (out != null && out.exists() && lastReport != null) {
+            // What is on disk is still current, so it can be installed as it is.
+            _pendingInstall.value = installIntentFor(out)
+            return
+        }
+
+        // No usable APK yet: build it now and install the moment it is done.
+        installAfterPatch = true
         startPatch()
     }
 

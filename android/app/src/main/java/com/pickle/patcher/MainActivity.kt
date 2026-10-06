@@ -138,6 +138,17 @@ fun PatcherApp(vm: PatcherViewModel) {
         }
     }
 
+    // The install step of "remove the old client, then install the new one":
+    // it fires as soon as the system uninstall returned, or as soon as the
+    // rebuild that was needed for it finished.
+    val pendingInstall by vm.pendingInstall.collectAsState()
+    androidx.compose.runtime.LaunchedEffect(pendingInstall) {
+        pendingInstall?.let {
+            context.startActivity(it)
+            vm.consumePendingInstall()
+        }
+    }
+
     Scaffold(
         containerColor = MaterialTheme.colorScheme.background,
         contentColor = MaterialTheme.colorScheme.onBackground,
