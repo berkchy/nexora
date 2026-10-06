@@ -33,6 +33,7 @@ import kotlinx.coroutines.withContext
 import java.io.File
 import java.io.IOException
 import java.net.URLDecoder
+import com.pickle.patcher.jobs.JobProgress
 
 data class SourceInfo(
     val name: String,
@@ -620,6 +621,7 @@ class PatcherViewModel(app: Application) : AndroidViewModel(app) {
         }
         viewModelScope.launch(Dispatchers.IO) {
             _sourceDownload.value = SourceDownloadState.Fetching
+            JobProgress.begin(app, JOB_CLIENT_APK, "Client APK", "Finding the release…")
             var partial: File? = null
             try {
                 val repo = CLIENT_APK_REPO
@@ -635,6 +637,7 @@ class PatcherViewModel(app: Application) : AndroidViewModel(app) {
                 partial = part
                 ReleaseRepository.downloadUrl(url, part, total) { done, size ->
                     _sourceDownload.value = SourceDownloadState.Downloading(done, size)
+                    JobProgress.progress(app, JOB_CLIENT_APK, done, size, "Downloading…")
                 }
                 // A short read means the connection died mid-file: keep the
                 // broken bytes out of the cache and say so.
@@ -658,9 +661,16 @@ class PatcherViewModel(app: Application) : AndroidViewModel(app) {
                 writeSourceStamp(dest, remote)
                 useSourceFile(dest, "$name ($tag)")
                 _sourceDownload.value = SourceDownloadState.Done(name)
+                JobProgress.finish(app, JOB_CLIENT_APK, "Client APK ready", apkPath = dest.path)
             } catch (t: Throwable) {
                 partial?.delete()
                 _sourceDownload.value = SourceDownloadState.Failed(t.message ?: "Download failed")
+                JobProgress.finish(
+                    app,
+                    JOB_CLIENT_APK,
+                    t.message ?: "Download failed",
+                    ok = false,
+                )
             }
         }
     }
@@ -809,6 +819,7 @@ class PatcherViewModel(app: Application) : AndroidViewModel(app) {
         refreshAbiStatus()
         viewModelScope.launch(Dispatchers.IO) {
             _bundle.value = BundleState.Downloading(0.04f)
+            JobProgress.begin(app, JOB_LIBS, "Libraries", "Resolving the release…")
             try {
                 val tagName = ReleaseRepository.latestTagRedirect(repo)
                     ?: throw IOException("Could not reach GitHub releases")
@@ -848,6 +859,13 @@ class PatcherViewModel(app: Application) : AndroidViewModel(app) {
                     },
                     onFileProgress = { index, asset, fileProgress ->
                         markLibDownloading(asset.cleanName, fileProgress)
+                        JobProgress.progress(
+                            app,
+                            JOB_LIBS,
+                            index.toLong(),
+                            diff.toDownload.size.toLong(),
+                            asset.cleanName,
+                        )
                         val base = 0.15f + (0.75f * index.toFloat() / diff.toDownload.size).coerceAtMost(0.75f)
                         val perFileWeight = 0.75f / diff.toDownload.size
                         _bundle.update {
@@ -874,6 +892,7 @@ class PatcherViewModel(app: Application) : AndroidViewModel(app) {
                 _bundleVersion.value = b.manifest.version
                 scanLibs()
                 refreshAbiStatus()
+                JobProgress.finish(app, JOB_LIBS, "Libraries ready")
             } catch (t: Throwable) {
                 // Offline fallback: if there are already libs on disk, load them.
                 val files = IncrementalUpdateManager.loadBundleFileMap(libsDir, _abi.value)
@@ -882,8 +901,10 @@ class PatcherViewModel(app: Application) : AndroidViewModel(app) {
                     loadedBundle = b
                     _bundle.value = BundleState.Loaded
                     scanLibs()
+                    JobProgress.finish(app, JOB_LIBS, "Using the libraries already on disk")
                 } else {
                     _bundle.value = BundleState.DownloadError(t.message ?: "Unknown error")
+                    JobProgress.finish(app, JOB_LIBS, t.message ?: "Download failed", ok = false)
                 }
                 downloadingAbi = null
                 refreshAbiStatus()
@@ -1000,6 +1021,7 @@ class PatcherViewModel(app: Application) : AndroidViewModel(app) {
     fun fetchAndInstallAddons() {
         viewModelScope.launch(Dispatchers.IO) {
             _addons.value = AddonsState.Downloading(0f, "Resolving latest release…")
+            JobProgress.begin(app, JOB_ADDONS, "Addons", "Resolving the release…")
             try {
                 val tag = ReleaseRepository.latestTagRedirect(repo)
                     ?: throw IOException("Could not reach GitHub releases")
@@ -1013,12 +1035,14 @@ class PatcherViewModel(app: Application) : AndroidViewModel(app) {
                         if (total > 0) (done.toDouble() / total).toFloat().coerceIn(0f, 1f) else 0f,
                         "Downloading addons…"
                     )
+                    JobProgress.progress(app, JOB_ADDONS, done, total, "Downloading…")
                 }
                 _addons.value = AddonsState.Downloading(1f, "Extracting into ${_installPath.value.substringAfterLast("/")}…")
                 val target = File(_installPath.value)
                 val count = unzipInto(zip, target)
                 patchMetamodConfig(target, _abi.value)
                 val gamedataToggled = applyGamedataAbiPolicy(target, _abi.value)
+                JobProgress.finish(app, JOB_ADDONS, "Addons installed")
                 _addons.value = AddonsState.Done(
                     buildString {
                         append("Installed $count addons files into ${target.path}")
@@ -1031,6 +1055,7 @@ class PatcherViewModel(app: Application) : AndroidViewModel(app) {
                 scanAddonsStatus()
             } catch (t: Throwable) {
                 _addons.value = AddonsState.Error(t.message ?: "Unknown error")
+                JobProgress.finish(app, JOB_ADDONS, t.message ?: "Install failed", ok = false)
             }
         }
     }
@@ -1140,6 +1165,21 @@ class PatcherViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
+    /** One line for the notification, from the same tick the log line uses. */
+    private fun patchStepLabel(tick: ApkPatcher.Progress): String {
+        val progress = if (tick.total > 0) {
+            " ${(tick.fraction * 100).toInt()}%"
+        } else {
+            ""
+        }
+        val leaf = tick.detail.substringAfterLast('/')
+        return if (leaf.isNotBlank()) {
+            "${tick.step.name.lowercase()} · $leaf$progress"
+        } else {
+            "${tick.step.name.lowercase()}$progress"
+        }
+    }
+
     /** Deterministic per-stage counters, carried forward between ticks. */
     private fun stepCounters(
         tick: ApkPatcher.Progress,
@@ -1148,6 +1188,25 @@ class PatcherViewModel(app: Application) : AndroidViewModel(app) {
         val libs = (prev?.counters?.get("libs")?.toIntOrNull() ?: 0) + if (tick.kind == "add") 1 else 0
         val entries = if (tick.total > 0) "${tick.index}/${tick.total}" else ""
         return mapOf("libs" to libs.toString(), "entries" to entries)
+    }
+
+    /** A patched APK that is about to be replaced, waiting for the user. */
+    private val _replacePrompt = MutableStateFlow<File?>(null)
+    val replacePrompt: StateFlow<File?> = _replacePrompt.asStateFlow()
+
+    /** Called from the delete dialog: throw the old APK away and patch again. */
+    fun confirmReplaceAndPatch(selectedComponentKeys: Set<String>? = null) {
+        val old = _replacePrompt.value
+        _replacePrompt.value = null
+        if (old != null && old.exists() && !old.delete()) {
+            _patch.value = PatchUiState.Failed("Could not delete ${old.name}")
+            return
+        }
+        startPatch(selectedComponentKeys)
+    }
+
+    fun dismissReplacePrompt() {
+        _replacePrompt.value = null
     }
 
     fun startPatch(selectedComponentKeys: Set<String>? = null) {
@@ -1187,8 +1246,15 @@ class PatcherViewModel(app: Application) : AndroidViewModel(app) {
                 return
             }
         val out = workFile("patched.apk")
+        // A previous result is still sitting next to the new one. Ask before
+        // replacing it, then carry on by itself - the user confirmed it.
+        if (out.exists() && out.length() > 0L) {
+            _replacePrompt.value = out
+            return
+        }
 
         viewModelScope.launch(Dispatchers.IO) {
+            JobProgress.begin(app, JOB_PATCH, "Patching", "Analyzing the source APK…")
             _patch.value = PatchUiState.Running(ApkPatcher.Step.ANALYZE, 0f)
             applyGamedataAbiPolicy(File(_installPath.value), selAbi)
             try {
@@ -1196,6 +1262,7 @@ class PatcherViewModel(app: Application) : AndroidViewModel(app) {
                     ApkPatcher.PatchRequest(src, out, effectiveBundle, keystore, keepAbi = selAbi),
                     onProgress = { tick ->
                         val prev = _patch.value as? PatchUiState.Running
+                        JobProgress.detail(app, JOB_PATCH, patchStepLabel(tick))
                         val line = logLine(tick)
                         val log = (prev?.log.orEmpty() + listOfNotNull(line)).takeLast(200)
                         _patchLog.value = log
@@ -1214,9 +1281,16 @@ class PatcherViewModel(app: Application) : AndroidViewModel(app) {
                 val finished = _patchLog.value
                 _patch.value = PatchUiState.Done(report, finished)
                 persistPatchRun(selAbi, report, finished)
+                JobProgress.finish(
+                    app,
+                    JOB_PATCH,
+                    "Patched APK is ready",
+                    apkPath = out.path,
+                )
             } catch (t: Throwable) {
                 _patch.value = PatchUiState.Failed(t.message ?: "Unknown error")
                 writePatchLog(selAbi, null, _patchLog.value, t.message ?: "Unknown error")
+                JobProgress.finish(app, JOB_PATCH, t.message ?: "Patch failed", ok = false)
             }
         }
     }
@@ -2103,6 +2177,10 @@ class PatcherViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     companion object {
+        const val JOB_CLIENT_APK = "client-apk"
+        const val JOB_LIBS = "libs"
+        const val JOB_ADDONS = "addons"
+        const val JOB_PATCH = "patch"
         const val CACHE_TAG = "v2"
         const val GAME_DIR = "/storage/emulated/0/xash/cstrike"
         /** Xash base dir; supported games live directly under it. */

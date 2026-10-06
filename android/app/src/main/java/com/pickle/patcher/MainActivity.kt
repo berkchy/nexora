@@ -43,6 +43,7 @@ import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.NavigationBarItemDefaults
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.Text
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.runtime.Composable
@@ -76,6 +77,8 @@ import com.pickle.patcher.ui.theme.Gray40
 import com.pickle.patcher.ui.theme.Gray60
 import com.pickle.patcher.ui.theme.White
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.pickle.patcher.jobs.JobProgress
+import com.pickle.patcher.ui.JobStrip
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -247,18 +250,33 @@ fun PatcherApp(vm: PatcherViewModel) {
             }
         },
     ) { padding ->
-        NavHost(
-            navController = nav,
-            startDestination = Dest.Patch.route,
-            modifier = Modifier.fillMaxSize().padding(padding),
-            enterTransition = { fadeIn(tween(200)) },
-            exitTransition = { fadeOut(tween(200)) },
-        ) {
-            composable(Dest.Patch.route) { PatchScreen(vm) }
-            composable(Dest.Compiler.route) { CompilerScreen(vm) }
-            composable(Dest.Addons.route) { AddonsScreen(vm) }
-            composable("plugins") { PluginsScreen(vm) }
+        Column(modifier = Modifier.fillMaxSize().padding(padding)) {
+            // In-app view of the background jobs; the notification is the same
+            // state once the app is not in front.
+            val jobs by JobProgress.jobs.collectAsState()
+            JobStrip(jobs.values.toList())
+            NavHost(
+                navController = nav,
+                startDestination = Dest.Patch.route,
+                modifier = Modifier.fillMaxSize(),
+                enterTransition = { fadeIn(tween(200)) },
+                exitTransition = { fadeOut(tween(200)) },
+            ) {
+                composable(Dest.Patch.route) { PatchScreen(vm) }
+                composable(Dest.Compiler.route) { CompilerScreen(vm) }
+                composable(Dest.Addons.route) { AddonsScreen(vm) }
+                composable("plugins") { PluginsScreen(vm) }
+            }
         }
+    }
+
+    val replacePrompt by vm.replacePrompt.collectAsState()
+    if (replacePrompt != null) {
+        ReplaceDialog(
+            fileName = replacePrompt!!.name,
+            onConfirm = { vm.confirmReplaceAndPatch() },
+            onDismiss = { vm.dismissReplacePrompt() },
+        )
     }
 
     val showUpdateDialog = update is PatcherViewModel.AppUpdate.Available ||
@@ -268,6 +286,35 @@ fun PatcherApp(vm: PatcherViewModel) {
     if (showUpdateDialog) {
         UpdateDialog(vm, update)
     }
+}
+
+/**
+ * Asked before a new patch replaces the APK that is already there. Confirming
+ * deletes it and the patch continues on its own, which is what the user asked
+ * for - no second tap after the dialog.
+ */
+@Composable
+private fun ReplaceDialog(
+    fileName: String,
+    onConfirm: () -> Unit,
+    onDismiss: () -> Unit,
+) {
+    androidx.compose.material3.AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Replace the existing APK?") },
+        text = {
+            Text(
+                "$fileName is already in the patch folder. Deleting it starts a fresh " +
+                    "patch right away, and the old file cannot be recovered."
+            )
+        },
+        confirmButton = {
+            TextButton(onClick = onConfirm) { Text("Delete and patch") }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) { Text("Keep it") }
+        },
+    )
 }
 
 private fun formatBytes(bytes: Long): String {
