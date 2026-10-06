@@ -1107,23 +1107,70 @@ class PatcherViewModel(app: Application) : AndroidViewModel(app) {
      * arm64 name; on arm32 this causes a FATAL ERROR.  If the file already
      * exists we patch in-place; otherwise we create it from scratch.
      */
+    /**
+     * Writes the metamod config for the selected game.
+     *
+     * Counter-Strike gets the ReGameDLL game dll and both plugins. Condition Zero
+     * gets neither: libcs_android_*.so is ReGameDLL_CS, it only speaks
+     * Counter-Strike, and pointing czero at it took the engine into a game dll
+     * that knows none of its entities. The user report was a SIGSEGV inside
+     * libyapb right after a wall of "non-existent cvar yb_*" warnings, which is
+     * YaPB walking czero with Counter-Strike offsets. A mod without a matching
+     * game dll stays untouched instead of crashing.
+     */
     private fun patchMetamodConfig(gameDir: File, abi: String) {
         val suffix = when (abi) {
             "arm64-v8a" -> "arm64"
             "armeabi-v7a" -> "armv7l"
             else -> return
         }
-        val configFile = File(gameDir, "addons/metamod/config.ini")
+        val isCounterStrike = gameDir.name == GAME_CSTRIKE
+        val metamodDir = File(gameDir, "addons/metamod").apply { mkdirs() }
+
+        val configFile = File(metamodDir, "config.ini")
         val gamedllLine = "gamedll dlls/libcs_android_${suffix}.so"
-        if (configFile.exists()) {
-            val lines = configFile.readLines().toMutableList()
-            val idx = lines.indexOfFirst { it.startsWith("gamedll") }
-            if (idx >= 0) lines[idx] = gamedllLine else lines.add(0, gamedllLine)
-            configFile.writeText(lines.joinToString("\n"))
+        if (isCounterStrike) {
+            if (configFile.exists()) {
+                val lines = configFile.readLines().toMutableList()
+                val idx = lines.indexOfFirst { it.startsWith("gamedll") }
+                if (idx >= 0) lines[idx] = gamedllLine else lines.add(0, gamedllLine)
+                configFile.writeText(lines.joinToString("\n"))
+            } else {
+                configFile.writeText("$gamedllLine\n")
+            }
         } else {
-            configFile.parentFile?.mkdirs()
-            configFile.writeText("$gamedllLine\n")
+            // No gamedll line at all: metamod then loads nothing.
+            if (configFile.exists()) {
+                configFile.writeText(
+                    configFile.readLines()
+                        .filterNot { it.trimStart().startsWith("gamedll") }
+                        .joinToString("\n")
+                )
+            }
         }
+
+        // The plugin list decides what runs, and YaPB only supports
+        // Counter-Strike: loading it elsewhere is what crashed czero.
+        val pluginsFile = File(metamodDir, "plugins.ini")
+        val plugins = if (isCounterStrike) {
+            buildString {
+                append("; Metamod plugins.ini\n")
+                append("; Format: <platform> <path relative to game directory>\n")
+                append("; AMX Mod X core (lives in the app native dir as libamxmodx.so)\n")
+                append("linux addons/amxmodx/libamxmodx.so\n")
+                append("; YaPB Counter-Strike bot\n")
+                append("linux addons/yapb/bin/libyapb.so\n")
+            }
+        } else {
+            buildString {
+                append("; Metamod plugins.ini - ${gameDir.name}\n")
+                append("; Nothing is loaded here on purpose: the AMXX stack needs a\n")
+                append("; Counter-Strike game dll (ReGameDLL_CS) and YaPB is a\n")
+                append("; Counter-Strike bot. Loading either under Condition Zero crashes\n")
+                append("; the game, so ${gameDir.name} is left as the shipped mod.\n")
+            }
+        }
+        pluginsFile.writeText(plugins)
     }
 
     /**
