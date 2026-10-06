@@ -139,7 +139,8 @@ object ReleaseRepository {
                     RemoteInfo(
                         size = resp.body?.contentLength()?.coerceAtLeast(0L) ?: 0L,
                         lastModifiedMillis = stamp,
-                        etag = resp.header("ETag")?.trim('"', ' ', 'W/')?.trim('"') ?: "",
+                        // Both quoted and W/"..." forms appear; keep the bare value.
+                        etag = resp.header("ETag")?.removeSurrounding("\"")?.trim() ?: "",
                     )
                 }
             }
