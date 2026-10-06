@@ -72,7 +72,7 @@ object JobProgress {
         context = appContext.applicationContext
         ensureChannel()
         put(Job(id, title, detail))
-        JobService.start(context)
+        context?.let { JobService.start(it) }
     }
 
     fun progress(appContext: Context, id: String, done: Long, total: Long, detail: String? = null) {
@@ -104,7 +104,7 @@ object JobProgress {
             )
         )
         if (_jobs.value.values.none { it.running }) {
-            JobService.stop(context)
+            context?.let { JobService.stop(it) }
         }
     }
 
@@ -158,7 +158,13 @@ object JobProgress {
                 }
                 if (!job.running) {
                     setAutoCancel(true)
-                    if (job.message.isNotBlank()) addLine(0, job.message)
+                    // InboxStyle shows the whole result line; the collapsed text
+                    // above already carries it.
+                    setStyle(
+                        NotificationCompat.InboxStyle().setSummaryText(
+                            job.message.ifBlank { job.detail }
+                        )
+                    )
                 }
             }
             .build()

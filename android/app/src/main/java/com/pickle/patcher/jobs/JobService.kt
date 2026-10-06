@@ -62,10 +62,8 @@ class JobService : Service() {
     private fun buildNotification(job: JobProgress.Job?): Notification {
         val builder = NotificationCompat.Builder(this, JobProgress.CHANNEL_ID)
             .setSmallIcon(android.R.drawable.stat_sys_download)
-            .setContentTitle(job?.title ?: getString(android.R.string.app_name))
-            .setContentText(
-                job?.detail?.ifBlank { job.message } ?: getString(android.R.string.app_name)
-            )
+            .setContentTitle(job?.title ?: "Nexora")
+            .setContentText(job?.detail?.ifBlank { job.message } ?: "Starting…")
             .setOngoing(true)
             .setOnlyAlertOnce(true)
             .setPriority(NotificationCompat.PRIORITY_LOW)
