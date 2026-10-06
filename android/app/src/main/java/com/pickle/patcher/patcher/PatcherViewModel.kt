@@ -125,6 +125,9 @@ class PatcherViewModel(app: Application) : AndroidViewModel(app) {
 
     private val bundleProvider = BundleProvider(app)
 
+    /** The application context, for the job notifications. */
+    private val app: Application = app
+
     private val _source = MutableStateFlow<SourceInfo?>(null)
     val source: StateFlow<SourceInfo?> = _source.asStateFlow()
 
