@@ -1,17 +1,3 @@
-# build output
-build/
-
-# archives & logs
-*.tgz
-*.log
-ci-watch.sh
+watch.out
+ci-watch.log
 ci-watch.seen
-push-tag.sh
-
-# signing material (create your own, never commit)
-*.keystore
-debug.keystore
-
-# misc
-*.pyc
-__pycache__/
