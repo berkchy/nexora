@@ -83,6 +83,11 @@ def collect_entries(libdir: str, abi: str) -> list:
     client_name = f"libclient_android_{suffix}.so"
     add(client_name, f"lib/{abi}/{client_name}", False, "CS16Client client DLL (crash handler)")
 
+    # VGUI2 scoreboard runtime. The client DLL links against it, so a missing
+    # copy here means the client refuses to load at all: keep it required.
+    add("libvgui2client.so", f"lib/{abi}/libvgui2client.so", True,
+        "VGUI2 scoreboard runtime (linked by the client DLL)")
+
     # ReGameDLL game DLL, bundled as libcs. Shipped from the berkchy fork branch
     # fix/first-spawn-equip; skipped silently when not present, then
     # the patcher falls back to patching the base APK's libcs in place.
