@@ -787,6 +787,16 @@ if [ -n "$CLIENT_SO" ]; then
 else
   echo "WARN: client lib not found, skipping"
 fi
+# The VGUI2 scoreboard library: the client links against it, so it has to sit
+# next to it in the runtime lib dir under its SONAME. It is a build dependency
+# of the client target, so building the client already produced it.
+VGUI_SO=$(find "$CLIENT_BUILD" -name "libvgui2client.so" | head -1)
+if [ -n "$VGUI_SO" ]; then
+  cp "$VGUI_SO" "$OUT/lib/$ABI/libvgui2client.so"
+  echo "   vgui2client -> $(ls -l "$OUT/lib/$ABI/libvgui2client.so" | awk '{print $5}') bytes"
+else
+  echo "WARN: vgui2client lib not found, the scoreboard will fall back to text"
+fi
 cmake --build "$CLIENT_BUILD" --target xashmenu -j"$(nproc)"
 MENU_SO=$(find "$CLIENT_BUILD" -name "libmenu*.so" | head -1)
 if [ -n "$MENU_SO" ]; then
