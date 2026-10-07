@@ -550,27 +550,7 @@ jobs:
           # everything else stays untouched (upload --clobber replaces it).
           NEEDS_ANDROID="${{ steps.build_type.outputs.needs_android }}"
           NEEDS_LIBS="${{ steps.build_type.outputs.needs_libs }}"
-          gh release view continuous --json assets | jq -r '.assets[] | .name' | while read -r name; do
-            [ -z "$name" ] && continue
-            DROP=false
-            case "$name" in
-              nexora_*.apk|version.txt)
-                [ "$NEEDS_ANDROID" = "true" ] && DROP=true ;;
-              *)
-                [ "$NEEDS_LIBS" = "true" ] && DROP=true ;;
-            esac
-            if [ "$DROP" = "true" ]; then
-              echo "Deleting: $name"
-              gh release delete-asset continuous "$name" -y || true
-            else
-              echo "Keeping: $name"
-            fi
-          done
-          BODY="Nexora Continuous build ${APP_VERSION_NAME:-}
-          Commit: ${{ steps.build_type.outputs.commit_msg }}
-          Run: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
-          Built: $(date -u +%Y-%m-%dT%H:%M:%SZ)"
-          gh release edit continuous --title "Nexora Continuous" --notes "$BODY"
+
           shopt -s nullglob
           FILES=()
           if [ "$NEEDS_LIBS" = "true" ]; then
@@ -583,7 +563,37 @@ jobs:
             echo "nothing to upload"
             exit 0
           fi
+
+          # Upload FIRST, drop stale assets afterwards. Deleting up front meant a
+          # failed upload (a GitHub API hiccup is enough) left the release with
+          # none of the native libs, which left nobody able to patch their game.
           gh release upload continuous --clobber "${FILES[@]}"
+
+          UPLOADED=$(printf '%s\n' "${FILES[@]}" | sed 's#^.*/##' | sort -u)
+          echo "$UPLOADED" > /dev/null
+          gh release view continuous --json assets | jq -r '.assets[] | .name' | while read -r name; do
+            [ -z "$name" ] && continue
+            DROP=false
+            case "$name" in
+              nexora_*.apk|version.txt)
+                [ "$NEEDS_ANDROID" = "true" ] && DROP=true ;;
+              *)
+                [ "$NEEDS_LIBS" = "true" ] && DROP=true ;;
+            esac
+            # The files just uploaded are the replacements; drop only what this
+            # rebuild supersedes and did not put back.
+            if [ "$DROP" = "true" ] && ! grep -qxF "$name" <<< "$UPLOADED"; then
+              echo "Deleting stale: $name"
+              gh release delete-asset continuous "$name" -y || true
+            else
+              echo "Keeping: $name"
+            fi
+          done
+          BODY="Nexora Continuous build ${APP_VERSION_NAME:-}
+          Commit: ${{ steps.build_type.outputs.commit_msg }}
+          Run: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          Built: $(date -u +%Y-%m-%dT%H:%M:%SZ)"
+          gh release edit continuous --title "Nexora Continuous" --notes "$BODY"
 
       - name: Release
         if: startsWith(github.ref, 'refs/tags/') && github.ref_name != 'continuous' && (steps.build_type.outputs.needs_android == 'true' || steps.build_type.outputs.needs_libs == 'true')
