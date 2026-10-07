@@ -509,8 +509,13 @@ jobs:
           echo "${APP_VERSION_NAME:-unknown}" > "$GITHUB_WORKSPACE/version.txt"
           cat "$GITHUB_WORKSPACE/version.txt"
 
+      # Same rule as the version naming in "Detect build type": the
+      # continuous tag, or a manual run on master. With the tag-only
+      # condition this step was skipped on dispatch, so the run built
+      # everything and then published nothing.
       - name: Release (rolling continuous)
-        if: startsWith(github.ref, 'refs/tags/') && github.ref_name == 'continuous' && (steps.build_type.outputs.needs_android == 'true' || steps.build_type.outputs.needs_libs == 'true')
+        if: (startsWith(github.ref, 'refs/tags/') && github.ref_name == 'continuous') || (github.event_name == 'workflow_dispatch' && github.ref_name == 'master')
+        && (steps.build_type.outputs.needs_android == 'true' || steps.build_type.outputs.needs_libs == 'true')
         shell: bash
         env:
           GH_TOKEN: ${{ github.token }}
