@@ -1,0 +1,2 @@
+pfnShowMOTD
+pfnIsMOTDDialogActive

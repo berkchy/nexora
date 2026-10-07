@@ -787,9 +787,10 @@ if [ -n "$CLIENT_SO" ]; then
 else
   echo "WARN: client lib not found, skipping"
 fi
-# The VGUI2 scoreboard library: the client links against it, so it has to sit
-# next to it in the runtime lib dir under its SONAME. It is a build dependency
-# of the client target, so building the client already produced it.
+# The VGUI2 scoreboard library. Built as its own target: the client dlopen()s
+# it, so it is not a link dependency and building the client no longer covers
+# it. Ships under its SONAME next to the client in the runtime lib dir.
+cmake --build "$CLIENT_BUILD" --target vgui2client -j"$(nproc)"
 VGUI_SO=$(find "$CLIENT_BUILD" -name "libvgui2client.so" | head -1)
 if [ -n "$VGUI_SO" ]; then
   cp "$VGUI_SO" "$OUT/lib/$ABI/libvgui2client.so"

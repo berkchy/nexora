@@ -169,6 +169,17 @@ jobs:
           key: ccache-ndk-r25c-${{ hashFiles('android/ci/build-amxx.sh') }}
           restore-keys: ccache-ndk-r25c-
 
+      - name: Check the client/engine ABI
+        if: steps.build_type.outputs.needs_libs == 'true'
+        shell: bash
+        run: |
+          # The engine hands cl_enginefunc_t to the client dll by value, so a dll
+          # built against more slots than the engine has reads past the end of
+          # the engine's table and calls whatever pointer follows it - which
+          # breaks every player who has not updated their engine APK yet. Cheap
+          # to check, so it runs before the long cross-compile.
+          python3 ./android/ci/check-engine-abi.py
+
       - name: Cross-compile core + modules + plugins
         if: steps.build_type.outputs.needs_libs == 'true' && steps.build_type.outputs.skip_native != 'true'
         shell: bash
