@@ -48,7 +48,21 @@ jobs:
           # Legacy markers still accepted.
           if echo "$LOWER" | grep -qE '\[android build\]|\[version build\]'; then NEEDS_ANDROID=true; fi
           if echo "$LOWER" | grep -qE '\[bundle build\]'; then NEEDS_LIBS=true; fi
+          # The continuous channel is built either from the continuous tag or
+          # from a manual run on master - otherwise a plain commit that touches
+          # vcs16 or android/ci would need the tag force-moved under it, and a
+          # dispatch on master would publish nexora_vmaster.apk into the
+          # continuous release.
+          CONTINUOUS=false
           if [ "$GITHUB_REF_NAME" = "continuous" ]; then
+            CONTINUOUS=true
+          fi
+          if [ "$GITHUB_EVENT_NAME" = "workflow_dispatch" ]; then
+            if [ "$GITHUB_REF_NAME" = "master" ]; then
+              CONTINUOUS=true
+            fi
+          fi
+          if [ "$CONTINUOUS" = true ]; then
             echo "APP_VERSION_NAME=continuous-r${GITHUB_RUN_NUMBER}" >> "$GITHUB_ENV"
             # Epoch seconds: monotonic across CI providers (run numbers and
             # GitLab pipeline IIDs are independent counters -> downgrade block).
