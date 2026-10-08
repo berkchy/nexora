@@ -41,7 +41,7 @@ import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.gestures.drag
-import androidx.compose.foundation.gestures.positionChange
+import androidx.compose.ui.input.pointer.positionChange
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -542,9 +542,9 @@ private fun Modifier.drawerEdgeSwipe(
     edgeWidthPx: Float,
 ): Modifier = this.pointerInput(edgeWidthPx, drawerState) {
     val openFraction = drawerState.requireAnchors[androidx.compose.material3.DrawerValue.Open]
-        .getOffset()
+        .positionOffset()
     val closedFraction = drawerState.requireAnchors[androidx.compose.material3.DrawerValue.Closed]
-        .getOffset()
+        .positionOffset()
     if (openFraction - closedFraction <= 0f) return@pointerInput
 
     awaitEachGesture {
@@ -574,7 +574,13 @@ private fun Modifier.drawerEdgeSwipe(
         scope.launch {
             // Past halfway opens, otherwise it snaps back, matching the sheet's
             // own fling behaviour so the two never disagree.
-            drawerState.animateTo(travelled > anchor * 0.5f)
+            drawerState.animateTo(
+                if (travelled > anchor * 0.5f) {
+                    androidx.compose.material3.DrawerValue.Open
+                } else {
+                    androidx.compose.material3.DrawerValue.Closed
+                }
+            )
         }
     }
 }
