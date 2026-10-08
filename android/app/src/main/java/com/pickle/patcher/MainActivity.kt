@@ -16,6 +16,9 @@ import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.foundation.gestures.Orientation
+import androidx.compose.foundation.gestures.draggable
+import androidx.compose.foundation.gestures.rememberDraggableState
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.Code
 import androidx.compose.material.icons.filled.Extension
@@ -37,11 +40,6 @@ import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Menu
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.ui.input.pointer.PointerEventPass
-import androidx.compose.ui.input.pointer.pointerInput
-import androidx.compose.foundation.gestures.awaitEachGesture
-import androidx.compose.foundation.gestures.awaitFirstDown
-import androidx.compose.foundation.gestures.drag
-import androidx.compose.ui.input.pointer.positionChange
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -459,21 +457,14 @@ private fun NavDrawer(
 ) {
     val scope = androidx.compose.runtime.rememberCoroutineScope()
     val context = androidx.compose.ui.platform.LocalContext.current
-    val density = androidx.compose.ui.platform.LocalDensity.current
 
     androidx.compose.material3.ModalNavigationDrawer(
         drawerState = drawerState,
-        // Own gesture instead of the default one: only the left edge strip
-        // opens the menu, everything else is left to the content underneath.
+        // The edge strip below is the gesture: Material's own reacts to a drag
+        // anywhere on screen, which would hijack every list swipe.
         gesturesEnabled = false,
         drawerContent = {
-            androidx.compose.material3.ModalDrawerSheet(
-                modifier = Modifier.drawerEdgeSwipe(
-                    drawerState = drawerState,
-                    scope = scope,
-                    edgeWidthPx = with(density) { DRAWER_EDGE_DP.dp.toPx() },
-                ),
-            ) {
+            androidx.compose.material3.ModalDrawerSheet {
                 DrawerHeader()
                 DrawerItem("Patch", Icons.Filled.RocketLaunch, currentRoute == Dest.Patch.route) {
                     drawerState.close()
@@ -520,70 +511,35 @@ private fun NavDrawer(
             }
         },
     ) {
-        content()
-    }
-}
+        Box(Modifier.fillMaxSize()) {
+            content()
 
-/**
- * Drawer swipe, restricted to a strip on the left edge.
- *
- * Material's own gesture accepts a drag from anywhere near the edge, which on a
- * phone is most of the screen, so every list swipe and horizontal scroll in the
- * app would end up opening this menu. Only a touch that STARTS inside
- * [edgeWidthPx] arms the drag; anywhere else the gesture is ignored entirely and
- * the touch belongs to the content below.
- *
- * A drag past the halfway point opens, otherwise it snaps back. This runs on the
- * Initial pass so it sees the press before any child does.
- */
-private fun Modifier.drawerEdgeSwipe(
-    drawerState: androidx.compose.material3.DrawerState,
-    scope: androidx.compose.runtime.CoroutineScope,
-    edgeWidthPx: Float,
-): Modifier = this.pointerInput(edgeWidthPx, drawerState) {
-    val openFraction = drawerState.requireAnchors[androidx.compose.material3.DrawerValue.Open]
-        .positionOffset()
-    val closedFraction = drawerState.requireAnchors[androidx.compose.material3.DrawerValue.Closed]
-        .positionOffset()
-    if (openFraction - closedFraction <= 0f) return@pointerInput
-
-    awaitEachGesture {
-        val down = awaitFirstDown(requireUnconsumed = false, pass = PointerEventPass.Initial)
-
-        if (down.position.x > edgeWidthPx) return@awaitEachGesture
-
-        val anchor = openFraction - closedFraction
-        val slop = viewConfiguration.touchSlop
-        var dragging = false
-        var travelled = 0f
-
-        drag(down.id) { change ->
-            val dx = change.positionChange().x
-
-            if (!dragging && (dx > slop || dx < -slop)) {
-                dragging = true
-            }
-            if (!dragging) return@drag
-
-            change.consume()
-            travelled = (travelled + dx).coerceIn(0f, anchor)
-        }
-
-        if (!dragging) return@awaitEachGesture
-
-        scope.launch {
-            // Past halfway opens, otherwise it snaps back, matching the sheet's
-            // own fling behaviour so the two never disagree.
-            drawerState.animateTo(
-                if (travelled > anchor * 0.5f) {
-                    androidx.compose.material3.DrawerValue.Open
-                } else {
-                    androidx.compose.material3.DrawerValue.Closed
-                }
+            // Invisible strip on the left edge that opens the menu. Laid over
+            // the content rather than replacing its gesture, so everything to
+            // the right of it keeps working untouched.
+            Box(
+                modifier = Modifier
+                    .align(androidx.compose.ui.Alignment.CenterStart)
+                    .width(DRAWER_EDGE_DP.dp)
+                    .fillMaxHeight()
+                    .draggable(
+                        orientation = androidx.compose.foundation.gestures.Orientation.Horizontal,
+                        state = androidx.compose.foundation.gestures.rememberDraggableState { delta ->
+                            // Any real drag opens; there is no partial drag
+                            // state to preserve, the sheet animates on its own.
+                            if (delta != 0f) scope.launch { drawerState.open() }
+                        },
+                    ),
             )
         }
     }
 }
+
+/**
+ * How wide the left edge strip that pulls the menu open is. Wide enough to find
+ * with a thumb, narrow enough that it never steals a swipe meant for a list.
+ */
+private const val DRAWER_EDGE_DP = 28f
 
 /**
  * Switches the bottom-bar tabs, keeping each one's state. Same navigation the
