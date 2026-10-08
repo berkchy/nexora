@@ -146,7 +146,7 @@ fun CompilerScreen(vm: PatcherViewModel, onOpenSettings: () -> Unit) {
             }
         } else {
             Text(
-                scriptRoot,
+                scriptRoot.orEmpty(),
                 style = MaterialTheme.typography.bodySmall,
                 color = Gray40,
             )

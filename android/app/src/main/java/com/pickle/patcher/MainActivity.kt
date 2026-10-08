@@ -545,33 +545,36 @@ private fun Modifier.drawerEdgeSwipe(
         .getOffset()
     val closedFraction = drawerState.requireAnchors[androidx.compose.material3.DrawerValue.Closed]
         .getOffset()
-    val width = size.width.toFloat()
-    if (openFraction <= 0f) return@pointerInput
+    if (openFraction - closedFraction <= 0f) return@pointerInput
 
     awaitEachGesture {
         val down = awaitFirstDown(requireUnconsumed = false, pass = PointerEventPass.Initial)
 
         if (down.position.x > edgeWidthPx) return@awaitEachGesture
 
-        val anchor = drawerState.requireAnchors[androidx.compose.material3.DrawerValue.Open].getOffset()
-        val offset = openFraction
+        val anchor = openFraction - closedFraction
         val slop = viewConfiguration.touchSlop
         var dragging = false
-        var dragged = 0f
+        var travelled = 0f
 
         drag(down.id) { change ->
-            if (!dragging && (change.position.x - down.position.x).let { it > slop || it < -slop }) {
+            val dx = change.positionChange().x
+
+            if (!dragging && (dx > slop || dx < -slop)) {
                 dragging = true
             }
             if (!dragging) return@drag
 
             change.consume()
-            dragged = (dragged + change.positionChange().x).coerceIn(0f, anchor)
-            change.positionWith(dragged)
+            travelled = (travelled + dx).coerceIn(0f, anchor)
         }
 
         if (!dragging) return@awaitEachGesture
-        scope.launch { drawerState.animateTo(dragged > anchor * 0.5f) }
+
+        scope.launch {
+            // Past halfway opens, otherwise it snaps back, matching the sheet's
+            // own fling behaviour so the two never disagree.
+            drawerState.animateTo(travelled > anchor * 0.5f)
     }
 }
 
@@ -665,9 +668,11 @@ private fun appVersion(context: android.content.Context): String {
     val pm = context.packageManager
     return try {
         if (android.os.Build.VERSION.SDK_INT >= 33) {
-            pm.getPackageInfo(context.packageName, android.content.pm.PackageManager.PackageInfoFlags.of(0)).versionName
+            pm.getPackageInfo(context.packageName, android.content.pm.PackageManager.PackageInfoFlags.of(0))
+                .versionName ?: "unknown"
         } else {
-            @Suppress("DEPRECATION") pm.getPackageInfo(context.packageName, 0).versionName
+            @Suppress("DEPRECATION")
+            pm.getPackageInfo(context.packageName, 0).versionName ?: "unknown"
         }
     } catch (_: Throwable) {
         "unknown"
