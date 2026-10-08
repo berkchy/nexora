@@ -24,10 +24,6 @@ import androidx.compose.material.icons.filled.Code
 import androidx.compose.material.icons.filled.Extension
 import androidx.compose.material.icons.filled.History
 import androidx.compose.material.icons.filled.RocketLaunch
-import androidx.compose.material.icons.outlined.Code
-import androidx.compose.material.icons.outlined.Extension
-import androidx.compose.material.icons.outlined.History
-import androidx.compose.material.icons.outlined.RocketLaunch
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -66,7 +62,6 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.unit.dp
 import androidx.navigation.NavGraph.Companion.findStartDestination
 import androidx.navigation.compose.NavHost
@@ -117,21 +112,16 @@ class MainActivity : ComponentActivity() {
     }
 }
 
-private enum class Dest(
-    val route: String,
-    val label: String,
-    val selectedIcon: ImageVector,
-    val icon: ImageVector,
-) {
-    Patch("patch", "Patch", Icons.Filled.RocketLaunch, Icons.Outlined.RocketLaunch),
-    Compiler("compiler", "Compile", Icons.Filled.Code, Icons.Outlined.Code),
-    Addons("addons", "Addons", Icons.Filled.Extension, Icons.Outlined.Extension),
+private enum class Dest(val route: String) {
+    Patch("patch"),
+    Compiler("compiler"),
+    Addons("addons"),
     // Settings and Plugins sit in the drawer next to the three tasks and are
     // peers of them, so they navigate as tabs too. As plain destinations they
     // stacked on the back stack and the app bar grew a back arrow, which made
     // them read as a sub-page of whichever tab opened them.
-    Settings("settings", "Settings", Icons.Filled.Tune, Icons.Outlined.Tune),
-    Plugins("plugins", "Plugins", Icons.Filled.Extension, Icons.Outlined.Extension),
+    Settings("settings"),
+    Plugins("plugins"),
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
