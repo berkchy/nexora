@@ -13,7 +13,6 @@ import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.ui.input.pointer.PointerEventPass
-import androidx.compose.ui.input.pointer.awaitPointerEvent
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
@@ -99,8 +98,11 @@ fun IntroOverlay(playKey: Long = 0L) {
                 .pointerInput(Unit) {
                     awaitPointerEventScope {
                         while (true) {
+                            // Consume on the Initial pass so the tap never reaches
+                            // the app underneath, before anything else sees it.
                             awaitPointerEvent(PointerEventPass.Initial)
-                                .changes.forEach { it.consume() }
+                                .changes
+                                .forEach { it.consume() }
                         }
                     }
                 },
