@@ -241,7 +241,13 @@ fun PatcherApp(vm: PatcherViewModel) {
                     }
                 },
                 navigationIcon = {
-                    if (currentRoute == "plugins") {
+                    // Back belongs to the screens stacked on top of the tabs.
+                    // Settings and Plugins are top level, they get their own
+                    // header instead, so drawing it in the app bar left two
+                    // titles sitting on top of each other.
+                    if (nav.previousBackStackEntry != null &&
+                        (currentRoute == "settings" || currentRoute == "plugins")
+                    ) {
                         IconButton(onClick = { nav.popBackStack() }) {
                             Icon(
                                 Icons.Filled.ArrowBack,
@@ -263,72 +269,27 @@ fun PatcherApp(vm: PatcherViewModel) {
                 },
             )
         },
-        bottomBar = {
-            Surface(
-                color = MaterialTheme.colorScheme.surfaceContainer,
-                shadowElevation = 8.dp,
-            ) {
-                NavigationBar(
-                    containerColor = MaterialTheme.colorScheme.surfaceContainer,
-                    tonalElevation = 0.dp,
-                ) {
-                    Dest.entries.forEach { dest ->
-                        val selected = currentRoute == dest.route
-                        NavigationBarItem(
-                            selected = selected,
-                            onClick = {
-                                if (!selected) {
-                                    nav.navigate(dest.route) {
-                                        popUpTo(nav.graph.findStartDestination().id) { saveState = true }
-                                        launchSingleTop = true
-                                        restoreState = true
-                                    }
-                                }
-                            },
-                            icon = {
-                                Icon(
-                                    imageVector = if (selected) dest.selectedIcon else dest.icon,
-                                    contentDescription = dest.label,
-                                )
-                            },
-                            label = {
-                                Text(
-                                    dest.label,
-                                    style = MaterialTheme.typography.labelSmall,
-                                    maxLines = 1,
-                                )
-                            },
-                            colors = NavigationBarItemDefaults.colors(
-                                selectedIconColor = MaterialTheme.colorScheme.onSecondaryContainer,
-                                selectedTextColor = MaterialTheme.colorScheme.onSurface,
-                                unselectedIconColor = MaterialTheme.colorScheme.onSurfaceVariant,
-                                unselectedTextColor = MaterialTheme.colorScheme.onSurfaceVariant,
-                                indicatorColor = MaterialTheme.colorScheme.secondaryContainer,
-                            ),
-                        )
-                    }
-                }
-            }
-        },
     ) { padding ->
-        // In-app view of the background jobs; the notification is the same
-        // state once the app is not in front.
-        val jobs by JobProgress.jobs.collectAsState()
-        JobStrip(jobs.values.toList())
-        NavHost(
-            navController = nav,
-            startDestination = Dest.Patch.route,
-            modifier = Modifier.fillMaxSize().padding(padding),
-            enterTransition = { fadeIn(tween(200)) },
-            exitTransition = { fadeOut(tween(200)) },
-        ) {
+        Column(modifier = Modifier.fillMaxSize().padding(padding)) {
+            // In-app view of the background jobs; the notification is the same
+            // state once the app is not in front.
+            val jobs by JobProgress.jobs.collectAsState()
+            JobStrip(jobs.values.toList())
+            NavHost(
+                navController = nav,
+                startDestination = Dest.Patch.route,
+                modifier = Modifier.fillMaxSize(),
+                enterTransition = { fadeIn(tween(200)) },
+                exitTransition = { fadeOut(tween(200)) },
+            ) {
             composable(Dest.Patch.route) { PatchScreen(vm) }
             composable(Dest.Compiler.route) {
                 CompilerScreen(vm, onOpenSettings = { nav.navigate("settings") { launchSingleTop = true } })
             }
             composable(Dest.Addons.route) { AddonsScreen(vm) }
             composable("settings") { SettingsScreen(vm, onBack = { nav.popBackStack() }) }
-            composable("plugins") { PluginsScreen(vm) }
+                composable("plugins") { PluginsScreen(vm) }
+            }
         }
     }
     }
