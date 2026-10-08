@@ -24,6 +24,7 @@ import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.Code
 import androidx.compose.material.icons.filled.Extension
 import androidx.compose.material.icons.filled.History
+import androidx.compose.material.icons.filled.Download
 import androidx.compose.material.icons.filled.RocketLaunch
 import androidx.compose.material.icons.outlined.Code
 import androidx.compose.material.icons.outlined.Extension
@@ -459,6 +460,16 @@ private fun NavDrawer(
     val scope = androidx.compose.runtime.rememberCoroutineScope()
     val context = androidx.compose.ui.platform.LocalContext.current
 
+    // DrawerState.close() is suspend, and the item callbacks are not. Closing
+    // first and navigating after keeps the sheet from animating out on top of
+    // the screen it just navigated to.
+    fun closeThen(block: () -> Unit) {
+        scope.launch {
+            drawerState.close()
+            block()
+        }
+    }
+
     androidx.compose.material3.ModalNavigationDrawer(
         drawerState = drawerState,
         // The edge strip below is the gesture: Material's own reacts to a drag
@@ -468,46 +479,41 @@ private fun NavDrawer(
             androidx.compose.material3.ModalDrawerSheet {
                 DrawerHeader()
                 DrawerItem("Patch", Icons.Filled.RocketLaunch, currentRoute == Dest.Patch.route) {
-                    drawerState.close()
-                    navToTab(nav, Dest.Patch.route, currentRoute)
+                    closeThen { navToTab(nav, Dest.Patch.route, currentRoute) }
                 }
                 DrawerItem("Compile", Icons.Filled.Code, currentRoute == Dest.Compiler.route) {
-                    drawerState.close()
-                    navToTab(nav, Dest.Compiler.route, currentRoute)
+                    closeThen { navToTab(nav, Dest.Compiler.route, currentRoute) }
                 }
                 DrawerItem("Addons", Icons.Filled.Extension, currentRoute == Dest.Addons.route) {
-                    drawerState.close()
-                    navToTab(nav, Dest.Addons.route, currentRoute)
+                    closeThen { navToTab(nav, Dest.Addons.route, currentRoute) }
                 }
                 DrawerItem("Settings", Icons.Filled.Tune, currentRoute == "settings") {
-                    drawerState.close()
-                    if (currentRoute != "settings") onOpenSettings()
+                    closeThen { if (currentRoute != "settings") onOpenSettings() }
                 }
                 DrawerItem("Plugins", Icons.Filled.Extension) {
-                    drawerState.close()
-                    if (currentRoute != "plugins") {
-                        nav.navigate("plugins") { launchSingleTop = true }
+                    closeThen {
+                        if (currentRoute != "plugins") {
+                            nav.navigate("plugins") { launchSingleTop = true }
+                        }
                     }
                 }
 
                 HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
 
                 DrawerItem("Update check", Icons.Filled.SystemUpdate) {
-                    drawerState.close()
-                    vm.checkAppUpdate()
-                    vm.refreshLibStatus()
+                    closeThen {
+                        vm.checkAppUpdate()
+                        vm.refreshLibStatus()
+                    }
                 }
-                DrawerItem("Redownload bundle", Icons.Filled.Refresh) {
-                    drawerState.close()
-                    onRedownloadBundle()
+                DrawerItem("Redownload bundle", Icons.Filled.Download) {
+                    closeThen { onRedownloadBundle() }
                 }
                 DrawerItem("Share logs", Icons.Filled.Share) {
-                    drawerState.close()
-                    onShareLogs()
+                    closeThen { onShareLogs() }
                 }
                 DrawerItem("About", Icons.Filled.Info) {
-                    drawerState.close()
-                    onAbout()
+                    closeThen { onAbout() }
                 }
             }
         },
