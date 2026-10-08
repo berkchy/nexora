@@ -23,6 +23,13 @@ object JobProgress {
 
     const val CHANNEL_ID = "jobs"
 
+    /**
+     * How long a finished job's result stays in the shade. Long enough to read
+     * "Libraries ready" after a long download, short enough that the shade is
+     * clean again by the time the user looks at it.
+     */
+    private const val FINISHED_TIMEOUT_MS = 4_000L
+
     enum class State { RUNNING, DONE, FAILED }
 
     data class Job(
@@ -173,6 +180,11 @@ object JobProgress {
                             job.message.ifBlank { job.detail }
                         )
                     )
+                    // Finished jobs must not linger. A finished notification is
+                    // never ongoing, so Android would keep it in the shade until
+                    // the user swiped it away - the app then looked like it was
+                    // still busy after every download and patch.
+                    setTimeoutAfter(FINISHED_TIMEOUT_MS)
                 }
             }
             .build()

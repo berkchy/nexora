@@ -21,6 +21,7 @@ import com.pickle.patcher.lib.SigningKeystore
 import com.pickle.patcher.lib.ZipAnalyzer
 import com.pickle.patcher.lib.ZipRaw
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.coroutineScope
@@ -321,6 +322,32 @@ class PatcherViewModel(app: Application) : AndroidViewModel(app) {
 
     private val compilerPrefs by lazy {
         getApplication<Application>().getSharedPreferences("compiler_prefs", Context.MODE_PRIVATE)
+    }
+
+    // How many amxxpc processes may run at once. Defaults to every core but one
+    // so the UI and the game keep a core, and is clamped on read because the
+    // device may have fewer cores than when the setting was saved.
+    private val _compileWorkers = MutableStateFlow(0)
+    val compileWorkers: StateFlow<Int> = _compileWorkers.asStateFlow()
+
+    init {
+        val saved = compilerPrefs.getInt("compile_workers", 0)
+        _compileWorkers.value = if (saved > 0) saved.coerceIn(1, maxCompileWorkers()) else maxCompileWorkers()
+    }
+
+    /** Upper bound for the worker slider: never more than the usable cores. */
+    fun maxCompileWorkers(): Int = Runtime.getRuntime().availableProcessors().coerceAtLeast(2)
+
+    /** Worker count actually used by a compile run. */
+    fun effectiveCompileWorkers(): Int =
+        _compileWorkers.value.coerceIn(1, maxCompileWorkers())
+
+    /** Persists the worker count; the slider calls this on every change. */
+    fun setCompileWorkers(count: Int) {
+        val clamped = count.coerceIn(1, maxCompileWorkers())
+        if (clamped == _compileWorkers.value) return
+        _compileWorkers.value = clamped
+        compilerPrefs.edit().putInt("compile_workers", clamped).apply()
     }
 
     // Declared before init: useCachedBundle() runs synchronously in init and
@@ -861,6 +888,9 @@ class PatcherViewModel(app: Application) : AndroidViewModel(app) {
                     diff.toDownload, libsDir, _abi.value,
                     onFileStart = { index, asset ->
                         markLibDownloading(asset.cleanName, 0f)
+                        // Name the file being fetched; the notification used to
+                        // say only "Downloading 19 files…" for the whole run.
+                        JobProgress.detail(app, JOB_LIBS, asset.cleanName)
                         _bundle.update {
                             BundleState.Downloading(
                                 percent = 0.15f + (0.75f * index.toFloat() / diff.toDownload.size).coerceAtMost(0.75f),
@@ -873,12 +903,20 @@ class PatcherViewModel(app: Application) : AndroidViewModel(app) {
                     },
                     onFileProgress = { index, asset, fileProgress ->
                         markLibDownloading(asset.cleanName, fileProgress)
+                        // Count bytes, not files: with a handful of .so files the
+                        // per-file counter sits still for the whole download and
+                        // the bar looks frozen. Fold the per-file fraction into
+                        // the reported position so it always creeps forward.
+                        val overall =
+                            (index + fileProgress.coerceIn(0f, 1f)) / diff.toDownload.size.toFloat()
                         JobProgress.progress(
                             app,
                             JOB_LIBS,
-                            index.toLong(),
-                            diff.toDownload.size.toLong(),
-                            asset.cleanName,
+                            (overall * 100).toLong().toInt().toLong().coerceIn(0, 99),
+                            100L,
+                            "${asset.cleanName} · ${
+                                (fileProgress * 100).toInt().coerceIn(0, 100)
+                            }%",
                         )
                         val base = 0.15f + (0.75f * index.toFloat() / diff.toDownload.size).coerceAtMost(0.75f)
                         val perFileWeight = 0.75f / diff.toDownload.size
@@ -1992,6 +2030,57 @@ class PatcherViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     /**
+     * Watches the picked scripting folder so a .sma dropped in from a file
+     * manager shows up on its own. Plugins are edited outside the app, and
+     * making the user hit refresh after every save is the kind of thing that
+     * makes them stop using the screen at all.
+     *
+     * Only the Compiler screen has a scripting folder worth watching, so this is
+     * called on screen entry and cancelled on leave; a poll that runs for the
+     * whole process lifetime would keep the view model alive for nothing.
+     */
+    private var scriptWatchJob: Job? = null
+
+    fun startScriptWatcher() {
+        scriptWatchJob?.cancel()
+        scriptWatchJob = viewModelScope.launch(Dispatchers.IO) {
+            while (true) {
+                kotlinx.coroutines.delay(SCRIPT_POLL_MS)
+                if (_scriptRoot.value == null) continue
+                // Re-reads the folder and assigns only when the result differs,
+                // so an unchanged folder does not churn the list the user is
+                // tapping in.
+                val current = _scripts.value
+                val updated = readScriptFolder()
+                if (updated != current) {
+                    _scripts.value = updated
+                }
+            }
+        }
+    }
+
+    fun stopScriptWatcher() {
+        scriptWatchJob?.cancel()
+        scriptWatchJob = null
+    }
+
+    /** The .sma list of the current scripting folder, empty when unset. */
+    private fun readScriptFolder(): List<SmaSource> {
+        val dir = _scriptRoot.value?.let { File(it) } ?: return emptyList()
+        if (!dir.isDirectory) return emptyList()
+
+        return dir.listFiles { f ->
+            f.isFile && f.name.endsWith(".sma", ignoreCase = true)
+        }?.sortedBy { it.name }?.map { f ->
+            SmaSource(
+                path = f.absolutePath,
+                name = f.name,
+                hasInclude = File(f.parentFile, "include").isDirectory,
+            )
+        }.orEmpty()
+    }
+
+    /**
      * Compiles a single .sma on-device using the amxxpc bundled in the release
      * module. The driver + its libpc300 kernel (amxxpc32.so) are extracted from the
      * bundle into the app files dir so no separate install is required. Falls back
@@ -2019,11 +2108,10 @@ class PatcherViewModel(app: Application) : AndroidViewModel(app) {
             logDir?.mkdirs()
 
             // Every plugin is a separate amxxpc process, so compiling several at
-            // once is real parallelism on the phone's cores. One core is left
-            // for the UI/game, and the cap keeps a 12-plugin folder from
-            // spawning a dozen pawncc instances that fight each other for RAM.
-            val parallelism = (Runtime.getRuntime().availableProcessors() - 1)
-                .coerceIn(2, 8)
+            // once is real parallelism on the phone's cores. The worker count is
+            // a user setting: more workers finish sooner but fight each other
+            // for RAM and make the device hot, fewer keep it cool.
+            val parallelism = effectiveCompileWorkers()
             val gate = Semaphore(parallelism)
             val finished = AtomicInteger(0)
             val results = arrayOfNulls<Pair<Boolean, String>>(total)
@@ -2355,6 +2443,9 @@ class PatcherViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     companion object {
+        /** How often the picked scripting folder is re-read while the screen is open. */
+        const val SCRIPT_POLL_MS = 3_000L
+
         const val JOB_CLIENT_APK = "client-apk"
         const val JOB_LIBS = "libs"
         const val JOB_ADDONS = "addons"

@@ -12,7 +12,8 @@ import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
-import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.ui.input.pointer.PointerEventPass
+import androidx.compose.ui.input.pointer.awaitPointerEvent
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
@@ -42,7 +43,6 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.pickle.patcher.R
 import com.pickle.patcher.ui.theme.Accent
-import com.pickle.patcher.ui.theme.Black
 import com.pickle.patcher.ui.theme.Gray40
 import com.pickle.patcher.ui.theme.White
 import kotlinx.coroutines.delay
@@ -92,9 +92,17 @@ fun IntroOverlay(playKey: Long = 0L) {
         Box(
             modifier = Modifier
                 .fillMaxSize()
-                .background(Black)
+                // Swallow taps without drawing anything: an intro you can skip
+                // by brushing the screen goes off before the app has even
+                // finished starting, which reads as a glitch. It plays for its
+                // full hold and fades out on its own.
                 .pointerInput(Unit) {
-                    detectTapGestures { visible = false }
+                    awaitPointerEventScope {
+                        while (true) {
+                            awaitPointerEvent(PointerEventPass.Initial)
+                                .changes.forEach { it.consume() }
+                        }
+                    }
                 },
             contentAlignment = Alignment.Center,
         ) {

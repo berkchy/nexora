@@ -33,6 +33,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -59,6 +60,7 @@ import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Slider
 import com.pickle.patcher.ui.theme.Gray30
 import androidx.compose.ui.text.style.TextOverflow
 import com.pickle.patcher.ui.theme.Gray60
@@ -73,6 +75,8 @@ fun CompilerScreen(vm: PatcherViewModel) {
     var selected by remember { mutableStateOf(setOf<String>()) }
     var showPermissionRationale by remember { mutableStateOf(false) }
     val outputRoot by vm.outputRoot.collectAsState()
+    val workers by vm.compileWorkers.collectAsState()
+    val maxWorkers = vm.maxCompileWorkers()
     var pickForOutput by remember { mutableStateOf(false) }
     val failures = (compile as? CompileState.Done)?.failures ?: emptyMap()
     var stampError by remember { mutableStateOf<Pair<String, String>?>(null) }
@@ -83,6 +87,13 @@ fun CompilerScreen(vm: PatcherViewModel) {
     var notice by remember { mutableStateOf<String?>(null) }
 
     val context = LocalContext.current
+
+    // .sma sources are edited outside the app, so watch the folder while this
+    // screen is open instead of making the user hit refresh after every save.
+    DisposableEffect(Unit) {
+        vm.startScriptWatcher()
+        onDispose { vm.stopScriptWatcher() }
+    }
 
     // Small bottom notice, disappears on its own.
     LaunchedEffect(notice) {
@@ -213,6 +224,42 @@ fun CompilerScreen(vm: PatcherViewModel) {
                 action = if (outputRoot != null) "Change" else "Pick",
                 onAction = { pickForOutput = true; requestStorageAndPickFolder() },
                 onReset = if (outputRoot != null) ({ vm.clearOutputRoot() }) else null,
+            )
+        }
+
+        Spacer(Modifier.height(16.dp))
+
+        SectionHeader("PARALLELISM")
+        AppCard {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Text(
+                    "Compile at once",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = Gray90,
+                )
+                Text(
+                    "$workers",
+                    style = MaterialTheme.typography.titleMedium,
+                    color = Accent,
+                )
+            }
+            Spacer(Modifier.height(2.dp))
+            Text(
+                "How many .sma files are compiled at the same time. " +
+                    "Higher is faster but uses more memory and heats the device.",
+                style = MaterialTheme.typography.bodySmall,
+                color = Gray40,
+            )
+            Slider(
+                value = workers.toFloat(),
+                onValueChange = { vm.setCompileWorkers(it.toInt()) },
+                valueRange = 1f..maxWorkers.toFloat(),
+                // One step per core, so the slider lands on a whole number.
+                steps = (maxWorkers - 2).coerceAtLeast(0),
             )
         }
 
