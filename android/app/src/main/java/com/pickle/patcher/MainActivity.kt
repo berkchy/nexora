@@ -309,24 +309,24 @@ fun PatcherApp(vm: PatcherViewModel) {
             }
         },
     ) { padding ->
-        Column(modifier = Modifier.fillMaxSize().padding(padding)) {
-            // In-app view of the background jobs; the notification is the same
-            // state once the app is not in front.
-            val jobs by JobProgress.jobs.collectAsState()
-            JobStrip(jobs.values.toList())
-            NavHost(
-                navController = nav,
-                startDestination = Dest.Patch.route,
-                modifier = Modifier.fillMaxSize(),
-                enterTransition = { fadeIn(tween(200)) },
-                exitTransition = { fadeOut(tween(200)) },
-            ) {
-                composable(Dest.Patch.route) { PatchScreen(vm) }
-                composable(Dest.Compiler.route) { CompilerScreen(vm, onOpenSettings = { nav.navigate("settings") { launchSingleTop = true } }) }
-                composable(Dest.Addons.route) { AddonsScreen(vm) }
-                composable("settings") { SettingsScreen(vm, onBack = { nav.popBackStack() }) }
-                composable("plugins") { PluginsScreen(vm) }
+        // In-app view of the background jobs; the notification is the same
+        // state once the app is not in front.
+        val jobs by JobProgress.jobs.collectAsState()
+        JobStrip(jobs.values.toList())
+        NavHost(
+            navController = nav,
+            startDestination = Dest.Patch.route,
+            modifier = Modifier.fillMaxSize().padding(padding),
+            enterTransition = { fadeIn(tween(200)) },
+            exitTransition = { fadeOut(tween(200)) },
+        ) {
+            composable(Dest.Patch.route) { PatchScreen(vm) }
+            composable(Dest.Compiler.route) {
+                CompilerScreen(vm, onOpenSettings = { nav.navigate("settings") { launchSingleTop = true } })
             }
+            composable(Dest.Addons.route) { AddonsScreen(vm) }
+            composable("settings") { SettingsScreen(vm, onBack = { nav.popBackStack() }) }
+            composable("plugins") { PluginsScreen(vm) }
         }
     }
     }
@@ -491,7 +491,7 @@ private fun NavDrawer(
                     drawerState.close()
                     if (currentRoute != "settings") onOpenSettings()
                 }
-                DrawerItem("Plugins", Icons.Filled.Code) {
+                DrawerItem("Plugins", Icons.Filled.Extension) {
                     drawerState.close()
                     if (currentRoute != "plugins") {
                         nav.navigate("plugins") { launchSingleTop = true }
@@ -575,6 +575,7 @@ private fun Modifier.drawerEdgeSwipe(
             // Past halfway opens, otherwise it snaps back, matching the sheet's
             // own fling behaviour so the two never disagree.
             drawerState.animateTo(travelled > anchor * 0.5f)
+        }
     }
 }
 

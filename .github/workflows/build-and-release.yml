@@ -614,7 +614,14 @@ jobs:
           fail_on_unmatched_files: false
 
       - name: Notify Discord on successful release
-        if: success() && startsWith(github.ref, 'refs/tags/') && (steps.build_type.outputs.needs_android == 'true' || steps.build_type.outputs.needs_libs == 'true')
+        # Rolling `continuous` included: that is the channel players actually
+        # get, and it is what was being pushed to. A manual dispatch on master
+        # publishes to `continuous` too, so it announces itself the same way
+        # instead of going out silently.
+        if: >-
+          success() &&
+          (startsWith(github.ref, 'refs/tags/') || github.ref_name == 'master') &&
+          (steps.build_type.outputs.needs_android == 'true' || steps.build_type.outputs.needs_libs == 'true')
         shell: bash
         env:
           DISCORD_WEBHOOK: ${{ secrets.DISCORD_WEBHOOK }}
@@ -625,14 +632,18 @@ jobs:
           fi
           VERSION="${GITHUB_REF_NAME#v}"
           APK_FILE="nexora_v${VERSION}.apk"
-          if [ "$GITHUB_REF_NAME" = "continuous" ]; then
+          if [ "$GITHUB_REF_NAME" = "continuous" ] || [ "$GITHUB_REF_NAME" = "master" ]; then
             VERSION="${APP_VERSION_NAME:-continuous}"
             APK_FILE="nexora_continuous.apk"
           fi
           REPO="${GITHUB_REPOSITORY}"
           COMMIT_MSG=$(echo '${{ steps.build_type.outputs.commit_msg }}' | head -c 500)
           NEEDS_LIBS='${{ steps.build_type.outputs.needs_libs }}'
-          RELEASE_URL="https://github.com/${REPO}/releases/tag/${GITHUB_REF_NAME}"
+          RELEASE_TAG="$GITHUB_REF_NAME"
+          if [ "$RELEASE_TAG" = "master" ]; then
+            RELEASE_TAG="continuous"
+          fi
+          RELEASE_URL="https://github.com/${REPO}/releases/tag/${RELEASE_TAG}"
           if compgen -G "android/app/build/outputs/apk/release/*.apk" >/dev/null; then
             APK_COUNT=$(ls android/app/build/outputs/apk/release/*.apk | wc -l)
           else
@@ -640,12 +651,12 @@ jobs:
           fi
           if [ "$APK_COUNT" -gt 0 ]; then
             TITLE="Nexora v${VERSION} released"
-            if [ "$GITHUB_REF_NAME" = "continuous" ]; then
+            if [ "$GITHUB_REF_NAME" = "continuous" ] || [ "$GITHUB_REF_NAME" = "master" ]; then
               TITLE="Nexora Continuous build ${VERSION}"
             fi
             STATUS_FIELD=":white_check_mark: App update ready"
             TYPE_FIELD="App + libs"
-            APK_URL="https://github.com/${REPO}/releases/download/${GITHUB_REF_NAME}/${APK_FILE}"
+            APK_URL="https://github.com/${REPO}/releases/download/${RELEASE_TAG}/${APK_FILE}"
             APK_FIELD=", { \"name\": \"Download\", \"value\": \"[${APK_FILE}](${APK_URL})\", \"inline\": true }"
           elif [ "$NEEDS_LIBS" = "true" ]; then
             TITLE="Nexora v${VERSION} libs & plugins update"
