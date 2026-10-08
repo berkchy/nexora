@@ -34,7 +34,6 @@ import com.pickle.patcher.patcher.PatcherViewModel
 import com.pickle.patcher.ui.theme.Accent
 import com.pickle.patcher.ui.theme.AlertRed
 import com.pickle.patcher.ui.theme.Gray40
-import com.pickle.patcher.ui.theme.Gray90
 
 /**
  * Everything the app can be tuned with, kept out of the three task screens so
@@ -45,7 +44,7 @@ import com.pickle.patcher.ui.theme.Gray90
  * first thing on the screen was configuration.
  */
 @Composable
-fun SettingsScreen(vm: PatcherViewModel, onBack: () -> Unit) {
+fun SettingsScreen(vm: PatcherViewModel) {
     val context = LocalContext.current
     val workers by vm.compileWorkers.collectAsState()
     val maxWorkers = vm.maxCompileWorkers()
@@ -108,7 +107,10 @@ fun SettingsScreen(vm: PatcherViewModel, onBack: () -> Unit) {
                 Text(
                     "Compile at once",
                     style = MaterialTheme.typography.bodyMedium,
-                    color = Gray90,
+                    // The card surface is Gray85, so Gray90 as a text colour
+                    // put near-black letters on near-black. Card titles go
+                    // through onSurface, which the theme keeps readable.
+                    color = MaterialTheme.colorScheme.onSurface,
                 )
                 Text("$workers", style = MaterialTheme.typography.titleMedium, color = Accent)
             }
@@ -167,30 +169,6 @@ fun SettingsScreen(vm: PatcherViewModel, onBack: () -> Unit) {
             }
         }
 
-        Spacer(Modifier.height(16.dp))
-
-        SectionHeader("ABOUT")
-        AppCard {
-            Text(
-                "Nexora",
-                style = MaterialTheme.typography.titleSmall,
-                color = Gray90,
-            )
-            Spacer(Modifier.height(2.dp))
-            Text(
-                "Patches the CS 1.6 Android client so AMX Mod X runs on it. " +
-                    "Not affiliated with or endorsed by Valve.",
-                style = MaterialTheme.typography.bodySmall,
-                color = Gray40,
-            )
-            Spacer(Modifier.height(6.dp))
-            Text(
-                "github.com/berkchy/nexora",
-                style = MaterialTheme.typography.bodySmall,
-                color = Gray40,
-            )
-        }
-
         Spacer(Modifier.height(24.dp))
     }
 }
@@ -209,7 +187,7 @@ private fun SettingsPathRow(
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Column(Modifier.weight(1f)) {
-            Text(label, style = MaterialTheme.typography.bodyMedium, color = Gray90)
+            Text(label, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurface)
             Text(
                 path ?: empty,
                 style = MaterialTheme.typography.bodySmall,

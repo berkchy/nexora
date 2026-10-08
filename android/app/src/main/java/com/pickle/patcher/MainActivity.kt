@@ -20,7 +20,6 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.foundation.gestures.Orientation
 import androidx.compose.foundation.gestures.draggable
 import androidx.compose.foundation.gestures.rememberDraggableState
-import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.Code
 import androidx.compose.material.icons.filled.Extension
 import androidx.compose.material.icons.filled.History
@@ -127,6 +126,12 @@ private enum class Dest(
     Patch("patch", "Patch", Icons.Filled.RocketLaunch, Icons.Outlined.RocketLaunch),
     Compiler("compiler", "Compile", Icons.Filled.Code, Icons.Outlined.Code),
     Addons("addons", "Addons", Icons.Filled.Extension, Icons.Outlined.Extension),
+    // Settings and Plugins sit in the drawer next to the three tasks and are
+    // peers of them, so they navigate as tabs too. As plain destinations they
+    // stacked on the back stack and the app bar grew a back arrow, which made
+    // them read as a sub-page of whichever tab opened them.
+    Settings("settings", "Settings", Icons.Filled.Tune, Icons.Outlined.Tune),
+    Plugins("plugins", "Plugins", Icons.Filled.Extension, Icons.Outlined.Extension),
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -187,7 +192,6 @@ fun PatcherApp(vm: PatcherViewModel) {
         },
         onRedownloadBundle = { vm.fetchAndDownloadBundle() },
         onAbout = { showAbout = true },
-        onOpenSettings = { nav.navigate("settings") { launchSingleTop = true } },
     ) {
     Scaffold(
         containerColor = MaterialTheme.colorScheme.background,
@@ -241,30 +245,18 @@ fun PatcherApp(vm: PatcherViewModel) {
                     }
                 },
                 navigationIcon = {
-                    // Back belongs to the screens stacked on top of the tabs.
-                    // Settings and Plugins are top level, they get their own
-                    // header instead, so drawing it in the app bar left two
-                    // titles sitting on top of each other.
-                    if (nav.previousBackStackEntry != null &&
-                        (currentRoute == "settings" || currentRoute == "plugins")
+                    // Every destination is a top level tab now, so the menu
+                    // button is always the way back out - no screen stacks on
+                    // another one any more and no back arrow is needed.
+                    IconButton(
+                        // DrawerState.open() is suspend; the scope lives in
+                        // the drawer, this launches on the app's own.
+                        onClick = { drawerOpenScope.launch { drawerState.open() } },
                     ) {
-                        IconButton(onClick = { nav.popBackStack() }) {
-                            Icon(
-                                Icons.Filled.ArrowBack,
-                                contentDescription = "Back",
-                            )
-                        }
-                    } else {
-                        IconButton(
-                            // DrawerState.open() is suspend; the scope lives in
-                            // the drawer, this launches on the app's own.
-                            onClick = { drawerOpenScope.launch { drawerState.open() } },
-                        ) {
-                            Icon(
-                                androidx.compose.material.icons.Icons.Filled.Menu,
-                                contentDescription = "Open menu",
-                            )
-                        }
+                        Icon(
+                            androidx.compose.material.icons.Icons.Filled.Menu,
+                            contentDescription = "Open menu",
+                        )
                     }
                 },
             )
@@ -284,11 +276,11 @@ fun PatcherApp(vm: PatcherViewModel) {
             ) {
             composable(Dest.Patch.route) { PatchScreen(vm) }
             composable(Dest.Compiler.route) {
-                CompilerScreen(vm, onOpenSettings = { nav.navigate("settings") { launchSingleTop = true } })
+                CompilerScreen(vm, onOpenSettings = { navToTab(nav, Dest.Settings.route, currentRoute) })
             }
             composable(Dest.Addons.route) { AddonsScreen(vm) }
-            composable("settings") { SettingsScreen(vm, onBack = { nav.popBackStack() }) }
-                composable("plugins") { PluginsScreen(vm) }
+            composable(Dest.Settings.route) { SettingsScreen(vm) }
+            composable(Dest.Plugins.route) { PluginsScreen(vm) }
             }
         }
     }
@@ -417,7 +409,6 @@ private fun NavDrawer(
     onShareLogs: () -> Unit,
     onRedownloadBundle: () -> Unit,
     onAbout: () -> Unit,
-    onOpenSettings: () -> Unit,
     content: @Composable () -> Unit,
 ) {
     val scope = androidx.compose.runtime.rememberCoroutineScope()
@@ -450,15 +441,11 @@ private fun NavDrawer(
                 DrawerItem("Addons", Icons.Filled.Extension, currentRoute == Dest.Addons.route) {
                     closeThen { navToTab(nav, Dest.Addons.route, currentRoute) }
                 }
-                DrawerItem("Settings", Icons.Filled.Tune, currentRoute == "settings") {
-                    closeThen { if (currentRoute != "settings") onOpenSettings() }
+                DrawerItem("Settings", Icons.Filled.Tune, currentRoute == Dest.Settings.route) {
+                    closeThen { navToTab(nav, Dest.Settings.route, currentRoute) }
                 }
-                DrawerItem("Plugins", Icons.Filled.Extension) {
-                    closeThen {
-                        if (currentRoute != "plugins") {
-                            nav.navigate("plugins") { launchSingleTop = true }
-                        }
-                    }
+                DrawerItem("Plugins", Icons.Filled.Extension, currentRoute == Dest.Plugins.route) {
+                    closeThen { navToTab(nav, Dest.Plugins.route, currentRoute) }
                 }
 
                 HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
