@@ -10,6 +10,7 @@ import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
@@ -558,11 +559,6 @@ private fun navToTab(
     }
 }
 
-/**
- * How wide the left edge strip that pulls the menu open is. Wide enough to find
- * with a thumb, narrow enough that it never steals a swipe meant for a list.
- */
-private const val DRAWER_EDGE_DP = 28f
 
 @Composable
 private fun DrawerHeader() {
