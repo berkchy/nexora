@@ -24,7 +24,6 @@ import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.Code
 import androidx.compose.material.icons.filled.Extension
 import androidx.compose.material.icons.filled.History
-import androidx.compose.material.icons.filled.Download
 import androidx.compose.material.icons.filled.RocketLaunch
 import androidx.compose.material.icons.outlined.Code
 import androidx.compose.material.icons.outlined.Extension
@@ -166,7 +165,7 @@ fun PatcherApp(vm: PatcherViewModel) {
     val drawerState = androidx.compose.material3.rememberDrawerState(
         androidx.compose.material3.DrawerValue.Closed,
     )
-    val drawerOpen = drawerState.isOpen
+    val drawerOpenScope = androidx.compose.runtime.rememberCoroutineScope()
 
     NavDrawer(
         vm = vm,
@@ -250,7 +249,9 @@ fun PatcherApp(vm: PatcherViewModel) {
                         }
                     } else {
                         IconButton(
-                            onClick = { drawerState.open() },
+                            // DrawerState.open() is suspend; the scope lives in
+                            // the drawer, this launches on the app's own.
+                            onClick = { drawerOpenScope.launch { drawerState.open() } },
                         ) {
                             Icon(
                                 androidx.compose.material.icons.Icons.Filled.Menu,
