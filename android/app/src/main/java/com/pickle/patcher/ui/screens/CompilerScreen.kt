@@ -60,24 +60,18 @@ import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.Slider
 import com.pickle.patcher.ui.theme.Gray30
 import androidx.compose.ui.text.style.TextOverflow
 import com.pickle.patcher.ui.theme.Gray60
 
 @Composable
-fun CompilerScreen(vm: PatcherViewModel) {
+fun CompilerScreen(vm: PatcherViewModel, onOpenSettings: () -> Unit) {
     val scroll = rememberScrollState()
     val listScroll = rememberScrollState()
     val scripts by vm.scripts.collectAsState()
     val compile by vm.compile.collectAsState()
     val scriptRoot by vm.scriptRoot.collectAsState()
     var selected by remember { mutableStateOf(setOf<String>()) }
-    var showPermissionRationale by remember { mutableStateOf(false) }
-    val outputRoot by vm.outputRoot.collectAsState()
-    val workers by vm.compileWorkers.collectAsState()
-    val maxWorkers = vm.maxCompileWorkers()
-    var pickForOutput by remember { mutableStateOf(false) }
     val failures = (compile as? CompileState.Done)?.failures ?: emptyMap()
     var stampError by remember { mutableStateOf<Pair<String, String>?>(null) }
     // Set when the folder picker came back without a folder, so we can offer
@@ -110,48 +104,6 @@ fun CompilerScreen(vm: PatcherViewModel) {
         }
     }
 
-    val folderPicker = rememberLauncherForActivityResult(
-        ActivityResultContracts.OpenDocumentTree(),
-    ) { uri ->
-        if (uri == null) {
-            // Backed out of the picker: nothing was selected. Remember which
-            // row asked for it so Auto Find knows what to look for.
-            pickCancelled = pickForOutput
-        } else if (pickForOutput) {
-            vm.setOutputRoot(uri)
-        } else {
-            vm.setScriptRoot(uri)
-        }
-        pickForOutput = false
-    }
-
-    val storagePermissionLauncher = rememberLauncherForActivityResult(
-        ActivityResultContracts.StartActivityForResult(),
-    ) {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
-            if (Environment.isExternalStorageManager()) {
-                folderPicker.launch(null)
-            } else {
-                showPermissionRationale = true
-            }
-        }
-    }
-
-    fun requestStorageAndPickFolder() {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
-            if (Environment.isExternalStorageManager()) {
-                folderPicker.launch(null)
-            } else {
-                val intent = Intent(Settings.ACTION_MANAGE_APP_ALL_FILES_ACCESS_PERMISSION).apply {
-                    data = android.net.Uri.parse("package:${context.packageName}")
-                }
-                storagePermissionLauncher.launch(intent)
-            }
-        } else {
-            folderPicker.launch(null)
-        }
-    }
-
     val selectedSources = scripts.filter { it.path in selected }
 
     Box(modifier = Modifier.fillMaxSize()) {
@@ -169,97 +121,34 @@ fun CompilerScreen(vm: PatcherViewModel) {
             color = Gray40,
         )
 
-        Spacer(Modifier.height(20.dp))
+        Spacer(Modifier.height(8.dp))
 
-        AppCard {
-            CompactPathRow(
-                label = "Scripts",
-                path = scriptRoot,
-                empty = "No folder selected",
-                action = if (scriptRoot != null) "Change" else "Pick",
-                onAction = { pickForOutput = false; requestStorageAndPickFolder() },
-                onRefresh = if (scriptRoot != null) ({ vm.refreshScripts() }) else null,
-            )
-
-            if (showPermissionRationale) {
-                Spacer(Modifier.height(10.dp))
-                Surface(
-                    shape = RoundedCornerShape(8.dp),
-                    color = AlertRed.copy(alpha = 0.1f),
-                ) {
-                    Column(Modifier.padding(10.dp)) {
-                        Text(
-                            "Storage permission is required.",
-                            style = MaterialTheme.typography.titleSmall,
-                            color = AlertRed,
-                        )
-                        Spacer(Modifier.height(2.dp))
-                        Text(
-                            "The compiler needs access to your files to read .sma scripts and write compiled .amxx output. Please grant \"All files access\" in the system settings.",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = Gray40,
-                        )
-                        Spacer(Modifier.height(8.dp))
-                        SecondaryButton(
-                            text = "Open Settings",
-                            onClick = {
-                                val intent = Intent(Settings.ACTION_MANAGE_APP_ALL_FILES_ACCESS_PERMISSION).apply {
-                                    data = android.net.Uri.parse("package:${context.packageName}")
-                                }
-                                storagePermissionLauncher.launch(intent)
-                            },
-                        )
-                    }
+        // Scripts and Output folders, and the parallelism slider, live in
+        // Settings: they are set once and then only get in the way of the list.
+        // The chosen folder is still named here, because "no scripts found" and
+        // "no folder chosen" need to be told apart at a glance.
+        if (scriptRoot == null) {
+            Surface(
+                shape = RoundedCornerShape(8.dp),
+                color = MaterialTheme.colorScheme.surfaceContainer,
+            ) {
+                Column(Modifier.padding(10.dp)) {
+                    Text(
+                        "No scripts folder chosen.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = Gray40,
+                    )
+                    SecondaryButton(
+                        text = "Open Settings",
+                        onClick = { onOpenSettings() },
+                    )
                 }
             }
-        }
-
-        Spacer(Modifier.height(16.dp))
-
-        AppCard {
-            CompactPathRow(
-                label = "Output",
-                path = outputRoot,
-                empty = "addons/amxmodx/plugins",
-                action = if (outputRoot != null) "Change" else "Pick",
-                onAction = { pickForOutput = true; requestStorageAndPickFolder() },
-                onReset = if (outputRoot != null) ({ vm.clearOutputRoot() }) else null,
-            )
-        }
-
-        Spacer(Modifier.height(16.dp))
-
-        SectionHeader("PARALLELISM")
-        AppCard {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                Text(
-                    "Compile at once",
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = Gray90,
-                )
-                Text(
-                    "$workers",
-                    style = MaterialTheme.typography.titleMedium,
-                    color = Accent,
-                )
-            }
-            Spacer(Modifier.height(2.dp))
+        } else {
             Text(
-                "How many .sma files are compiled at the same time. " +
-                    "Higher is faster but uses more memory and heats the device.",
+                scriptRoot,
                 style = MaterialTheme.typography.bodySmall,
                 color = Gray40,
-            )
-            Slider(
-                value = workers.toFloat(),
-                onValueChange = { vm.setCompileWorkers(it.toInt()) },
-                valueRange = 1f..maxWorkers.toFloat(),
-                // One step per core, so the slider lands on a whole number.
-                steps = (maxWorkers - 2).coerceAtLeast(0),
             )
         }
 

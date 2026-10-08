@@ -1931,6 +1931,13 @@ class PatcherViewModel(app: Application) : AndroidViewModel(app) {
         compilerPrefs.edit().remove("output_root").apply()
     }
 
+    /** Forgets the picked .sma folder; the watcher then has nothing to watch. */
+    fun clearScriptRoot() {
+        _scriptRoot.value = null
+        _scripts.value = emptyList()
+        compilerPrefs.edit().remove("script_root").apply()
+    }
+
     /**
      * Looks for `<xash>/<gamedir>/addons/amxmodx/<sub>` and uses it, so the
      * user does not have to walk the SAF tree by hand: `scripting` for the
