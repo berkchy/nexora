@@ -32,6 +32,15 @@ object ApkPatcher {
         val exclude: ExcludeRule = ExcludeRule.DEFAULT,
         val minSdk: Int = 21,
         val keepAbi: String? = null,
+        /**
+         * game-assets.zip, written into assets/ of the output.
+         *
+         * The shell source APK has an empty assets/, and the engine reads the
+         * game content from the *client package* - XashActivity hands it a
+         * getCallingPackage() AssetManager - so the content has to end up inside
+         * the APK, not merely next to it in the game directory.
+         */
+        val assetsZip: File? = null,
     )
 
     data class PatchReport(
@@ -40,6 +49,7 @@ object ApkPatcher {
         val sourceEntries: Int,
         val removedEntries: List<String>,
         val addedEntries: List<String>,
+        val addedAssetFiles: Int = 0,
         val keptCount: Int,
         val alignedStored: Int,
         val padBytes: Long,
@@ -78,6 +88,7 @@ object ApkPatcher {
             bundle = request.bundle,
             exclude = request.exclude,
             pruneAbiExcept = request.keepAbi,
+            extraAssetsZip = request.assetsZip,
             progress = { done, total ->
                 val p = 0.1f + 0.5f * (done.toFloat() / total.toFloat())
                 progressLast = done
@@ -126,6 +137,7 @@ object ApkPatcher {
             sourceEntries = sourceEntries,
             removedEntries = repack.removed,
             addedEntries = repack.added,
+            addedAssetFiles = repack.addedAssets.size,
             keptCount = repack.kept.size,
             alignedStored = repack.alignedStored,
             padBytes = repack.padBytes,

@@ -1166,33 +1166,31 @@ class PatcherViewModel(app: Application) : AndroidViewModel(app) {
     }.getOrDefault(false)
 
     /**
-     * Makes sure the game content is on disk before patching starts.
+     * Makes sure game-assets.zip is on disk, and hands back its path so the
+     * patch can write it into the APK.
      *
-     * Returns the number of files extracted, or 0 when the content was already
-     * complete. Anything short of complete - a missing group, a truncated zip
-     * from a dropped connection - is treated as "not installed": the files that
-     * did land are overwritten by the fresh copy, because a partial extract is
-     * exactly the case where trusting what is on disk is worst.
+     * Unlike the addons step this does NOT extract into the game directory:
+     * XashActivity resolves the content from the client package's
+     * AssetManager, so the copy that matters is the one inside the APK.
+     * Extracting as well is harmless and makes a fresh install usable even if
+     * the engine is pointed at the filesystem instead, so both happen.
+     *
+     * Returns null when the source APK carries its own content (googlePlay, or
+     * a pre-shell client) - there is nothing to add.
      */
-    private suspend fun ensureGameAssets(
+    private suspend fun ensureGameAssetsZip(
         gameDir: File,
         onStatus: (String) -> Unit,
         onProgress: (done: Long, total: Long) -> Unit,
-    ): Int {
-        val missing = missingGameAssets(gameDir)
-        if (missing.isEmpty()) {
-            onStatus("Game content is already in place")
-            return 0
-        }
-        onStatus("Game content is incomplete (${missing.size} of ${requiredGameAssets.size} checks failed) - downloading…")
-
+    ): File? {
+        val zip = File(bundleProvider.cacheDir(), "game-assets.zip")
+        // Always refetch: a truncated download left by an interrupted run would
+        // produce an APK that is missing part of its own content, which is
+        // exactly the failure this is here to prevent.
+        if (zip.exists()) zip.delete()
+        onStatus("Downloading game content…")
         val tag = ReleaseRepository.latestTagRedirect(repo)
             ?: throw IOException("Could not reach GitHub releases")
-        val zip = File(bundleProvider.cacheDir(), "game-assets.zip")
-        // Always refetch: if the cache holds a truncated download from an
-        // interrupted run, reusing it would fail the very check we are here
-        // to satisfy.
-        if (zip.exists()) zip.delete()
         ReleaseRepository.downloadUrl(
             ReleaseRepository.assetUrl(repo, tag, "game-assets.zip"),
             zip,
@@ -1202,21 +1200,20 @@ class PatcherViewModel(app: Application) : AndroidViewModel(app) {
             throw IOException("game-assets.zip came back empty")
         }
 
+        // Extract for the filesystem side, then re-check. A tree that is
+        // half-written looks installed but is not, and the game's own reads go
+        // to disk first.
         onStatus("Extracting game content…")
         gameDir.mkdirs()
-        val extracted = unzipInto(zip, gameDir)
-
-        // Re-check rather than trusting the extract count: a zip can carry every
-        // entry and still miss one we care about, and the user's own deletions
-        // after a successful install are a normal reason to come back here.
+        unzipInto(zip, gameDir)
         val stillMissing = missingGameAssets(gameDir)
         if (stillMissing.isNotEmpty()) {
             throw IOException(
-                "Game content is still incomplete after extracting $extracted files: " +
+                "Game content is still incomplete after extracting: " +
                     stillMissing.joinToString(", ")
             )
         }
-        return extracted
+        return zip
     }
 
     private fun unzipInto(zip: File, target: File): Int {
@@ -1356,6 +1353,9 @@ class PatcherViewModel(app: Application) : AndroidViewModel(app) {
         val leaf = detail.substringAfterLast('/')
         return when {
             tick.kind == "add" -> "+ $leaf"
+            // The content is ~700 files; listing them would bury the 13
+            // libraries that are the interesting part of the report.
+            tick.kind == "asset" -> null
             tick.kind == "keep" && (detail.startsWith("lib/") || detail.startsWith("addons/")) -> "  $leaf"
             tick.kind.isEmpty() && detail.isNotBlank() -> "\u2192 ${tick.step.name.lowercase()} \u00b7 $detail"
             else -> null
@@ -1454,20 +1454,21 @@ class PatcherViewModel(app: Application) : AndroidViewModel(app) {
             JobProgress.begin(app, JOB_PATCH, "Patching", "Analyzing the source APK…")
             _patch.value = PatchUiState.Running(ApkPatcher.Step.ANALYZE, 0f)
             try {
-                // The shell APK carries no game content, so the game directory
-                // has to be complete before anything else happens: patching
-                // first and installing the content after produced an APK whose
-                // game booted into a menu with no shell graphics, no touch
-                // controls and a silent sound dir.
+                // The shell APK carries no game content, and the engine reads
+                // it from the client *package* - XashActivity hands it a
+                // getCallingPackage() AssetManager - so the content has to be
+                // fetched before patching and written back into the APK. A
+                // patched APK without it starts and then plays silently with
+                // a blank menu and no touch controls.
                 val gameDir = File(_installPath.value)
                 // An APK that still carries assets/ needs nothing: the engine
-                // will find the content inside the package. Only the shell -
+                // finds the content inside the package already. Only the shell -
                 // which has an empty assets/ - has to pull it from the release.
-                val extracted = if (sourceApkShipsAssets(src)) {
+                val assetsZip = if (sourceApkShipsAssets(src)) {
                     JobProgress.detail(app, JOB_PATCH, "Source APK ships the game content")
-                    0
+                    null
                 } else {
-                    ensureGameAssets(
+                    ensureGameAssetsZip(
                         gameDir = gameDir,
                         onStatus = { msg ->
                             JobProgress.detail(app, JOB_PATCH, msg)
@@ -1477,12 +1478,13 @@ class PatcherViewModel(app: Application) : AndroidViewModel(app) {
                         },
                     )
                 }
-                if (extracted > 0) {
-                    JobProgress.detail(app, JOB_PATCH, "Game content installed ($extracted files)")
-                }
                 applyGamedataAbiPolicy(gameDir, selAbi)
                 val report = ApkPatcher.patch(
-                    ApkPatcher.PatchRequest(src, out, effectiveBundle, keystore, keepAbi = selAbi),
+                    ApkPatcher.PatchRequest(
+                        src, out, effectiveBundle, keystore,
+                        keepAbi = selAbi,
+                        assetsZip = assetsZip,
+                    ),
                     onProgress = { tick ->
                         val prev = _patch.value as? PatchUiState.Running
                         JobProgress.detail(app, JOB_PATCH, patchStepLabel(tick))
@@ -1501,7 +1503,12 @@ class PatcherViewModel(app: Application) : AndroidViewModel(app) {
                     },
                 )
                 lastReport = report
-                val finished = _patchLog.value
+                val finished = _patchLog.value +
+                    if (report.addedAssetFiles > 0) {
+                        listOf("\u2192 inject \u00b7 ${report.addedAssetFiles} game content files written into assets/")
+                    } else {
+                        emptyList()
+                    }
                 _patch.value = PatchUiState.Done(report, finished)
                 persistPatchRun(selAbi, report, finished)
                 JobProgress.finish(

@@ -74,6 +74,7 @@ object ZipRepacker {
         val kept: List<String>,
         val removed: List<String>,
         val added: List<String>,
+        val addedAssets: List<String> = emptyList(),
         val entriesTotal: Int,
         val alignedStored: Int,
         val padBytes: Long,
@@ -87,6 +88,7 @@ object ZipRepacker {
         bundle: Bundle,
         exclude: ExcludeRule = ExcludeRule.DEFAULT,
         pruneAbiExcept: String? = null,
+        extraAssetsZip: File? = null,
         progress: ((Long, Long) -> Unit)? = null,
         onEntry: ((index: Int, total: Int, name: String, kind: String) -> Unit)? = null,
     ): Result {
@@ -277,6 +279,60 @@ object ZipRepacker {
                     progress?.invoke(bytesWritten, srcLen)
                 }
 
+                // ---- game content ----
+                //
+                // The shell client APK is ~2 MB and carries no assets at all;
+                // the content lives in the release as game-assets.zip. It has
+                // to be written back *into* the package rather than left in the
+                // game directory, because XashActivity resolves it with
+                // getResourcesForApplication(getCallingPackage()) - the engine
+                // reads sound, gfx, the touch layout and the bot databases out
+                // of the client package's AssetManager, not off the filesystem.
+                // A patched APK without them starts and then plays silently
+                // with a blank menu.
+                val addedAssets = ArrayList<String>()
+                if (extraAssetsZip != null && extraAssetsZip.isFile) {
+                    java.util.zip.ZipFile(extraAssetsZip).use { zf ->
+                        val zEntries = zf.entries().asSequence().toList()
+                        for ((zi, ze) in zEntries.withIndex()) {
+                            if (ze.isDirectory || ze.name.isBlank()) continue
+                            // Defensive: a zip that escapes assets/ would let a
+                            // crafted archive overwrite the manifest or a lib.
+                            if (ze.name.contains("..") || ze.name.startsWith("/")) continue
+                            val target = "assets/${ze.name}"
+                            if (target in bundleTargets) continue
+                            onEntry?.invoke(done, done + zEntries.size, target, "asset")
+                            val content = zf.getInputStream(ze).use { it.readBytes() }
+
+                            val out2 = java.io.ByteArrayOutputStream()
+                            val def2 = Deflater(9, true)
+                            def2.setInput(content)
+                            def2.finish()
+                            val chunk2 = ByteArray(8192)
+                            while (!def2.finished()) {
+                                val n = def2.deflate(chunk2)
+                                out2.write(chunk2, 0, n)
+                            }
+                            def2.end()
+                            val compressed2 = out2.toByteArray()
+                            // Assets are deflated, not stored: aapt already
+                            // compresses them that way in a normal build, and
+                            // the 26 MB tree would otherwise land uncompressed.
+                            writeLocalHeader(
+                                name = target,
+                                method = 8,
+                                compressedSize = compressed2.size.toLong(),
+                                uncompressedSize = content.size.toLong(),
+                                crc = crc32(content),
+                                data = compressed2,
+                            )
+                            addedAssets.add(target)
+                            done++
+                            progress?.invoke(bytesWritten, srcLen)
+                        }
+                    }
+                }
+
                 // ---- central directory ----
                 val cdOffset = raf.filePointer
                 run {
@@ -328,6 +384,7 @@ object ZipRepacker {
                     kept = keptEntries.map { it.name },
                     removed = removed,
                     added = added,
+                    addedAssets = addedAssets,
                     entriesTotal = cdEntries.size,
                     alignedStored = alignedStored,
                     padBytes = alignPadBytes,
