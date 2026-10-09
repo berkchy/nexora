@@ -130,7 +130,14 @@ fun IntroOverlay(playKey: Long = 0L) {
 
     val ringT = stage(t, T_RING, 0.46f)
     val logoT = stage(t, T_LOGO, 0.52f)
-    val subT = stage(t, T_SUB, 0.88f)
+
+    // Spring-ish overshoot without a physics dependency: fast rise, a small
+    // peak past the resting size, then settle. Damped by (1 - s) so the
+    // overshoot decays exactly as it reaches 1.
+    val rise = stage(t, T_LOGO, 0.52f)
+    val eased = 1f - (1f - rise) * (1f - rise)
+    val overshoot = 0.10f * EaseOutCubic(((rise - 0.55f) / 0.45f).coerceIn(0f, 1f)) * (1f - rise)
+    val logoScale = (0.72f + 0.28f * eased + overshoot) * (1f + 0.06f * pulseWave * rise)
 
     // One scale for the whole stack during the exit: it grows past the camera
     // and dissolves, so the app is revealed rather than covered.
@@ -281,14 +288,7 @@ fun IntroOverlay(playKey: Long = 0L) {
                 contentDescription = null,
                 modifier = Modifier
                     .size(LOGO_SIZE)
-                    .scale(
-                        // spring-ish overshoot without pulling in a physics
-                        // dependency: fast rise, small peak, settle
-                        val s = stage(t, T_LOGO, 0.52f)
-                        val eased = if (s < 1f) 1f - (1f - s) * (1f - s) else 1f
-                        val overshoot = 1f + 0.10f * EaseOutCubic((s - 0.55f) / 0.45f).coerceIn(0f, 1f) * (1f - s)
-                        (0.72f + 0.28f * eased + overshoot) * (1f + 0.06f * pulseWave * s)
-                    )
+                    .scale(logoScale)
                     .graphicsLayer { alpha = EaseOutCubic(logoT) },
             )
         }
