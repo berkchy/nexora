@@ -1125,6 +1125,98 @@ class PatcherViewModel(app: Application) : AndroidViewModel(app) {
         fetchAndInstallAddons()
     }
 
+    /**
+     * Files that have to be present in the game directory before the game can
+     * start. The client APK is a shell that carries only the menu library -
+     * nexora injects libclient into it at patch time and never had the content
+     * inside it - so this is the check that stands between the user and a
+     * silent game with no sound, no menu graphics and no touch controls.
+     *
+     * touch.cfg / touch_default / the bot databases are read by path, and the
+     * gfx/shell bitmaps are what the menu draws itself with; one missing file
+     * in each group is enough to tell a complete install from a half-finished
+     * one without walking 26 MB of tree.
+     */
+    private val requiredGameAssets = listOf(
+        "touch.cfg",
+        "touch_default",
+        "BotProfile.db",
+        "BotChatter.db",
+        "gfx/shell/btn_touch.bmp",
+        "maps/tr_1.bsp",
+        "sound/radio/bot/a.wav",
+    )
+
+    private fun missingGameAssets(gameDir: File): List<String> =
+        requiredGameAssets.filterNot { File(gameDir, it).isFile }
+
+    /**
+     * True when the source APK still ships the content itself.
+     *
+     * Older client APKs (and the googlePlay flavor, which is still standalone)
+     * carry assets/, so their installs are already complete and the 26 MB
+     * download would be pure waste. Only the shell needs this.
+     */
+    private fun sourceApkShipsAssets(apk: File): Boolean = runCatching {
+        java.util.zip.ZipFile(apk).use { zf ->
+            zf.getEntry("assets/touch.cfg") != null
+        }
+    }.getOrDefault(false)
+
+    /**
+     * Makes sure the game content is on disk before patching starts.
+     *
+     * Returns the number of files extracted, or 0 when the content was already
+     * complete. Anything short of complete - a missing group, a truncated zip
+     * from a dropped connection - is treated as "not installed": the files that
+     * did land are overwritten by the fresh copy, because a partial extract is
+     * exactly the case where trusting what is on disk is worst.
+     */
+    private suspend fun ensureGameAssets(
+        gameDir: File,
+        onStatus: (String) -> Unit,
+        onProgress: (done: Long, total: Long) -> Unit,
+    ): Int {
+        val missing = missingGameAssets(gameDir)
+        if (missing.isEmpty()) {
+            onStatus("Game content is already in place")
+            return 0
+        }
+        onStatus("Game content is incomplete (${missing.size} of ${requiredGameAssets.size} checks failed) - downloading…")
+
+        val tag = ReleaseRepository.latestTagRedirect(repo)
+            ?: throw IOException("Could not reach GitHub releases")
+        val zip = File(bundleProvider.cacheDir(), "game-assets.zip")
+        // Always refetch: if the cache holds a truncated download from an
+        // interrupted run, reusing it would fail the very check we are here
+        // to satisfy.
+        if (zip.exists()) zip.delete()
+        ReleaseRepository.downloadUrl(
+            ReleaseRepository.assetUrl(repo, tag, "game-assets.zip"),
+            zip,
+            onProgress = onProgress,
+        )
+        if (!zip.isFile || zip.length() == 0L) {
+            throw IOException("game-assets.zip came back empty")
+        }
+
+        onStatus("Extracting game content…")
+        gameDir.mkdirs()
+        val extracted = unzipInto(zip, gameDir)
+
+        // Re-check rather than trusting the extract count: a zip can carry every
+        // entry and still miss one we care about, and the user's own deletions
+        // after a successful install are a normal reason to come back here.
+        val stillMissing = missingGameAssets(gameDir)
+        if (stillMissing.isNotEmpty()) {
+            throw IOException(
+                "Game content is still incomplete after extracting $extracted files: " +
+                    stillMissing.joinToString(", ")
+            )
+        }
+        return extracted
+    }
+
     private fun unzipInto(zip: File, target: File): Int {
         var count = 0
         java.util.zip.ZipFile(zip).use { zf ->
@@ -1359,7 +1451,34 @@ class PatcherViewModel(app: Application) : AndroidViewModel(app) {
         viewModelScope.launch(Dispatchers.IO) {
             JobProgress.begin(app, JOB_PATCH, "Patching", "Analyzing the source APK…")
             _patch.value = PatchUiState.Running(ApkPatcher.Step.ANALYZE, 0f)
-            applyGamedataAbiPolicy(File(_installPath.value), selAbi)
+            try {
+                // The shell APK carries no game content, so the game directory
+                // has to be complete before anything else happens: patching
+                // first and installing the content after produced an APK whose
+                // game booted into a menu with no shell graphics, no touch
+                // controls and a silent sound dir.
+                val gameDir = File(_installPath.value)
+                // An APK that still carries assets/ needs nothing: the engine
+                // will find the content inside the package. Only the shell -
+                // which has an empty assets/ - has to pull it from the release.
+                val extracted = if (sourceApkShipsAssets(src)) {
+                    JobProgress.detail(app, JOB_PATCH, "Source APK ships the game content")
+                    0
+                } else {
+                    ensureGameAssets(
+                        gameDir = gameDir,
+                        onStatus = { msg ->
+                            JobProgress.detail(app, JOB_PATCH, msg)
+                        },
+                        onProgress = { done, total ->
+                            JobProgress.progress(app, JOB_PATCH, done, total, "Downloading game content…")
+                        },
+                    )
+                }
+                if (extracted > 0) {
+                    JobProgress.detail(app, JOB_PATCH, "Game content installed ($extracted files)")
+                }
+                applyGamedataAbiPolicy(gameDir, selAbi)
             try {
                 val report = ApkPatcher.patch(
                     ApkPatcher.PatchRequest(src, out, effectiveBundle, keystore, keepAbi = selAbi),

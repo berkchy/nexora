@@ -416,6 +416,37 @@ jobs:
           cd "$GITHUB_WORKSPACE"
           zip -r amxx-addons.zip addons/ -x '*.gitignore' '*.git/*'
 
+          # Game assets zip.
+          #
+          # The client APK is now a ~2 MB shell: it carries only the menu
+          # library, because nexora injects its own libclient into the package
+          # at patch time. That means the game content (sound, maps, gfx,
+          # touch, and the touch.cfg/bot db files the menu and the bot data
+          # loader read by path) has to come from here instead - the engine
+          # resolves it from the game directory, and with an empty assets/ in
+          # the APK there is nothing left to find.
+          #
+          # Taken from the vcs16 tree, which is the only copy: the shell build
+          # no longer merges it into the APK, so this is the single source.
+          ASSETS_DIR="$GITHUB_WORKSPACE/vcs16/3rdparty/cs16client-assets"
+          if [ ! -d "$ASSETS_DIR" ]; then
+            echo "::error::client assets tree is missing at $ASSETS_DIR"
+            exit 1
+          fi
+          echo "packaging game assets from $ASSETS_DIR"
+          (cd "$ASSETS_DIR" && zip -r -9 "$GITHUB_WORKSPACE/game-assets.zip" . \
+            -x '*.gitignore' '*.git/*')
+
+          # The patcher checks these before it patches anything, so a truncated
+          # or partial zip has to fail here rather than on the user's device.
+          unzip -tq "$GITHUB_WORKSPACE/game-assets.zip"
+          for f in touch.cfg touch_default BotProfile.db BotChatter.db \
+                   gfx/shell/btn_touch.bmp maps/tr_1.bsp sound/radio/bot/a.wav; do
+            unzip -l "$GITHUB_WORKSPACE/game-assets.zip" "$f" | grep -q "$f" || {
+              echo "::error::$f missing from game-assets.zip"; exit 1; }
+          done
+          ls -la "$GITHUB_WORKSPACE/game-assets.zip"
+
           # build-meta.json: lets the next run's skip guard know which commit
           # + upstream SHAs the native outputs correspond to.
           UPSTREAMS_JSON='${{ steps.build_type.outputs.upstreams_json }}' \
@@ -554,7 +585,7 @@ jobs:
           shopt -s nullglob
           FILES=()
           if [ "$NEEDS_LIBS" = "true" ]; then
-            FILES+=(amxx-addons.zip manifest.json manifest-v7a.json build-meta.json incremental/arm64-v8a/*.so incremental-v7a/armeabi-v7a/*.so compiler-assets/*)
+            FILES+=(amxx-addons.zip game-assets.zip manifest.json manifest-v7a.json build-meta.json incremental/arm64-v8a/*.so incremental-v7a/armeabi-v7a/*.so compiler-assets/*)
           fi
           if [ "$NEEDS_ANDROID" = "true" ]; then
             FILES+=(version.txt android/app/build/outputs/apk/release/*.apk)
