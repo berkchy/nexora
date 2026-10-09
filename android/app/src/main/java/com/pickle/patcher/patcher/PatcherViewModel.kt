@@ -1194,17 +1194,39 @@ private fun externalRoot(app: Application): File {
     }.getOrDefault(false)
 
     /**
+     * True when [zip] carries every file we require, i.e. it is safe to inject.
+     *
+     * Size alone is not enough: a download cut short by a dropped connection is
+     * still a file, and reusing it would produce an APK that is missing part of
+     * its own content. Reading the entries is the check that actually answers
+     * the question.
+     */
+    private fun zipIsComplete(zip: File): Boolean {
+        if (!zip.isFile || zip.length() == 0L) return false
+        return runCatching {
+            java.util.zip.ZipFile(zip).use { zf ->
+                requiredGameAssets.all { zf.getEntry(it) != null }
+            }
+        }.getOrDefault(false)
+    }
+
+    /**
      * Makes sure game-assets.zip is on disk, and hands back its path so the
      * patch can write it into the APK.
      *
-     * Unlike the addons step this does NOT extract into the game directory:
-     * XashActivity resolves the content from the client package's
-     * AssetManager, so the copy that matters is the one inside the APK.
-     * Extracting as well is harmless and makes a fresh install usable even if
-     * the engine is pointed at the filesystem instead, so both happen.
+     * A cached copy is reused as-is. It only gets refetched when it is missing
+     * or fails the entry check, so a second patch does not pull 14 MB that is
+     * already sitting on disk - which, now that the cache lives under
+     * /sdcard/nexora rather than in the app's cache dir, survives reinstalls.
      *
-     * Returns null when the source APK carries its own content (googlePlay, or
-     * a pre-shell client) - there is nothing to add.
+     * Re-checking entries rather than just their size is the point: a download
+     * cut short by a dropped connection is still a file, and injecting that
+     * would ship an APK quietly missing part of its own content.
+     *
+     * The extract is skipped when the game directory is already complete too,
+     * but the zip is still returned: the copy that matters is the one going
+     * into the APK, and that needs the archive even when the directory is
+     * already populated.
      */
     private suspend fun ensureGameAssetsZip(
         gameDir: File,
@@ -1212,25 +1234,32 @@ private fun externalRoot(app: Application): File {
         onProgress: (done: Long, total: Long) -> Unit,
     ): File? {
         val zip = File(bundleProvider.cacheDir(), "game-assets.zip")
-        // Always refetch: a truncated download left by an interrupted run would
-        // produce an APK that is missing part of its own content, which is
-        // exactly the failure this is here to prevent.
-        if (zip.exists()) zip.delete()
-        onStatus("Downloading game content…")
-        val tag = ReleaseRepository.latestTagRedirect(repo)
-            ?: throw IOException("Could not reach GitHub releases")
-        ReleaseRepository.downloadUrl(
-            ReleaseRepository.assetUrl(repo, tag, "game-assets.zip"),
-            zip,
-            onProgress = onProgress,
-        )
-        if (!zip.isFile || zip.length() == 0L) {
-            throw IOException("game-assets.zip came back empty")
+
+        if (zipIsComplete(zip)) {
+            onStatus("Game content archive already downloaded")
+        } else {
+            if (zip.exists()) zip.delete()
+            onStatus("Downloading game content…")
+            val tag = ReleaseRepository.latestTagRedirect(repo)
+                ?: throw IOException("Could not reach GitHub releases")
+            ReleaseRepository.downloadUrl(
+                ReleaseRepository.assetUrl(repo, tag, "game-assets.zip"),
+                zip,
+                onProgress = onProgress,
+            )
+            if (!zipIsComplete(zip)) {
+                throw IOException("game-assets.zip came back empty or incomplete")
+            }
         }
 
-        // Extract for the filesystem side, then re-check. A tree that is
-        // half-written looks installed but is not, and the game's own reads go
-        // to disk first.
+        // The engine reads the content from the client package, so the archive
+        // is what the patch needs; the extract is for the filesystem side and
+        // only worth doing when the directory is actually short of it.
+        if (missingGameAssets(gameDir).isEmpty()) {
+            onStatus("Game content already extracted")
+            return zip
+        }
+
         onStatus("Extracting game content…")
         gameDir.mkdirs()
         unzipInto(zip, gameDir)
