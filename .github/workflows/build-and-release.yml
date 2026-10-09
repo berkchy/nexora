@@ -440,7 +440,7 @@ jobs:
           # The patcher checks these before it patches anything, so a truncated
           # or partial zip has to fail here rather than on the user's device.
           unzip -tq "$GITHUB_WORKSPACE/game-assets.zip"
-          for f in touch.cfg touch_default BotProfile.db BotChatter.db \
+          for f in touch.cfg touch_default/numbers.cfg BotProfile.db BotChatter.db \
                    gfx/shell/btn_touch.bmp maps/tr_1.bsp sound/radio/bot/a.wav; do
             unzip -l "$GITHUB_WORKSPACE/game-assets.zip" "$f" | grep -q "$f" || {
               echo "::error::$f missing from game-assets.zip"; exit 1; }

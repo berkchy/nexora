@@ -1132,14 +1132,16 @@ class PatcherViewModel(app: Application) : AndroidViewModel(app) {
      * inside it - so this is the check that stands between the user and a
      * silent game with no sound, no menu graphics and no touch controls.
      *
-     * touch.cfg / touch_default / the bot databases are read by path, and the
-     * gfx/shell bitmaps are what the menu draws itself with; one missing file
-     * in each group is enough to tell a complete install from a half-finished
-     * one without walking 26 MB of tree.
+     * touch.cfg, the touch_default/numbers.cfg layout and the bot databases are
+     * read by path, and the gfx/shell bitmaps are what the menu draws itself
+     * with; one missing file in each group is enough to tell a complete
+     * install from a half-finished one without walking 26 MB of tree. Each
+     * entry has to be a real file - touch_default is a directory, so naming
+     * it would have been satisfied by the extract alone.
      */
     private val requiredGameAssets = listOf(
         "touch.cfg",
-        "touch_default",
+        "touch_default/numbers.cfg",
         "BotProfile.db",
         "BotChatter.db",
         "gfx/shell/btn_touch.bmp",
