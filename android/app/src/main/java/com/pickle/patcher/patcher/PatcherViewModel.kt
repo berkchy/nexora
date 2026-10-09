@@ -1481,7 +1481,6 @@ class PatcherViewModel(app: Application) : AndroidViewModel(app) {
                     JobProgress.detail(app, JOB_PATCH, "Game content installed ($extracted files)")
                 }
                 applyGamedataAbiPolicy(gameDir, selAbi)
-            try {
                 val report = ApkPatcher.patch(
                     ApkPatcher.PatchRequest(src, out, effectiveBundle, keystore, keepAbi = selAbi),
                     onProgress = { tick ->
