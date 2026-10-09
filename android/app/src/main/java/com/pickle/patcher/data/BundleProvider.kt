@@ -1,8 +1,19 @@
 package com.pickle.patcher.data
 
 import android.content.Context
+import android.os.Build
+import android.os.Environment
 import com.pickle.patcher.lib.Bundle
 import java.io.File
+
+/**
+ * Shared-storage root for everything the patcher downloads.
+ *
+ * Deliberately not under Android/data/<pkg>: Android deletes that on
+ * uninstall, and the client package is uninstalled and reinstalled on every
+ * patch. See [BundleProvider.cacheDir] for what that costs.
+ */
+const val NEXORA_ROOT = "nexora"
 
 /**
  * Supplies the mod bundle:
@@ -11,8 +22,29 @@ import java.io.File
  */
 class BundleProvider(private val context: Context) {
 
-    /** Where downloaded release bundles are stored. */
-    fun cacheDir(): File = File(context.cacheDir, "patcher")
+    /**
+     * Where downloaded release bundles are stored.
+     *
+     * Shared storage under /sdcard/nexora rather than the app cache: context.
+     * cacheDir is wiped on uninstall, and the client APK gets uninstalled on
+     * every patch cycle, which used to mean re-downloading ~145 MB of
+     * libraries. Falls back to the app cache when MANAGE_EXTERNAL_STORAGE has
+     * not been granted, since /sdcard is not writable then.
+     */
+    fun cacheDir(): File {
+        val sd = File(Environment.getExternalStorageDirectory(), NEXORA_ROOT)
+        val root = if (
+            Build.VERSION.SDK_INT < Build.VERSION_CODES.R ||
+            Environment.isExternalStorageManager()
+        ) {
+            sd
+        } else {
+            File(context.getExternalFilesDir(null) ?: context.cacheDir, NEXORA_ROOT)
+        }
+        val dir = File(root, "downloads")
+        dir.mkdirs()
+        return dir
+    }
 
     /**
      * One cache slot per ABI: a bundle only carries one architecture, and

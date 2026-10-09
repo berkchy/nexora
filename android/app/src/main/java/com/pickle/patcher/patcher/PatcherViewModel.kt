@@ -13,6 +13,7 @@ import androidx.lifecycle.viewModelScope
 import com.pickle.patcher.CrashLog
 import com.pickle.patcher.data.BundleProvider
 import com.pickle.patcher.data.IncrementalUpdateManager
+import com.pickle.patcher.data.NEXORA_ROOT
 import com.pickle.patcher.data.ReleaseRepository
 import com.pickle.patcher.lib.ApkPatcher
 import com.pickle.patcher.lib.ApkSignerTool
@@ -359,11 +360,38 @@ class PatcherViewModel(app: Application) : AndroidViewModel(app) {
 
     val repo = "berkchy/nexora"
 
-    private val externalRoot: File = app.getExternalFilesDir(null) ?: app.cacheDir
+    /**
+     * Everything the patcher downloads lives here, not under
+     * Android/data/<pkg>/files.
+     *
+     * Android deletes that directory when the app is uninstalled, and the APK
+     * is uninstalled and reinstalled constantly here: every patch cycle
+ * *uninstalls the client, wipes the folder with it, and downloads ~145 MB of
+ * libraries again. Shared storage has no such rule, so the download survives
+ * and a reinstall is instant.
+     *
+ * Falls back to the external files dir when MANAGE_EXTERNAL_STORAGE has not
+ * been granted, because without it /sdcard is not writable and failing to a
+ * private folder still works - just slowly, and only until the next reinstall.
+ */
+private val externalRoot: File = externalRoot(app)
+
+private fun externalRoot(app: Application): File {
+        val sd = File(Environment.getExternalStorageDirectory(), NEXORA_ROOT)
+        return if (
+            Build.VERSION.SDK_INT < Build.VERSION_CODES.R ||
+            Environment.isExternalStorageManager()
+        ) {
+            sd
+        } else {
+            app.getExternalFilesDir(null) ?: app.cacheDir
+        }
+    }
+
     private val workDir = File(externalRoot, "patcher")
 
     // The downloaded client APK lives next to the patch output, so both show up
-    // under Android/data/<pkg>/files and neither is hidden in internal storage.
+    // under /sdcard/nexora and neither is hidden in app-private storage.
     private val sourceCacheDir = File(externalRoot, "apk-source")
 
     /**
