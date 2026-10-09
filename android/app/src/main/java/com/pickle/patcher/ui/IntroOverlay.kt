@@ -1,8 +1,7 @@
 package com.pickle.patcher.ui
 
 import androidx.compose.animation.core.Animatable
-import androidx.compose.animation.core.EaseInCubic
-import androidx.compose.animation.core.EaseOutCubic
+import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.LinearOutSlowInEasing
 import androidx.compose.animation.core.RepeatMode
@@ -62,7 +61,7 @@ private const val ENTER_MS = 1750
 private const val HOLD_MS = 620
 private const val EXIT_MS = 720
 
-private const val LOGO_SIZE = 124.dp
+private val LOGO_SIZE = 124.dp
 
 private val Transparent = Color(0x00000000)
 
@@ -91,7 +90,7 @@ fun IntroOverlay(playKey: Long = 0L) {
         exit.snapTo(0f)
         timeline.animateTo(1f, tween(ENTER_MS, easing = LinearOutSlowInEasing))
         delay(HOLD_MS)
-        exit.animateTo(1f, tween(EXIT_MS, easing = EaseInCubic))
+        exit.animateTo(1f, tween(EXIT_MS, easing = FastOutSlowInEasing))
         visible = false
     }
 
@@ -122,7 +121,7 @@ fun IntroOverlay(playKey: Long = 0L) {
         initialValue = 0.35f,
         targetValue = 1f,
         animationSpec = infiniteRepeatable(
-            animation = tween(2600, easing = EaseOutCubic),
+            animation = tween(2600, easing = EaseOut),
             repeatMode = RepeatMode.Reverse,
         ),
         label = "pulseWave",
@@ -136,12 +135,12 @@ fun IntroOverlay(playKey: Long = 0L) {
     // overshoot decays exactly as it reaches 1.
     val rise = stage(t, T_LOGO, 0.52f)
     val eased = 1f - (1f - rise) * (1f - rise)
-    val overshoot = 0.10f * EaseOutCubic(((rise - 0.55f) / 0.45f).coerceIn(0f, 1f)) * (1f - rise)
+    val overshoot = 0.10f * FastOutSlowInEasing.transform(((rise - 0.55f) / 0.45f).coerceIn(0f, 1f)) * (1f - rise)
     val logoScale = (0.72f + 0.28f * eased + overshoot) * (1f + 0.06f * pulseWave * rise)
 
     // One scale for the whole stack during the exit: it grows past the camera
     // and dissolves, so the app is revealed rather than covered.
-    val push = 1f + 0.22f * EaseOutCubic(x)
+    val push = 1f + 0.22f * FastOutSlowInEasing.transform(x)
     val fade = (1f - x * x).coerceIn(0f, 1f)
 
     Box(
@@ -289,7 +288,7 @@ fun IntroOverlay(playKey: Long = 0L) {
                 modifier = Modifier
                     .size(LOGO_SIZE)
                     .scale(logoScale)
-                    .graphicsLayer { alpha = EaseOutCubic(logoT) },
+                    .graphicsLayer { alpha = FastOutSlowInEasing.transform(logoT) },
             )
         }
 
