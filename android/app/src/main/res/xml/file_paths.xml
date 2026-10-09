@@ -3,4 +3,13 @@
     <cache-path name="patcher" path="patcher/" />
     <files-path name="files" path="." />
     <external-files-path name="extfiles" path="." />
+    <!--
+        The patch output and the self-update APK now live in /sdcard/nexora,
+        which is shared storage rather than anything the three entries above
+        cover. Without this the install intent dies with "Failed to find
+        configured root that contains /storage/emulated/0/nexora/patcher/
+        patched.apk" - FileProvider matches a file against its configured
+        roots and has no idea where the new location is.
+    -->
+    <external-path name="external_root" path="." />
 </paths>
