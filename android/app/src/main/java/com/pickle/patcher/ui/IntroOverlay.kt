@@ -58,7 +58,7 @@ import kotlinx.coroutines.delay
 // Boot sequence, run as one timeline so the stages stay locked to each other
 // instead of racing a pile of independent animations.
 private const val ENTER_MS = 1750
-private const val HOLD_MS = 620
+private const val HOLD_MS = 620L
 private const val EXIT_MS = 720
 
 private val LOGO_SIZE = 124.dp
@@ -121,7 +121,7 @@ fun IntroOverlay(playKey: Long = 0L) {
         initialValue = 0.35f,
         targetValue = 1f,
         animationSpec = infiniteRepeatable(
-            animation = tween(2600, easing = EaseOut),
+            animation = tween(2600, easing = LinearOutSlowInEasing),
             repeatMode = RepeatMode.Reverse,
         ),
         label = "pulseWave",
