@@ -34,6 +34,7 @@ import androidx.compose.material.icons.filled.SystemUpdate
 import androidx.compose.material.icons.filled.Tune
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Menu
+import androidx.compose.material.icons.filled.Palette
 import androidx.compose.material.icons.filled.Download
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.ui.input.pointer.PointerEventPass
@@ -85,6 +86,8 @@ import com.pickle.patcher.ui.theme.White
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.pickle.patcher.jobs.JobProgress
 import com.pickle.patcher.ui.JobStrip
+import com.pickle.patcher.ui.theme.ThemeController
+import com.pickle.patcher.ui.theme.ThemePickerDialog
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -92,7 +95,9 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
         setContent {
-            NexoraTheme {
+            val themeController: ThemeController = viewModel()
+            val themeChoice by themeController.choice.collectAsState()
+            NexoraTheme(themeChoice, themeController) {
                 val vm: PatcherViewModel = viewModel()
                 LaunchedEffect(Unit) {
                     vm.autoInstallAddons()
@@ -133,6 +138,7 @@ fun PatcherApp(vm: PatcherViewModel) {
     val context = androidx.compose.ui.platform.LocalContext.current
     val scope = androidx.compose.runtime.rememberCoroutineScope()
     var showAbout by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf(false) }
+    var showTheme by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf(false) }
     val update by vm.appUpdate.collectAsState()
 
     // No automatic update checks: the user triggers "Update check" from the
@@ -182,6 +188,7 @@ fun PatcherApp(vm: PatcherViewModel) {
         },
         onRedownloadBundle = { vm.fetchAndDownloadBundle() },
         onAbout = { showAbout = true },
+        onTheme = { showTheme = true },
     ) {
     Scaffold(
         containerColor = MaterialTheme.colorScheme.background,
@@ -298,6 +305,20 @@ fun PatcherApp(vm: PatcherViewModel) {
         AboutDialog(version = appVersion(context), onDismiss = { showAbout = false })
     }
 
+    // The picker repaints everything behind it as the choice changes, which is
+    // the point of it being a dialog over the app rather than a screen.
+    val themeController = com.pickle.patcher.ui.theme.LocalThemeController.current
+    val themeChoice by themeController.choice.collectAsState()
+    if (showTheme) {
+        ThemePickerDialog(
+            choice = themeChoice,
+            onPick = themeController::select,
+            onMode = themeController::setMode,
+            onCustom = themeController::selectCustom,
+            onDismiss = { showTheme = false },
+        )
+    }
+
     val showUpdateDialog = update is PatcherViewModel.AppUpdate.Available ||
         update is PatcherViewModel.AppUpdate.Downloading ||
         update is PatcherViewModel.AppUpdate.UpToDate ||
@@ -399,6 +420,7 @@ private fun NavDrawer(
     onShareLogs: () -> Unit,
     onRedownloadBundle: () -> Unit,
     onAbout: () -> Unit,
+    onTheme: () -> Unit,
     content: @Composable () -> Unit,
 ) {
     val scope = androidx.compose.runtime.rememberCoroutineScope()
@@ -440,6 +462,7 @@ private fun NavDrawer(
 
                 HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
 
+                DrawerItem("Theme", Icons.Filled.Palette, false, onTheme)
                 DrawerItem("Update check", Icons.Filled.SystemUpdate) {
                     closeThen {
                         vm.checkAppUpdate()
