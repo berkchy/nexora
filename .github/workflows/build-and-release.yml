@@ -674,9 +674,9 @@ jobs:
             # patch time, so the copies gradle would put here are ~13 MB per
             # ABI of dead weight. Fails loudly if the pin moves and the patch
             # stops applying rather than silently shipping the fat APK again.
-            git -C "$GITHUB_WORKSPACE" apply --check cs16-client-shell.patch \
-              || { echo "::error::cs16-client-shell.patch does not apply to $(cat cs16-client.pin)"; exit 1; }
-            git -C "$GITHUB_WORKSPACE" apply cs16-client-shell.patch
+            git -C "$GITHUB_WORKSPACE" apply --check "$GITHUB_WORKSPACE/cs16-client-shell.patch" \
+              || { echo "::error::cs16-client-shell.patch does not apply to $(cat "$GITHUB_WORKSPACE/cs16-client.pin")"; exit 1; }
+            git -C "$GITHUB_WORKSPACE" apply "$GITHUB_WORKSPACE/cs16-client-shell.patch"
             ./gradlew --no-daemon assembleGitContinuous --stacktrace
             cp app/build/outputs/apk/git/continuous/app-git-continuous.apk \
                "$GITHUB_WORKSPACE/CS16Client-Android.apk"
