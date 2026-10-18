@@ -597,6 +597,7 @@ private fun PatchCard(vm: PatcherViewModel) {
         val customLibs by vm.customLibs.collectAsState()
         val problem by vm.customLibProblem.collectAsState()
         val abi by vm.abi.collectAsState()
+        val problemText = problem
 
         val libPicker = androidx.activity.compose.rememberLauncherForActivityResult(
             // No mime filter: a .so picked from a file manager often arrives as
@@ -609,7 +610,7 @@ private fun PatchCard(vm: PatcherViewModel) {
 
         // Two AlertDialogs at once stack badly, so the complaint replaces the
         // list while it is up and the list comes straight back after.
-        if (problem != null) {
+        if (problemText != null) {
             AlertDialog(
                 onDismissRequest = {
                     vm.dismissCustomLibProblem()
@@ -617,7 +618,7 @@ private fun PatchCard(vm: PatcherViewModel) {
                 },
                 title = { Text("Libraries not added", color = AlertRed) },
                 text = {
-                    Text(problem, style = MaterialTheme.typography.bodySmall, color = Gray40)
+                    Text(problemText, style = MaterialTheme.typography.bodySmall, color = Gray40)
                 },
                 confirmButton = {
                     TextButton(onClick = {
