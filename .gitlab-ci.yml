@@ -185,7 +185,7 @@ build-release:
         if [ -n "$NATIVE_SHA" ]; then
           META_UP=$(echo "$META_JSON" | python3 -c "import json,sys; print(json.dumps(json.load(sys.stdin).get('upstreams',{}),sort_keys=True))" 2>/dev/null || echo "")
           CUR_UP=$(echo "$UP_JSON" | python3 -c "import json,sys; print(json.dumps(json.load(sys.stdin),sort_keys=True))" 2>/dev/null || echo "")
-          DIFF_OUT=$(git diff --name-only "$NATIVE_SHA" HEAD -- android/ci patches cs16-client.pin 3rdparty .github/workflows .gitlab-ci.yml 2>/dev/null || echo "DIFF-FAILED")
+          DIFF_OUT=$(git diff --name-only "$NATIVE_SHA" HEAD -- android/ci patches cs16-client.pin cs16-client-shell.patch 3rdparty .github/workflows .gitlab-ci.yml 2>/dev/null || echo "DIFF-FAILED")
           if [ "$DIFF_OUT" != "DIFF-FAILED" ] && [ -z "$DIFF_OUT" ] && [ -n "$META_UP" ] && [ "$META_UP" = "$CUR_UP" ]; then
             SKIP_NATIVE=true
             NATIVE_SHA_OUT=$NATIVE_SHA
@@ -446,6 +446,9 @@ build-release:
           echo "$CS16_SIGNING_KEY" | base64 --decode > "$KEYSTORE_FILE_PATH"
           export KEYSTORE_FILE_PATH KEYSTORE_PASSWORD="$CS16_KEYSTORE_PASSWORD" \
                  KEY_ALIAS="$CS16_KEY_ALIAS" KEY_PASSWORD="$CS16_KEY_PASSWORD"
+          git apply --check cs16-client-shell.patch \
+            || { echo "cs16-client-shell.patch does not apply to $(cat cs16-client.pin)"; exit 1; }
+          git apply cs16-client-shell.patch
           (cd cs16-client/android && ./gradlew --no-daemon assembleGitContinuous --stacktrace)
           cp cs16-client/android/app/build/outputs/apk/git/continuous/app-git-continuous.apk \
              "$WS/CS16Client-Android.apk"

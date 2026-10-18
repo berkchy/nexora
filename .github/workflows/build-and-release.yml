@@ -127,7 +127,7 @@ jobs:
               if [ -n "$NATIVE_SHA" ]; then
                 META_UP=$(echo "$META_JSON" | python3 -c "import json; print(json.dumps(json.load(sys.stdin).get('upstreams',{}),sort_keys=True))" 2>/dev/null || echo "")
                 CUR_UP=$(echo "$UP_JSON" | python3 -c "import json; print(json.dumps(json.load(sys.stdin),sort_keys=True))" 2>/dev/null || echo "")
-                DIFF_OUT=$(git diff --name-only "$NATIVE_SHA" HEAD -- android/ci patches cs16-client.pin 3rdparty .github/workflows 2>/dev/null || echo "DIFF-FAILED")
+                DIFF_OUT=$(git diff --name-only "$NATIVE_SHA" HEAD -- android/ci patches cs16-client.pin cs16-client-shell.patch 3rdparty .github/workflows 2>/dev/null || echo "DIFF-FAILED")
                 if [ "$DIFF_OUT" != "DIFF-FAILED" ] && [ -z "$DIFF_OUT" ] && [ -n "$META_UP" ] && [ "$META_UP" = "$CUR_UP" ]; then
                   SKIP_NATIVE=true
                   NATIVE_SHA_OUT=$NATIVE_SHA
@@ -669,6 +669,14 @@ jobs:
         run: |
           if [ -n "${{ secrets.SIGNING_KEY }}" ]; then
             echo "${{ secrets.SIGNING_KEY }}" | base64 --decode > "$KEYSTORE_FILE_PATH"
+            # Strip the client, the menu and the server out of the APK. Nexora
+            # injects its own builds of the first two into this package at
+            # patch time, so the copies gradle would put here are ~13 MB per
+            # ABI of dead weight. Fails loudly if the pin moves and the patch
+            # stops applying rather than silently shipping the fat APK again.
+            git -C "$GITHUB_WORKSPACE" apply --check cs16-client-shell.patch \
+              || { echo "::error::cs16-client-shell.patch does not apply to $(cat cs16-client.pin)"; exit 1; }
+            git -C "$GITHUB_WORKSPACE" apply cs16-client-shell.patch
             ./gradlew --no-daemon assembleGitContinuous --stacktrace
             cp app/build/outputs/apk/git/continuous/app-git-continuous.apk \
                "$GITHUB_WORKSPACE/CS16Client-Android.apk"

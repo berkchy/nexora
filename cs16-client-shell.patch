@@ -1,0 +1,74 @@
+Turn the "git" flavor into the shell package nexora patches.
+
+Unmodified, `assembleGitContinuous` builds the client, the menu and the server
+through the externalNativeBuild block and packages all of them into the APK:
+38 MB, of which libclient is 6.5 MB and libmenu 6.3 MB per ABI. Nexora injects
+its own build of both into this package after download (the patch log shows
+"+ libclient_android_arm64.so"), so neither copy is ever loaded.
+
+The engine looks for the menu as cl_dlls/libmenu_android_<arch>.so, then
+<gamelibdir>/libmenu_android_<arch>.so, then libmenu.so from its own package -
+never a copy inside the client APK - and the client dll is dlopen'ed out of the
+injected set. The APK only has to be a launchable shell.
+
+The server side goes for the same reason: yapb and ReGameDLL_CS get pulled
+into the Android build graph but land in neither the APK nor nexora's Android
+bundle, so they were minutes of compiling for nothing.
+
+minSdk moves 21 -> 24 because the libraries nexora injects are cross-compiled
+against API 24; an APK claiming 21 would install on a device that cannot load
+what gets injected into it.
+
+The game content (~26 MB) is deliberately not added: nexora installs it into
+the game directory from its own bundle, so a second copy is pure download
+weight. android/ci/build-amxx.sh builds the real libclient/libmenu for the
+bundles, from this same pinned tree.
+
+Applied by the "Build the client APK" step, so it is tied to the commit in
+cs16-client.pin rather than to a fork of it.
+
+diff --git a/android/app/build.gradle b/android/app/build.gradle
+index 016139f..0f4b6d5 100644
+--- a/android/app/build.gradle
++++ b/android/app/build.gradle
+@@ -13,7 +13,7 @@ android {
+ 		applicationId = "su.xash.cs16client"
+ 		versionName = "1.35-" + getGitHash()
+ 		versionCode = getBuildNum()
+-		minSdk = 21
++		minSdk = 24
+ 		targetSdk = 36
+ 
+ 		ndk {
+@@ -97,6 +97,31 @@ android {
+ 		create("git") {
+ 			dimension = "version"
+ 			buildConfigField("Boolean", "IS_GOOGLE_PLAY_BUILD", "false")
++
++			// Without an abiFilters block AGP builds every ABI the NDK
++			// supports, so the APK carried lib/x86 and lib/x86_64 copies of
++			// the client that nothing can load. Nexora only ever produced
++			// the arm64-v8a and armeabi-v7a bundles, so an x86 install
++			// never got a cl_dll from anywhere.
++			ndk {
++				abiFilters "arm64-v8a", "armeabi-v7a"
++			}
++
++			packaging {
++				jniLibs {
++					// useLegacyPackaging stores .so uncompressed, which is
++					// what the engine needs for the libraries nexora injects
++					// into this package: they are dlopen'ed straight out of
++					// the APK, so extractNativeLibs=false has to stay.
++					useLegacyPackaging = true
++				}
++			}
++
++			externalNativeBuild {
++				cmake {
++					arguments "-DBUILD_CLIENT=OFF", "-DBUILD_SERVER=OFF", "-DBUILD_MAINUI=OFF"
++				}
++			}
+ 		}
+ 	}
+ 
