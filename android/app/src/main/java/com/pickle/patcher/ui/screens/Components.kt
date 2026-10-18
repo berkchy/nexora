@@ -249,13 +249,17 @@ fun RingProgress(
         animationSpec = tween(220),
         label = "ring",
     )
+    // Read here rather than inside the Canvas: its lambda is a DrawScope, which
+    // is not a composable scope.
+    val trackColor = Gray70
+    val progressColor = Accent
     Box(modifier = modifier.size(diameter), contentAlignment = Alignment.Center) {
         Canvas(Modifier.size(diameter)) {
             val stroke = strokeWidth.toPx()
             val inset = stroke / 2f
             val arcSize = Size(size.width - stroke, size.height - stroke)
             drawArc(
-                color = Gray70,
+                color = trackColor,
                 startAngle = -90f,
                 sweepAngle = 360f,
                 useCenter = false,
@@ -265,7 +269,7 @@ fun RingProgress(
             )
             if (animated > 0f) {
                 drawArc(
-                    color = Accent,
+                    color = progressColor,
                     startAngle = -90f,
                     sweepAngle = 360f * animated,
                     useCenter = false,

@@ -79,7 +79,7 @@ private val EditorLines = 18
  * collapsing spaces around '=') changes the length and Compose rejects the
  * identity mapping, which crashes the editor.
  */
-private fun highlightIni(text: String): AnnotatedString = buildAnnotatedString {
+private fun highlightIni(text: String, colors: IniColors): AnnotatedString = buildAnnotatedString {
     var pos = 0
     while (pos <= text.length) {
         val lineEnd = text.indexOf('\n', pos).let { if (it < 0) text.length else it }
@@ -95,37 +95,37 @@ private fun highlightIni(text: String): AnnotatedString = buildAnnotatedString {
         if (first < line.length) {
             when {
                 line[first] == ';' -> {
-                    style(first, line.length, SpanStyle(color = Gray60, fontStyle = FontStyle.Italic))
+                    style(first, line.length, SpanStyle(color = colors.comment, fontStyle = FontStyle.Italic))
                     // keep the name after ';' readable so an off plugin is obvious
                     var nameStart = first + 1
                     if (nameStart < line.length && line[nameStart] == ' ') nameStart++
                     var nameEnd = nameStart
                     while (nameEnd < line.length && line[nameEnd] != ' ' && line[nameEnd] != ';') nameEnd++
                     if (nameEnd > nameStart && line.getOrNull(nameEnd) != ';') {
-                        style(first + 1, nameStart, SpanStyle(color = Gray60, fontStyle = FontStyle.Italic))
-                        style(nameStart, nameEnd, SpanStyle(color = Tertiary))
+                        style(first + 1, nameStart, SpanStyle(color = colors.comment, fontStyle = FontStyle.Italic))
+                        style(nameStart, nameEnd, SpanStyle(color = colors.pluginName))
                     }
                 }
                 line[first] == '[' -> {
-                    style(first, line.length, SpanStyle(color = Accent, fontWeight = FontWeight.Bold))
+                    style(first, line.length, SpanStyle(color = colors.section, fontWeight = FontWeight.Bold))
                 }
                 else -> {
                     val eq = line.indexOf('=')
                     if (eq > 0) {
                         val semi = line.indexOf(';', eq + 1)
                         val valueEnd = if (semi > eq) semi else line.length
-                        style(first, eq, SpanStyle(color = White))
-                        style(eq, eq + 1, SpanStyle(color = Gray70))
+                        style(first, eq, SpanStyle(color = colors.text))
+                        style(eq, eq + 1, SpanStyle(color = colors.operator))
                         var valueStart = eq + 1
                         while (valueStart < valueEnd && line[valueStart] == ' ') valueStart++
                         val value = line.substring(valueStart, valueEnd)
                         style(
                             valueStart,
                             valueEnd,
-                            SpanStyle(color = if (value.endsWith(".amxx")) SuccessGreen else Secondary),
+                            SpanStyle(color = if (value.endsWith(".amxx")) colors.string else colors.value),
                         )
                         if (semi > eq) {
-                            style(semi, line.length, SpanStyle(color = Gray60, fontStyle = FontStyle.Italic))
+                            style(semi, line.length, SpanStyle(color = colors.comment, fontStyle = FontStyle.Italic))
                         }
                     }
                 }
@@ -141,9 +141,24 @@ private fun highlightIni(text: String): AnnotatedString = buildAnnotatedString {
     }
 }
 
-private class IniHighlight : VisualTransformation {
+/**
+ * The palette the highlighter paints with, resolved once at the composable call
+ * site. VisualTransformation.filter is not a composable, so the colours cannot
+ * be read inside it.
+ */
+private data class IniColors(
+    val comment: androidx.compose.ui.graphics.Color,
+    val pluginName: androidx.compose.ui.graphics.Color,
+    val section: androidx.compose.ui.graphics.Color,
+    val text: androidx.compose.ui.graphics.Color,
+    val operator: androidx.compose.ui.graphics.Color,
+    val string: androidx.compose.ui.graphics.Color,
+    val value: androidx.compose.ui.graphics.Color,
+)
+
+private class IniHighlight(private val colors: IniColors) : VisualTransformation {
     override fun filter(text: AnnotatedString): TransformedText =
-        TransformedText(highlightIni(text.text), OffsetMapping.Identity)
+        TransformedText(highlightIni(text.text, colors), OffsetMapping.Identity)
 }
 
 @Composable
@@ -166,6 +181,16 @@ fun PluginsScreen(vm: PatcherViewModel) {
     LaunchedEffect(selected) { selected?.let(vm::openPluginIni) }
 
     val file = selected
+    // Recomputed when the theme changes, so the highlighter repaints with it.
+    val iniColors = IniColors(
+        comment = Gray60,
+        pluginName = Tertiary,
+        section = Accent,
+        text = White,
+        operator = Gray70,
+        string = SuccessGreen,
+        value = Secondary,
+    )
     val lineCount = remember(text) { text.count { it == '\n' } + 1 }
     val editorStyle = MaterialTheme.typography.bodySmall.copy(
         fontFamily = EditorFont,
@@ -250,7 +275,7 @@ fun PluginsScreen(vm: PatcherViewModel) {
                             onValueChange = vm::editIniText,
                             textStyle = editorStyle.copy(color = White),
                             cursorBrush = SolidColor(Accent),
-                            visualTransformation = IniHighlight(),
+                            visualTransformation = IniHighlight(iniColors),
                             modifier = Modifier.widthIn(min = 240.dp),
                         )
                     }
