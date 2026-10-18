@@ -1,7 +1,6 @@
-Turn the client into the shell package nexora patches, with a launcher screen.
+Make the client nexora's: a shell package, its own id, and no version walls.
 
-The APK: three things about this tree are not what nexora wants, two of them
-megabytes of dead weight.
+The APK: two things about this tree are megabytes of dead weight.
 
 CMake's if(ANDROID) block stages ~26 MB of 3rdparty/cs16client-extras, yapb
 configs and downloaded bot graphs into android/app/src/main/assets, and gradle
@@ -19,6 +18,20 @@ as cl_dlls/libmenu_android_<arch>.so, then <gamelibdir>/libmenu_android_<arch>.s
 then libmenu.so from its own package - never a copy inside the client APK - and
 the client dll is dlopen'ed out of the injected set. yapb and ReGameDLL_CS land
 in the build graph but in neither the APK nor nexora's Android bundle.
+
+The package name. The continuous build type's suffix is ".nexora" rather than
+".test": that suffix is the tail of the id, su.xash.cs16client.test is a name
+that says nothing about who ships it and collides with the build anyone can
+side-load, and the engine resolves the game content through this id.
+
+The version walls in cdll_int.cpp. Both were Host_Error calls that closed the
+game before anything drew: an engine older than 4190 gave "Please update your
+Xash3D FWGS!", and a mobility API mismatch gave "Please update your Xash3D
+Android!". Neither is actionable - a player cannot update the engine from inside
+the game, and the engine is the one nexora pairs with this client - so both now
+print on the console and let the client start. The engine warning moved into
+Initialize() because render_api_t carries no printf, so at the point the render
+table arrives there is no channel to write to yet.
 
 The launcher: upstream went straight from onCreate to XashActivity, so there
 was nowhere to change a parameter. MainActivity now shows a terminal-style
@@ -94,7 +107,7 @@ index c80b503..92dd69b 100644
  
  	execute_process(
 diff --git a/android/app/build.gradle b/android/app/build.gradle
-index 016139f..0f4b6d5 100644
+index 016139f..163b71c 100644
 --- a/android/app/build.gradle
 +++ b/android/app/build.gradle
 @@ -13,7 +13,7 @@ android {
@@ -106,7 +119,19 @@ index 016139f..0f4b6d5 100644
  		targetSdk = 36
  
  		ndk {
-@@ -97,6 +97,31 @@ android {
+@@ -74,7 +74,10 @@ android {
+ 
+ 		create("continuous") {
+ 			initWith(getByName("release"))
+-			applicationIdSuffix = ".test"
++			// ".nexora" and not ".test": this suffix is the tail of the package
++			// name, and su.xash.cs16client.nexora.test says nothing about what
++			// the package is.
++			applicationIdSuffix = ".nexora"
+ 			signingConfig = signingConfigs.continuous
+ 
+ 			externalNativeBuild {
+@@ -97,6 +100,31 @@ android {
  		create("git") {
  			dimension = "version"
  			buildConfigField("Boolean", "IS_GOOGLE_PLAY_BUILD", "false")
@@ -562,3 +587,60 @@ index 0000000..07210da
 +    <string name="launcher_engine_missing">engine APK not installed.\nGet it from the Xash3D FWGS continuous release.</string>
 +</resources>
 \ No newline at end of file
+diff --git a/cl_dll/cdll_int.cpp b/cl_dll/cdll_int.cpp
+index 4f5a9e8..a74f0ca 100644
+--- a/cl_dll/cdll_int.cpp
++++ b/cl_dll/cdll_int.cpp
+@@ -110,6 +110,14 @@ int DLLEXPORT Initialize( cl_enginefunc_t *pEnginefuncs, int iVersion )
+ 
+ 	sscanf( CVAR_GET_STRING( "host_ver" ), "%d", &g_iXash );
+ 
++	// Report the engine version only after gEngfuncs exists, so the player sees
++	// it in the console rather than in a log nobody opens.
++	if( g_iXash < MIN_XASH_VERSION )
++	{
++		gEngfuncs.Con_Printf("Xash3D FWGS build %d is older than %d; running anyway.\n",
++			g_iXash, MIN_XASH_VERSION);
++	}
++
+ 	Game_HookEvents();
+ 	CL_LoadParticleMan();
+ 
+@@ -424,12 +432,12 @@ int DLLEXPORT HUD_GetRenderInterface( int version, render_api_t *renderfuncs, re
+ 	// we didn't send callbacks to engine, because we don't use it
+ 	// *callback = renderInterface;
+ 
+-	// we have here a Host_Error, so check Xash for version
+-	if( g_iXash < MIN_XASH_VERSION )
+-	{
+-		gRenderAPI.Host_Error("Xash3D FWGS version check failed!\nPlease update your Xash3D FWGS!\n");
+-	}
+-
++	// An older engine used to be a Host_Error here, which closed the game with
++	// "Please update your Xash3D FWGS!" before anything drew. The client and the
++	// engine are paired by the launcher and by the packager, and a player has no
++	// way to update one from inside the other, so the only thing the error did
++	// was make the game unstartable. Initialize() reports the mismatch on the
++	// console instead, and the client runs.
+ 	return true;
+ }
+ 
+@@ -440,13 +448,15 @@ HUD_MobilityInterface
+ */
+ int DLLEXPORT HUD_MobilityInterface( mobile_engfuncs_t *mobileapi )
+ {
++	// Same as the engine check above: a mismatch is reported, not fatal. The
++	// mobile table is filled in from the engine's copy, so on a real layout
++	// difference the touch callbacks below would be called through the wrong
++	// offsets - but the engine is the one nexora ships against, and refusing to
++	// start leaves the player with a black screen and no way to say so.
+ 	if( mobileapi->version != MOBILITY_API_VERSION )
+ 	{
+ 		gEngfuncs.Con_Printf("Client Error: Mobile API version mismatch. Got: %i, want: %i\n",
+ 			mobileapi->version, MOBILITY_API_VERSION);
+-
+-		gRenderAPI.Host_Error("Xash3D Android version check failed!\nPlease update your Xash3D Android!\n");
+-		return 1;
+ 	}
+ 
+ 	g_iMobileAPIVersion = MOBILITY_API_VERSION;
