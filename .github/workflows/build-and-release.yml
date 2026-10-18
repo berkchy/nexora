@@ -144,10 +144,13 @@ jobs:
         uses: actions/setup-java@v4
         with:
           distribution: temurin
-          # 21, not 17: cs16-client/android declares toolchainVersion=21 in
-          # gradle-daemon-jvm.properties, and Gradle 8.13/AGP 8.13 both run fine
-          # on it. The patcher still targets 17 via sourceCompatibility.
-          java-version: '21'
+          # Stays on 17. :patcherlib sets sourceCompatibility/targetCompatibility
+          # to 17 but no jvmTarget, so compileKotlin follows the daemon's JVM and
+          # any bump here fails with "Inconsistent JVM Target Compatibility".
+          # cs16-client wants 21 and declares it in its own
+          # gradle-daemon-jvm.properties, so its gradle invocation provisions
+          # that itself and does not need this to move.
+          java-version: '17'
 
       - name: Set up Android SDK/NDK tooling
         if: steps.build_type.outputs.needs_android == 'true' || steps.build_type.outputs.needs_libs == 'true'
