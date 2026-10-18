@@ -1493,13 +1493,11 @@ private fun externalRoot(app: Application): File {
             )
             return
         }
-        if (selAbi !in (_source.value?.abis ?: emptyList())) {
-            _patch.value = PatchUiState.Failed(
-                "The source APK does not contain a $selAbi library directory. " +
-                    "Re-pick the APK or select another ABI."
-            )
-            return
-        }
+        // No check that the source has a lib/<abi>/ directory. The shell client APK
+        // has none - that is the point of it, the client and the menu are
+        // injected here - and the repacker writes the directory entries itself
+        // for every folder the bundle lands in.
+        //
         // Filter the bundle down to the user-selected components. A null selection
         // means "everything" (keeps the pre-dialog behaviour).
         val effectiveBundle = if (selectedComponentKeys == null) {

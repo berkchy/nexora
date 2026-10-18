@@ -143,8 +143,11 @@ object ZipRepacker {
                     if (method == 0) {
                         // zipalign behaviour: native libs (lib/**) must be 16 KB
                         // aligned for Android 15+ / 16 KB-page devices; everything
-                        // else just needs 4-byte alignment.
-                        val unit = if (name.startsWith("lib/")) 16384 else 4
+                        // else just needs 4-byte alignment. Directory entries are
+                        // excluded by the .so test - they carry no payload, and
+                        // padding them to 16 KB would cost more than the whole
+                        // shell APK.
+                        val unit = if (name.startsWith("lib/") && name.endsWith(".so")) 16384 else 4
                         val base = localOffset + 30 + name.length
                         val rem = (base % unit).toInt()
                         extraLen = if (rem == 0) 0 else (unit - rem)
@@ -184,6 +187,47 @@ object ZipRepacker {
                         )
                     )
                     bytesWritten += 30 + name.length + extraLen + data.size
+                }
+
+                // Directory entries, created for any folder the bundle is about
+                // to write into that the source does not already have.
+                //
+                // The shell client APK ships no lib/ at all - the client and the
+                // menu are injected here - so demanding a lib/<abi>/ directory
+                // from the source is asking for something this pass is about to
+                // create itself. Android groups native libraries by their
+                // directory entry when it installs them, so it has to be written
+                // rather than left implicit.
+                val existingDirs = HashSet<String>()
+                for (name in src.entries.keys) {
+                    if (name.endsWith("/")) existingDirs.add(name)
+                }
+                fun parentsOf(path: String): List<String> {
+                    val out = ArrayList<String>()
+                    var acc = ""
+                    // dropLast(1): the last segment is the file itself.
+                    for (p in path.split('/').dropLast(1)) {
+                        acc += "$p/"
+                        out.add(acc)
+                    }
+                    return out
+                }
+                val wantedDirs = LinkedHashSet<String>()
+                for (be in bundle.manifest.entries) {
+                    wantedDirs.addAll(parentsOf(be.target))
+                }
+                if (extraAssetsZip != null && extraAssetsZip.isFile) wantedDirs.add("assets/")
+                for (dir in wantedDirs) {
+                    if (dir in existingDirs || dir in bundleTargets) continue
+                    existingDirs.add(dir)
+                    writeLocalHeader(
+                        name = dir,
+                        method = 0,
+                        compressedSize = 0L,
+                        uncompressedSize = 0L,
+                        crc = 0L,
+                        data = ByteArray(0),
+                    )
                 }
 
                 // copy preserved entries (raw bytes, method as-is)
