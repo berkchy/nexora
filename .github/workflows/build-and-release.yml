@@ -786,6 +786,9 @@ jobs:
         shell: bash
         env:
           DISCORD_WEBHOOK: ${{ secrets.DISCORD_WEBHOOK }}
+          # Via env, not inline: the subject is free text and an apostrophe in it
+          # used to close the quoting of the echo below and kill the step.
+          COMMIT_MSG_RAW: ${{ steps.build_type.outputs.commit_msg }}
         run: |
           if [ -z "$DISCORD_WEBHOOK" ]; then
             echo "DISCORD_WEBHOOK secret not set, skipping Discord notification"
@@ -798,7 +801,7 @@ jobs:
             APK_FILE="nexora_continuous.apk"
           fi
           REPO="${GITHUB_REPOSITORY}"
-          COMMIT_MSG=$(echo '${{ steps.build_type.outputs.commit_msg }}' | head -c 500)
+          COMMIT_MSG=$(printf '%s' "$COMMIT_MSG_RAW" | head -c 500)
           NEEDS_LIBS='${{ steps.build_type.outputs.needs_libs }}'
           RELEASE_TAG="$GITHUB_REF_NAME"
           if [ "$RELEASE_TAG" = "master" ]; then
@@ -818,7 +821,7 @@ jobs:
             STATUS_FIELD=":white_check_mark: App update ready"
             TYPE_FIELD="App + libs"
             APK_URL="https://github.com/${REPO}/releases/download/${RELEASE_TAG}/${APK_FILE}"
-            APK_FIELD=", { \"name\": \"Download\", \"value\": \"[${APK_FILE}](${APK_URL})\", \"inline\": true }"
+            APK_FIELD="[${APK_FILE}](${APK_URL})"
           elif [ "$NEEDS_LIBS" = "true" ]; then
             TITLE="Nexora v${VERSION} libs & plugins update"
             STATUS_FIELD=":white_check_mark: Libs & plugins updated"
@@ -832,23 +835,21 @@ jobs:
             TYPE_FIELD="Update info"
             APK_FIELD=""
           fi
-          BODY=$(cat <<EOF
-          {
-            "embeds": [{
-              "title": "${TITLE}",
-              "description": "$COMMIT_MSG",
-              "color": 5763719,
-              "url": "${RELEASE_URL}",
-              "thumbnail": { "url": "attachment://thumbnail.jpg" },
-              "image": { "url": "attachment://image.jpg" },
-              "fields": [
-                { "name": "Status", "value": "${STATUS_FIELD}", "inline": true },
-                { "name": "Version", "value": "${VERSION}", "inline": true },
-                { "name": "Type", "value": "${TYPE_FIELD}", "inline": true }${APK_FIELD}
-              ]
-            }]
-          }
-          EOF
+          BODY=$(jq -n \
+            --arg title "$TITLE" \
+            --arg description "$COMMIT_MSG" \
+            --arg url "$RELEASE_URL" \
+            --arg status "$STATUS_FIELD" \
+            --arg version "$VERSION" \
+            --arg type "$TYPE_FIELD" \
+            --arg download "${APK_FIELD:-}" \
+            '{embeds:[{title:$title,description:$description,color:5763719,url:$url,
+              thumbnail:{url:"attachment://thumbnail.jpg"},
+              image:{url:"attachment://image.jpg"},
+              fields:([{name:"Status",value:$status,inline:true},
+                       {name:"Version",value:$version,inline:true},
+                       {name:"Type",value:$type,inline:true}]
+                      + (if $download == "" then [] else [{name:"Download",value:$download,inline:true}] end))}]}'
           )
           curl -fsSL -F "payload_json=$BODY" \
             -F "thumbnail=@.github/assets/thumbnail.jpg" \
