@@ -504,12 +504,16 @@ private fun externalRoot(app: Application): File {
      * Null when the file is a usable client APK, otherwise why it is not.
      * A download that died halfway leaves a zip the analyzer cannot read, so
      * this is what tells "needs another download" apart from "good to patch".
+     *
+     * An APK with no lib/ at all is fine: that is the shell we ship, which
+     * carries neither the client nor the menu because both are injected from
+     * the bundle afterwards. Only an APK that does carry native libraries and
+     * has none we can use is a problem.
      */
     private fun apkProblem(file: File): String? = try {
         val info = ZipAnalyzer.analyze(file)
-        if (info.abis.none { it in SUPPORTED_ABIS }) {
-            "no supported native ABI (" +
-                "${info.abis.ifEmpty { listOf("none") }.joinToString(", ")})"
+        if (info.abis.isNotEmpty() && info.abis.none { it in SUPPORTED_ABIS }) {
+            "no supported native ABI (" + info.abis.joinToString(", ") + ")"
         } else {
             null
         }
@@ -521,20 +525,25 @@ private fun externalRoot(app: Application): File {
      * Analyzes an APK already sitting in app storage and adopts it as the
      * source. Shared by the SAF path and the GitHub download path, so both
      * validate the ABI the same way.
+     *
+     * A source with no lib/ entry narrows nothing, so the device ABI stands.
+     * That is the shell APK's normal case, not a malformed download.
      */
     private fun useSourceFile(file: File, label: String) {
         val info = ZipAnalyzer.analyze(file)
         val supported = info.abis.filter { it in SUPPORTED_ABIS }
-        if (supported.isEmpty()) {
+        if (info.abis.isNotEmpty() && supported.isEmpty()) {
             _patch.value = PatchUiState.Failed(
                 "This APK has no supported native ABIs (found: " +
-                    "${info.abis.ifEmpty { listOf("none") }.joinToString(", ")}). " +
+                    "${info.abis.joinToString(", ")}). " +
                     "Supported: ${SUPPORTED_ABIS.joinToString(", ")}."
             )
             _receivedSource.value = null
             return
         }
-        if (_abi.value !in supported) resolveAbi(supported)?.let { setAbi(it) }
+        if (supported.isNotEmpty() && _abi.value !in supported) {
+            resolveAbi(supported)?.let { setAbi(it) }
+        }
         _source.value = SourceInfo(label, file.length(), info.entryCount, supported)
         _receivedSource.value = file
         refreshAbiStatus()
