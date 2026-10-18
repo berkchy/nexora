@@ -42,6 +42,7 @@ import androidx.compose.material.icons.filled.RocketLaunch
 import androidx.compose.material.icons.filled.SmartToy
 import androidx.compose.material.icons.filled.SportsEsports
 import androidx.compose.material.icons.filled.Warning
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
@@ -63,6 +64,8 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.TextButton
 import androidx.compose.foundation.layout.heightIn
@@ -80,6 +83,7 @@ import com.pickle.patcher.ui.theme.Gray70
 import com.pickle.patcher.ui.theme.Gray80
 import com.pickle.patcher.ui.theme.Gray90
 import com.pickle.patcher.ui.theme.SuccessGreen
+import com.pickle.patcher.ui.theme.WarnYellow
 import com.pickle.patcher.ui.theme.White
 import java.text.DecimalFormat
 import java.text.SimpleDateFormat
@@ -590,28 +594,77 @@ private fun PatchCard(vm: PatcherViewModel) {
 
     if (showComponents && canPatch && state is PatchUiState.Idle) {
         val components = remember(vm) { vm.patchComponents() }
-        PatchComponentsDialog(
-            components = components,
-            summary = vm.patchSummary(),
-            onConfirm = { selectedKeys ->
-                showComponents = false
-                vm.startPatch(selectedKeys)
-            },
-            onDismiss = { showComponents = false },
-        )
+        val customLibs by vm.customLibs.collectAsState()
+        val problem by vm.customLibProblem.collectAsState()
+        val abi by vm.abi.collectAsState()
+
+        val libPicker = androidx.activity.compose.rememberLauncherForActivityResult(
+            // No mime filter: a .so picked from a file manager often arrives as
+            // application/octet-stream or with nothing at all, and filtering on
+            // that hides the file the user is looking at.
+            androidx.activity.result.contract.ActivityResultContracts.OpenDocument(),
+        ) { uri ->
+            if (uri != null) vm.addCustomLibs(listOf(uri))
+        }
+
+        // Two AlertDialogs at once stack badly, so the complaint replaces the
+        // list while it is up and the list comes straight back after.
+        if (problem != null) {
+            AlertDialog(
+                onDismissRequest = {
+                    vm.dismissCustomLibProblem()
+                    showComponents = false
+                },
+                title = { Text("Libraries not added", color = AlertRed) },
+                text = {
+                    Text(problem, style = MaterialTheme.typography.bodySmall, color = Gray40)
+                },
+                confirmButton = {
+                    TextButton(onClick = {
+                        vm.dismissCustomLibProblem()
+                        showComponents = false
+                    }) { Text("OK", color = Accent) }
+                },
+            )
+        } else {
+            PatchComponentsDialog(
+                components = components,
+                customLibs = customLibs,
+                targetAbi = abi,
+                staleCustomLibs = remember(customLibs, abi) { vm.staleCustomLibs() },
+                summary = vm.patchSummary(),
+                onAddLibs = { libPicker.launch(arrayOf("*/*")) },
+                onRemoveLib = vm::removeCustomLib,
+                onConfirm = { selectedKeys ->
+                    showComponents = false
+                    vm.startPatch(selectedKeys)
+                },
+                onDismiss = { showComponents = false },
+            )
+        }
     }
 }
 
 @Composable
 private fun PatchComponentsDialog(
     components: List<PatcherViewModel.PatchComponent>,
+    customLibs: List<PatcherViewModel.CustomLib>,
+    targetAbi: String,
+    staleCustomLibs: List<PatcherViewModel.CustomLib>,
     summary: PatcherViewModel.PatchSummary?,
+    onAddLibs: () -> Unit,
+    onRemoveLib: (String) -> Unit,
     onConfirm: (Set<String>) -> Unit,
     onDismiss: () -> Unit,
 ) {
-    val allKeys = components.map { it.key }
-    var selected by remember { mutableStateOf(allKeys.toSet()) }
+    val allKeys = components.map { it.key } + customLibs.map { it.name }
+    var selected by remember(customLibs) {
+        mutableStateOf((allKeys).toSet())
+    }
     val allSelected = selected.size == allKeys.size
+    // A library built for another ABI would make the installer reject the whole
+    // APK, so it blocks the patch here rather than at install time.
+    val blocked = staleCustomLibs.filter { it.name in selected }
 
     AlertDialog(
         onDismissRequest = onDismiss,
@@ -697,16 +750,91 @@ private fun PatchComponentsDialog(
                             }
                         }
                     }
+
+                    if (customLibs.isNotEmpty()) {
+                        HorizontalDivider(
+                            color = MaterialTheme.colorScheme.outlineVariant,
+                            modifier = Modifier.padding(vertical = 8.dp),
+                        )
+                        Text(
+                            "Custom libs",
+                            style = MaterialTheme.typography.labelLarge,
+                            color = Accent,
+                        )
+                    }
+
+                    customLibs.forEach { lib ->
+                        val on = lib.name in selected
+                        val stale = lib in staleCustomLibs
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clickable {
+                                    selected = if (on) selected - lib.name else selected + lib.name
+                                }
+                                .padding(vertical = 8.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            Checkbox(
+                                checked = on,
+                                onCheckedChange = { checked ->
+                                    selected = if (checked) selected + lib.name else selected - lib.name
+                                },
+                            )
+                            Spacer(Modifier.width(8.dp))
+                            Column(Modifier.weight(1f)) {
+                                Text(
+                                    lib.name,
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    color = if (on) White else Gray40,
+                                )
+                                Text(
+                                    "lib/$targetAbi/${lib.name} · ${lib.machineName}",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = Gray40,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis,
+                                )
+                                if (lib.shadows != null) {
+                                    Text(
+                                        "replaces ${lib.shadows}",
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = WarnYellow,
+                                    )
+                                }
+                                if (stale) {
+                                    Text(
+                                        "not built for $targetAbi",
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = AlertRed,
+                                    )
+                                }
+                            }
+                            IconButton(onClick = { onRemoveLib(lib.name) }) {
+                                Icon(
+                                    Icons.Filled.Close,
+                                    contentDescription = "Remove ${lib.name}",
+                                    tint = Gray60,
+                                )
+                            }
+                        }
+                    }
                 }
             }
         },
         confirmButton = {
-            TextButton(onClick = { onConfirm(selected) }, enabled = selected.isNotEmpty()) {
+            TextButton(
+                onClick = { onConfirm(selected) },
+                enabled = selected.isNotEmpty() && blocked.isEmpty(),
+            ) {
                 Text("Patch", color = Accent)
             }
         },
         dismissButton = {
-            TextButton(onClick = onDismiss) { Text("Cancel", color = Gray60) }
+            Row {
+                TextButton(onClick = onAddLibs) { Text("Add libs", color = Accent) }
+                TextButton(onClick = onDismiss) { Text("Cancel", color = Gray60) }
+            }
         },
     )
 }

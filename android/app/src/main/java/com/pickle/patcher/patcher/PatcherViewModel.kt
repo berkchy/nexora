@@ -1067,6 +1067,162 @@ private fun externalRoot(app: Application): File {
         override fun hashCode(): Int = key.hashCode()
     }
 
+    /**
+     * A .so the user brought themselves, to be embedded alongside the bundle.
+     *
+     * [file] is a copy under filesDir, not the SAF uri: the picker grant is
+     * temporary and patching can happen much later than the pick.
+     */
+    data class CustomLib(
+        val name: String,
+        val file: File,
+        val machineName: String,
+        /** True when this file lands where a bundle entry would land. */
+        val shadows: String?,
+    ) {
+        override fun equals(other: Any?): Boolean = other is CustomLib && other.name == name
+        override fun hashCode(): Int = name.hashCode()
+    }
+
+    private val customLibDir by lazy {
+        File(getApplication<Application>().filesDir, "custom-libs").apply { mkdirs() }
+    }
+
+    private val _customLibs = MutableStateFlow<List<CustomLib>>(emptyList())
+    val customLibs: StateFlow<List<CustomLib>> = _customLibs.asStateFlow()
+
+    /** The component a custom lib would shadow, for the badge in the dialog. */
+    private fun shadowedBy(target: String): String? {
+        val b = loadedBundle ?: return null
+        val key = b.manifest.entries.firstOrNull { it.target == target }?.let { componentKeyFor(it.target) }
+        return key?.let { labelForComponent(it) }
+    }
+
+    /**
+     * Validates and stores the picked files.
+     *
+     * Every rejection is collected rather than thrown, so picking four wrong
+     * libraries says all four are wrong in one message instead of making the
+     * user re-pick to discover the next one.
+     */
+    fun addCustomLibs(uris: List<android.net.Uri>) {
+        if (uris.isEmpty()) return
+        val abi = _abi.value
+        val existing = _customLibs.value.map { it.name }.toMutableSet()
+        val rejected = ArrayList<String>()
+        val added = ArrayList<CustomLib>()
+
+        for (uri in uris) {
+            val name = uri.lastPathSegment?.substringAfterLast('/')
+            if (name.isNullOrBlank() || !name.endsWith(".so")) {
+                rejected += "$name: not a .so file"
+                continue
+            }
+            if (!existing.add(name)) {
+                // Two files with the same name would fight over one path in the
+                // APK, and the second would silently win.
+                rejected += "$name: already added"
+                continue
+            }
+
+            val target = File(customLibDir, name)
+            try {
+                app.contentResolver.openInputStream(uri)?.use { input ->
+                    target.outputStream().use { out -> input.copyTo(out) }
+                } ?: run {
+                    rejected += "$name: could not be opened"
+                    continue
+                }
+            } catch (t: Throwable) {
+                target.delete()
+                rejected += "$name: ${t.message ?: "copy failed"}"
+                continue
+            }
+
+            when (val verdict = com.pickle.patcher.lib.validateElf(target, abi)) {
+                is com.pickle.patcher.lib.ElfVerdict.Rejected -> {
+                    target.delete()
+                    existing.remove(name)
+                    rejected += "$name: ${verdict.reason}"
+                }
+                is com.pickle.patcher.lib.ElfVerdict.Ok -> {
+                    val machine = com.pickle.patcher.lib.readElfInfo(target)?.machineName ?: "?"
+                    added += CustomLib(
+                        name = name,
+                        file = target,
+                        machineName = machine,
+                        shadows = shadowedBy("lib/$abi/$name"),
+                    )
+                }
+            }
+        }
+
+        if (added.isNotEmpty()) _customLibs.value = _customLibs.value + added
+        if (rejected.isNotEmpty()) {
+            _customLibProblem.value = if (added.isEmpty()) {
+                "Nothing was added:\n" + rejected.joinToString("\n")
+            } else {
+                "Added ${added.size}, refused ${rejected.size}:\n" + rejected.joinToString("\n")
+            }
+        }
+    }
+
+    private val _customLibProblem = MutableStateFlow<String?>(null)
+    val customLibProblem: StateFlow<String?> = _customLibProblem.asStateFlow()
+
+    fun dismissCustomLibProblem() {
+        _customLibProblem.value = null
+    }
+
+    /**
+     * Drops the file and its copy on disk. Kept next to the checkbox in the
+     * patch dialog on purpose: deciding a library is not wanted should not
+     * cost a trip back to the patch screen.
+     */
+    fun removeCustomLib(name: String) {
+        _customLibs.value = _customLibs.value.filterNot {
+            if (it.name == name) {
+                it.file.delete()
+                true
+            } else {
+                false
+            }
+        }
+    }
+
+    /**
+     * Custom libraries as bundle entries, replacing any bundle entry that
+     * targets the same path.
+     *
+     * Replacing rather than appending matters: the repacker removes source
+     * entries that shadow a bundle target and then adds the bundle's, so two
+     * entries with one path would write the archive entry twice.
+     */
+    fun customLibEntries(bundle: Bundle, selected: Set<String>): List<Pair<String, File>> =
+        _customLibs.value
+            .filter { it.name in selected }
+            .map { "lib/${_abi.value}/${it.name}" to it.file }
+
+    private fun labelForComponent(key: String): String = when (key) {
+        "amxx" -> "AMX Mod X core"
+        "metamod" -> "Metamod HL1"
+        "yapb" -> "YaPB bot plugin"
+        "client" -> "CS16Client client DLL"
+        "menu" -> "CS16Client main menu"
+        "game" -> "ReGameDLL game DLL"
+        "modules" -> "AMXX modules"
+        else -> "Bundle files"
+    }
+
+    /** Rejects custom libraries that no longer match the target ABI. */
+    fun staleCustomLibs(): List<CustomLib> {
+        val abi = _abi.value
+        return _customLibs.value.filter {
+            val verdict = com.pickle.patcher.lib.validateElf(it.file, abi)
+            verdict !is com.pickle.patcher.lib.ElfVerdict.Ok
+        }
+    }
+
     /** Categorizes a bundle target path into a selectable component key. */
     private fun componentKeyFor(target: String): String {
         val name = target.substringAfterLast("/")
@@ -1089,19 +1245,9 @@ private fun externalRoot(app: Application): File {
         return b.manifest.entries
             .groupBy { componentKeyFor(it.target) }
             .mapNotNull { (key, entries) ->
-                val label = when (key) {
-                    "amxx" -> "AMX Mod X core"
-                    "metamod" -> "Metamod HL1"
-                    "yapb" -> "YaPB bot plugin"
-                    "client" -> "CS16Client client DLL"
-                    "menu" -> "CS16Client main menu"
-                    "game" -> "ReGameDLL game DLL"
-                    "modules" -> "AMXX modules"
-                    else -> "Bundle files"
-                }
                 PatchComponent(
                     key = key,
-                    label = label,
+                    label = labelForComponent(key),
                     description = entries.joinToString(", ") {
                         it.target.substringAfterLast("/")
                     },
@@ -1506,7 +1652,36 @@ private fun externalRoot(app: Application): File {
             val kept = b.manifest.entries.filter { componentKeyFor(it.target) in selectedComponentKeys }
             b.withEntries(kept)
         }
-        if (effectiveBundle.manifest.entries.isEmpty()) {
+
+        // A custom library whose target matches a bundle entry replaces it, so
+        // the user's own build is what lands in the APK. Re-checked here
+        // because the ABI can have changed since the file was picked.
+        val customs = customLibEntries(b, selectedComponentKeys ?: emptySet())
+        val finalBundle = if (customs.isEmpty()) {
+            effectiveBundle
+        } else {
+            val customTargets = customs.map { it.first }.toSet()
+            val keptEntries = effectiveBundle.manifest.entries.filterNot { it.target in customTargets }
+            val addedEntries = customs.map { (target, file) ->
+                com.pickle.patcher.lib.BundleManifest.BundleEntry(
+                    // Synthetic source: the bytes come from diskFiles, keyed the
+                    // same way, so nothing is read into memory.
+                    source = "custom/${file.name}",
+                    target = target,
+                    method = com.pickle.patcher.lib.BundleManifest.Compression.STORED,
+                    required = true,
+                    description = "User library",
+                )
+            }
+            val extraDisk = customs.associate { (target, file) -> "custom/${file.name}" to file }
+            com.pickle.patcher.lib.Bundle(
+                manifest = effectiveBundle.manifest.copy(entries = keptEntries + addedEntries),
+                files = effectiveBundle.files,
+                diskFiles = effectiveBundle.diskFiles + extraDisk,
+            )
+        }
+
+        if (finalBundle.manifest.entries.isEmpty()) {
             _patch.value = PatchUiState.Failed("No patch components selected.")
             return
         }
@@ -1554,7 +1729,7 @@ private fun externalRoot(app: Application): File {
                 applyGamedataAbiPolicy(gameDir, selAbi)
                 val report = ApkPatcher.patch(
                     ApkPatcher.PatchRequest(
-                        src, out, effectiveBundle, keystore,
+                        src, out, finalBundle, keystore,
                         keepAbi = selAbi,
                         assetsZip = assetsZip,
                     ),
