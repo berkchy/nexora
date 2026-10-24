@@ -18,7 +18,7 @@ import java.util.concurrent.TimeUnit
  * returns a Result so the UI can show the error without guessing which
  * failure mode hit.
  */
-class StoreApi(private val baseUrl: String) {
+class StoreApi(private val baseUrl: String, private val context: android.content.Context? = null) {
     private val client = OkHttpClient.Builder()
         .connectTimeout(30, TimeUnit.SECONDS)
         .readTimeout(60, TimeUnit.SECONDS)
@@ -26,7 +26,7 @@ class StoreApi(private val baseUrl: String) {
 
     private val json = "application/json; charset=utf-8".toMediaType()
 
-    var token: String? = null
+    var token: String? = context?.let { com.pickle.patcher.data.StoreSession.token(it) }
 
     // ---- auth ----
 

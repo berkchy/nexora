@@ -291,19 +291,19 @@ fun PatcherApp(vm: PatcherViewModel) {
             }
             composable(Dest.Addons.route) { AddonsScreen(vm) }
             composable(Dest.Store.route) {
-                val api = StoreApi("https://nexora-store-tawny.vercel.app")
+                val api = StoreApi("https://nexora-store-tawny.vercel.app", context)
                 StoreScreen(api, onBack = { nav.popBackStack() })
             }
             composable(Dest.StoreLogin.route) {
-                val api = StoreApi("https://nexora-store-tawny.vercel.app")
+                val api = StoreApi("https://nexora-store-tawny.vercel.app", context)
                 StoreLoginScreen(api, onBack = { nav.popBackStack() }, onLoginSuccess = { nav.popBackStack() }, onRegister = { nav.navigate(Dest.StoreRegister.route) })
             }
             composable(Dest.StoreRegister.route) {
-                val api = StoreApi("https://nexora-store-tawny.vercel.app")
+                val api = StoreApi("https://nexora-store-tawny.vercel.app", context)
                 StoreRegisterScreen(api, onBack = { nav.popBackStack() }, onRegisterSuccess = { nav.popBackStack() })
             }
             composable(Dest.StoreUpload.route) {
-                val api = StoreApi("https://nexora-store-tawny.vercel.app")
+                val api = StoreApi("https://nexora-store-tawny.vercel.app", context)
                 StoreUploadScreen(api, onBack = { nav.popBackStack() }, onUploadSuccess = { nav.popBackStack() })
             }
             composable(Dest.Settings.route) { SettingsScreen(vm) }

@@ -5,6 +5,7 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import com.pickle.patcher.data.StoreApi
@@ -20,6 +21,7 @@ fun StoreRegisterScreen(
     onRegisterSuccess: () -> Unit,
 ) {
     val scope = rememberCoroutineScope()
+    val context = LocalContext.current
     var email by remember { mutableStateOf("") }
     var username by remember { mutableStateOf("") }
     var password by remember { mutableStateOf("") }
@@ -48,7 +50,10 @@ fun StoreRegisterScreen(
                 scope.launch {
                     api.register(email, password, username).fold(
                         onSuccess = { json ->
-                            api.token = json.optString("token")
+                            val t = json.optString("token")
+                            api.token = t
+                            val uname = json.optString("username")
+                            com.pickle.patcher.data.StoreSession.save(context, t, uname)
                             loading = false
                             onRegisterSuccess()
                         },
