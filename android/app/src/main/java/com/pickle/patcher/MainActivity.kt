@@ -122,7 +122,7 @@ class MainActivity : ComponentActivity() {
                     if (vm.shouldReplayIntro(bundleVersion)) introKey++
                 }
                 Box(Modifier.fillMaxSize()) {
-                    PatcherApp(vm)
+                    PatcherApp(vm, drawerWidthController)
                     IntroOverlay(playKey = introKey)
                 }
             }
