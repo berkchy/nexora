@@ -299,6 +299,8 @@ class PatcherViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     private val _libs = MutableStateFlow<List<LibInfo>>(emptyList())
+    private val _customLibs = MutableStateFlow<List<CustomLib>>(emptyList())
+    val customLibs: StateFlow<List<CustomLib>> = _customLibs.asStateFlow()
     val libs: StateFlow<List<LibInfo>> = _libs.asStateFlow()
 
     /** True while a manual remote lib-status check is in flight. */
@@ -1088,8 +1090,6 @@ private fun externalRoot(app: Application): File {
     private fun customLibDir(): File =
         File(getApplication<Application>().filesDir, "custom-libs").apply { mkdirs() }
 
-    private val _customLibs = MutableStateFlow<List<CustomLib>>(emptyList())
-    val customLibs: StateFlow<List<CustomLib>> = _customLibs.asStateFlow()
 
     /** The component a custom lib would shadow, for the badge in the dialog. */
     private fun shadowedBy(target: String): String? {
