@@ -82,7 +82,7 @@ class StoreApi(private val baseUrl: String) {
         val body = builder.build()
         val req = Request.Builder()
             .url("$baseUrl/api/items")
-            .header("Authorization", "Bearer ${token ?: this.token}")
+            .header("Authorization", "Bearer ${token ?: this@StoreApi.token}")
             .post(body)
             .build()
         return execute(req)
@@ -105,7 +105,7 @@ class StoreApi(private val baseUrl: String) {
 
     private suspend fun get(path: String, token: String?): Result<JSONObject> = withContext(Dispatchers.IO) {
         val b = Request.Builder().url("$baseUrl$path")
-        val t = token ?: this.token
+        val t = token ?: this@StoreApi.token
         if (t != null) b.header("Authorization", "Bearer $t")
         execute(b.get().build())
     }
@@ -120,14 +120,14 @@ class StoreApi(private val baseUrl: String) {
     private suspend fun patch(path: String, body: String, token: String?): Result<JSONObject> = withContext(Dispatchers.IO) {
         val b = Request.Builder().url("$baseUrl$path")
             .patch(body.toRequestBody(json))
-        val t = token ?: this.token
+        val t = token ?: this@StoreApi.token
         if (t != null) b.header("Authorization", "Bearer $t")
         execute(b.build())
     }
 
     private suspend fun delete(path: String, token: String?): Result<JSONObject> = withContext(Dispatchers.IO) {
         val b = Request.Builder().url("$baseUrl$path").delete()
-        val t = token ?: this.token
+        val t = token ?: this@StoreApi.token
         if (t != null) b.header("Authorization", "Bearer $t")
         execute(b.build())
     }
@@ -137,7 +137,8 @@ class StoreApi(private val baseUrl: String) {
             .addFormDataPart(field, file.name, file.asRequestBody())
             .build()
         val b = Request.Builder().url("$baseUrl$path").post(body)
-        if (token != null) b.header("Authorization", "Bearer $token")
+        val t = token ?: this@StoreApi.token
+        if (t != null) b.header("Authorization", "Bearer $t")
         execute(b.build())
     }
 
