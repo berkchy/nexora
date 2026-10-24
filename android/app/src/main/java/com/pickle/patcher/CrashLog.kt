@@ -4,8 +4,6 @@ import android.app.AlertDialog
 import android.content.Context
 import android.os.Build
 import android.os.Environment
-import android.os.Handler
-import android.os.Looper
 import android.provider.MediaStore
 import android.util.Log
 import java.io.File
@@ -42,33 +40,26 @@ object CrashLog {
     private fun showCrashDialog(context: Context, throwable: Throwable) {
         val sw = StringWriter()
         throwable.printStackTrace(PrintWriter(sw))
-        val preview = sw.toString().lines().take(20).joinToString("\n")
+        val preview = sw.toString().lines().take(15).joinToString("\n")
 
-        Handler(Looper.getMainLooper()).post {
-            try {
-                AlertDialog.Builder(context)
-                    .setTitle("Nexora crashed")
-                    .setMessage("The app hit an unexpected error and needs to close.\n\n$preview")
-                    .setCancelable(false)
-                    .setPositiveButton("Close") { _, _ ->
-                        android.os.Process.killProcess(android.os.Process.myPid())
-                        System.exit(1)
-                    }
-                    .show()
-            } catch (_: Throwable) {
-                android.os.Process.killProcess(android.os.Process.myPid())
-                System.exit(1)
-            }
-        }
-        // Give the dialog a moment to appear before the process is reaped by
-        // the system. Without this the kill above never runs because the
-        // handler returns and the default handler takes over.
+        // We are already on the main thread (the crash happened there), so show
+        // the dialog synchronously. No Handler.post, no sleep - both of those
+        // were preventing the dialog from ever appearing.
         try {
-            Thread.sleep(30_000)
-        } catch (_: InterruptedException) {
+            AlertDialog.Builder(context)
+                .setTitle("Nexora crashed")
+                .setMessage("The app hit an unexpected error and needs to close.\n\n$preview")
+                .setCancelable(false)
+                .setPositiveButton("Close") { _, _ ->
+                    android.os.Process.killProcess(android.os.Process.myPid())
+                    System.exit(1)
+                }
+                .show()
+        } catch (_: Throwable) {
+            // Dialog could not be shown (window manager dead, etc.). Exit.
+            android.os.Process.killProcess(android.os.Process.myPid())
+            System.exit(1)
         }
-        android.os.Process.killProcess(android.os.Process.myPid())
-        System.exit(1)
     }
 
     /** All locations where a crash file may have been written, most recent first. */
