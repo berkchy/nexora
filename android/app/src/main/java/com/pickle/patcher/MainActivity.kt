@@ -490,18 +490,30 @@ private fun NavDrawer(
                 DrawerItem("Addons", Icons.Filled.Extension, currentRoute == Dest.Addons.route) {
                     closeThen { navToTab(nav, Dest.Addons.route, currentRoute) }
                 }
+
+                HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
+
                 DrawerItem("Store", Icons.Filled.ShoppingCart, currentRoute == Dest.Store.route) {
                     closeThen { navToTab(nav, Dest.Store.route, currentRoute) }
                 }
-                DrawerItem("Store Login", Icons.Filled.Login, currentRoute == Dest.StoreLogin.route) {
-                    closeThen { nav.navigate(Dest.StoreLogin.route) }
+                // Only show account actions when there is a session. Upload and
+                // Manage are useless (and confusing) to an anonymous user.
+                val loggedIn = com.pickle.patcher.data.StoreSession.token(context) != null
+                if (!loggedIn) {
+                    DrawerItem("Store Login", Icons.Filled.Login, currentRoute == Dest.StoreLogin.route) {
+                        closeThen { nav.navigate(Dest.StoreLogin.route) }
+                    }
+                } else {
+                    DrawerItem("Store Upload", Icons.Filled.Upload, currentRoute == Dest.StoreUpload.route) {
+                        closeThen { nav.navigate(Dest.StoreUpload.route) }
+                    }
+                    DrawerItem("Store Manage", Icons.Filled.Edit, currentRoute == Dest.StoreManage.route) {
+                        closeThen { nav.navigate(Dest.StoreManage.route) }
+                    }
                 }
-                DrawerItem("Store Upload", Icons.Filled.Upload, currentRoute == Dest.StoreUpload.route) {
-                    closeThen { nav.navigate(Dest.StoreUpload.route) }
-                }
-                DrawerItem("Store Manage", Icons.Filled.Edit, currentRoute == Dest.StoreManage.route) {
-                    closeThen { nav.navigate(Dest.StoreManage.route) }
-                }
+
+                HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
+
                 DrawerItem("Settings", Icons.Filled.Tune, currentRoute == Dest.Settings.route) {
                     closeThen { navToTab(nav, Dest.Settings.route, currentRoute) }
                 }
