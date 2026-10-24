@@ -25,6 +25,7 @@ import androidx.compose.material.icons.filled.Extension
 import androidx.compose.material.icons.filled.ShoppingCart
 import androidx.compose.material.icons.filled.Login
 import androidx.compose.material.icons.filled.Upload
+import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.History
 import androidx.compose.material.icons.filled.RocketLaunch
 import androidx.compose.foundation.layout.Column
@@ -86,6 +87,7 @@ import com.pickle.patcher.ui.screens.StoreLoginScreen
 import com.pickle.patcher.ui.screens.StoreRegisterScreen
 import com.pickle.patcher.ui.screens.StoreUploadScreen
 import com.pickle.patcher.ui.screens.StoreProfileScreen
+import com.pickle.patcher.ui.screens.StoreManageScreen
 import com.pickle.patcher.data.StoreApi
 import com.pickle.patcher.ui.screens.toDisplayVersion
 import com.pickle.patcher.ui.theme.NexoraTheme
@@ -135,6 +137,7 @@ private enum class Dest(val route: String) {
     StoreRegister("store/register"),
     StoreUpload("store/upload"),
     StoreProfile("store/profile"),
+    StoreManage("store/manage"),
     // Settings and Plugins sit in the drawer next to the three tasks and are
     // peers of them, so they navigate as tabs too. As plain destinations they
     // stacked on the back stack and the app bar grew a back arrow, which made
@@ -305,6 +308,10 @@ fun PatcherApp(vm: PatcherViewModel) {
             composable(Dest.StoreUpload.route) {
                 val api = StoreApi("https://nexora-store-tawny.vercel.app", context)
                 StoreUploadScreen(api, onBack = { nav.popBackStack() }, onUploadSuccess = { nav.popBackStack() })
+            }
+            composable(Dest.StoreManage.route) {
+                val api = StoreApi("https://nexora-store-tawny.vercel.app", context)
+                StoreManageScreen(api, onBack = { nav.popBackStack() })
             }
             composable(Dest.Settings.route) { SettingsScreen(vm) }
             composable(Dest.Plugins.route) { PluginsScreen(vm) }
@@ -491,6 +498,9 @@ private fun NavDrawer(
                 }
                 DrawerItem("Store Upload", Icons.Filled.Upload, currentRoute == Dest.StoreUpload.route) {
                     closeThen { nav.navigate(Dest.StoreUpload.route) }
+                }
+                DrawerItem("Store Manage", Icons.Filled.Edit, currentRoute == Dest.StoreManage.route) {
+                    closeThen { nav.navigate(Dest.StoreManage.route) }
                 }
                 DrawerItem("Settings", Icons.Filled.Tune, currentRoute == Dest.Settings.route) {
                     closeThen { navToTab(nav, Dest.Settings.route, currentRoute) }
