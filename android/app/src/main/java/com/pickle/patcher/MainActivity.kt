@@ -475,11 +475,13 @@ private fun NavDrawer(
 
     androidx.compose.material3.ModalNavigationDrawer(
         drawerState = drawerState,
-        // The edge strip below is the gesture: Material's own reacts to a drag
-        // anywhere on screen, which would hijack every list swipe.
-        gesturesEnabled = false,
+        gesturesEnabled = true,
         drawerContent = {
-            androidx.compose.material3.ModalDrawerSheet {
+            androidx.compose.material3.ModalDrawerSheet(
+                modifier = androidx.compose.ui.Modifier
+                    .fillMaxWidth(0.4f)
+                    .verticalScroll(androidx.compose.foundation.rememberScrollState()),
+            ) {
                 DrawerHeader()
                 DrawerItem("Patch", Icons.Filled.RocketLaunch, currentRoute == Dest.Patch.route) {
                     closeThen { navToTab(nav, Dest.Patch.route, currentRoute) }

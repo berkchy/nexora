@@ -2,7 +2,6 @@ package com.pickle.patcher.ui
 
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.FastOutSlowInEasing
-import androidx.compose.animation.core.LinearOutSlowInEasing
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
@@ -17,6 +16,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.PointerEventPass
@@ -24,53 +24,46 @@ import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.unit.dp
 import com.pickle.patcher.R
-import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 
-// Black screen, the mark, and nothing else. Fade in, hold, fade out.
-private const val FADE_IN_MS = 520
-private const val HOLD_MS = 900L
-private const val FADE_OUT_MS = 520
-
-private val LOGO_SIZE = 132.dp
-
-private val Backdrop = Color(0xFF000000)
+private const val PHASE1_MS = 2000
+private const val PHASE2_MS = 800
+private const val HOLD_MS = 300
+private const val FADE_OUT_MS = 600
+private const val LOGO_SIZE = 132
 
 @Composable
 fun IntroOverlay(playKey: Long = 0L) {
     var visible by remember { mutableStateOf(false) }
-    val timeline = remember { Animatable(0f) }
+    val phase1 = remember { Animatable(0f) }   // 0..1 vignette slides left away
+    val phase2 = remember { Animatable(0f) }   // 0..1 vignette from right covers
+    val logoScale = remember { Animatable(0.8f) }
+    val fadeOut = remember { Animatable(1f) }
 
     LaunchedEffect(playKey) {
         visible = true
-        timeline.snapTo(0f)
-        timeline.animateTo(1f, tween(FADE_IN_MS, easing = LinearOutSlowInEasing))
-        delay(HOLD_MS)
-        timeline.animateTo(2f, tween(FADE_OUT_MS, easing = FastOutSlowInEasing))
+        phase1.snapTo(0f); phase2.snapTo(0f); logoScale.snapTo(0.8f); fadeOut.snapTo(1f)
+        launch { logoScale.animateTo(1f, tween(PHASE1_MS, easing = FastOutSlowInEasing)) }
+        phase1.animateTo(1f, tween(PHASE1_MS, easing = FastOutSlowInEasing))
+        kotlinx.coroutines.delay(200)
+        phase2.animateTo(1f, tween(PHASE2_MS, easing = FastOutSlowInEasing))
+        kotlinx.coroutines.delay(HOLD_MS.toLong())
+        fadeOut.animateTo(0f, tween(FADE_OUT_MS, easing = FastOutSlowInEasing))
         visible = false
     }
 
     if (!visible) return
 
-    // 0..1 fades in, 1..2 fades back out.
-    val t = timeline.value
-    val alpha = if (t <= 1f) t else (2f - t).coerceIn(0f, 1f)
-
     Box(
         modifier = Modifier
             .fillMaxSize()
-            .background(Backdrop)
-            .graphicsLayer { this.alpha = alpha }
-            // Swallow taps: an intro you can skip by brushing the screen goes
-            // off before the app has finished starting, which reads as a
-            // glitch. It plays for its full hold and leaves on its own.
+            .background(Color.Black)
+            .graphicsLayer { this.alpha = fadeOut.value }
             .pointerInput(Unit) {
                 awaitPointerEventScope {
                     while (true) {
-                        // Consume on the Initial pass so the tap never reaches
-                        // the app underneath, before anything else sees it.
                         awaitPointerEvent(PointerEventPass.Initial)
-                            .changes
-                            .forEach { it.consume() }
+                            .changes.forEach { it.consume() }
                     }
                 }
             },
@@ -79,7 +72,47 @@ fun IntroOverlay(playKey: Long = 0L) {
         Image(
             painter = painterResource(R.mipmap.ic_launcher),
             contentDescription = null,
-            modifier = Modifier.size(LOGO_SIZE),
+            modifier = Modifier
+                .size(LOGO_SIZE.dp)
+                .graphicsLayer {
+                    scaleX = logoScale.value
+                    scaleY = logoScale.value
+                },
+        )
+
+        // Initial vignette covering the logo: slides left, away from it.
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .graphicsLayer {
+                    translationX = -size.width * phase1.value
+                    alpha = (1f - phase1.value).coerceIn(0f, 1f)
+                }
+                .background(
+                    Brush.radialGradient(
+                        colors = listOf(Color.Black, Color.Black.copy(alpha = 0.6f), Color.Transparent),
+                        radius = 600f,
+                    ),
+                ),
+        )
+
+        // Vignette from the right that sweeps in to cover the logo.
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .graphicsLayer {
+                    translationX = size.width * (1f - phase2.value)
+                    alpha = phase2.value.coerceIn(0f, 1f)
+                }
+                .background(
+                    Brush.horizontalGradient(
+                        colors = listOf(Color.Transparent, Color.Black.copy(alpha = 0.4f), Color.Black),
+                        startX = 0f,
+                        endX = Float.POSITIVE_INFINITY,
+                    ),
+                ),
         )
     }
 }
+EOF
+echo done
