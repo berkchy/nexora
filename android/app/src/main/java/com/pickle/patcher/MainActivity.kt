@@ -23,6 +23,8 @@ import androidx.compose.foundation.gestures.rememberDraggableState
 import androidx.compose.material.icons.filled.Code
 import androidx.compose.material.icons.filled.Extension
 import androidx.compose.material.icons.filled.ShoppingCart
+import androidx.compose.material.icons.filled.Login
+import androidx.compose.material.icons.filled.Upload
 import androidx.compose.material.icons.filled.History
 import androidx.compose.material.icons.filled.RocketLaunch
 import androidx.compose.foundation.layout.Column
@@ -80,6 +82,10 @@ import com.pickle.patcher.ui.screens.PatchScreen
 import com.pickle.patcher.ui.IntroOverlay
 import com.pickle.patcher.ui.screens.SettingsScreen
 import com.pickle.patcher.ui.screens.StoreScreen
+import com.pickle.patcher.ui.screens.StoreLoginScreen
+import com.pickle.patcher.ui.screens.StoreRegisterScreen
+import com.pickle.patcher.ui.screens.StoreUploadScreen
+import com.pickle.patcher.ui.screens.StoreProfileScreen
 import com.pickle.patcher.data.StoreApi
 import com.pickle.patcher.ui.screens.toDisplayVersion
 import com.pickle.patcher.ui.theme.NexoraTheme
@@ -125,6 +131,10 @@ private enum class Dest(val route: String) {
     Compiler("compiler"),
     Addons("addons"),
     Store("store"),
+    StoreLogin("store/login"),
+    StoreRegister("store/register"),
+    StoreUpload("store/upload"),
+    StoreProfile("store/profile"),
     // Settings and Plugins sit in the drawer next to the three tasks and are
     // peers of them, so they navigate as tabs too. As plain destinations they
     // stacked on the back stack and the app bar grew a back arrow, which made
@@ -280,7 +290,22 @@ fun PatcherApp(vm: PatcherViewModel) {
                 CompilerScreen(vm, onOpenSettings = { navToTab(nav, Dest.Settings.route, currentRoute) })
             }
             composable(Dest.Addons.route) { AddonsScreen(vm) }
-            composable(Dest.Store.route) { StoreScreen(StoreApi("https://nexora-store-tawny.vercel.app"), onBack = { nav.popBackStack() }) }
+            composable(Dest.Store.route) {
+                val api = StoreApi("https://nexora-store-tawny.vercel.app")
+                StoreScreen(api, onBack = { nav.popBackStack() })
+            }
+            composable(Dest.StoreLogin.route) {
+                val api = StoreApi("https://nexora-store-tawny.vercel.app")
+                StoreLoginScreen(api, onBack = { nav.popBackStack() }, onLoginSuccess = { nav.popBackStack() }, onRegister = { nav.navigate(Dest.StoreRegister.route) })
+            }
+            composable(Dest.StoreRegister.route) {
+                val api = StoreApi("https://nexora-store-tawny.vercel.app")
+                StoreRegisterScreen(api, onBack = { nav.popBackStack() }, onRegisterSuccess = { nav.popBackStack() })
+            }
+            composable(Dest.StoreUpload.route) {
+                val api = StoreApi("https://nexora-store-tawny.vercel.app")
+                StoreUploadScreen(api, onBack = { nav.popBackStack() }, onUploadSuccess = { nav.popBackStack() })
+            }
             composable(Dest.Settings.route) { SettingsScreen(vm) }
             composable(Dest.Plugins.route) { PluginsScreen(vm) }
             }
@@ -460,6 +485,12 @@ private fun NavDrawer(
                 }
                 DrawerItem("Store", Icons.Filled.ShoppingCart, currentRoute == Dest.Store.route) {
                     closeThen { navToTab(nav, Dest.Store.route, currentRoute) }
+                }
+                DrawerItem("Store Login", Icons.Filled.Login, currentRoute == Dest.StoreLogin.route) {
+                    closeThen { nav.navigate(Dest.StoreLogin.route) }
+                }
+                DrawerItem("Store Upload", Icons.Filled.Upload, currentRoute == Dest.StoreUpload.route) {
+                    closeThen { nav.navigate(Dest.StoreUpload.route) }
                 }
                 DrawerItem("Settings", Icons.Filled.Tune, currentRoute == Dest.Settings.route) {
                     closeThen { navToTab(nav, Dest.Settings.route, currentRoute) }
