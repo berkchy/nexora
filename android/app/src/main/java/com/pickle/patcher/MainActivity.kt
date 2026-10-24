@@ -280,7 +280,7 @@ fun PatcherApp(vm: PatcherViewModel) {
                 CompilerScreen(vm, onOpenSettings = { navToTab(nav, Dest.Settings.route, currentRoute) })
             }
             composable(Dest.Addons.route) { AddonsScreen(vm) }
-            composable(Dest.Store.route) { StoreScreen(StoreApi("https://nexora-store.vercel.app"), onBack = { nav.popBackStack() }) }
+            composable(Dest.Store.route) { StoreScreen(StoreApi("https://nexora-store-tawny.vercel.app"), onBack = { nav.popBackStack() }) }
             composable(Dest.Settings.route) { SettingsScreen(vm) }
             composable(Dest.Plugins.route) { PluginsScreen(vm) }
             }
