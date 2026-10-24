@@ -421,6 +421,7 @@ private fun externalRoot(app: Application): File {
         // "Update check" explicitly.
         scanLibs()
         useCachedBundle()
+        scanCustomLibs()
     }
 
     private val _compile = MutableStateFlow<CompileState>(CompileState.Idle)
@@ -1188,6 +1189,30 @@ private fun externalRoot(app: Application): File {
                 false
             }
         }
+    }
+
+    /**
+     * Reads the custom-libs directory back into state. Files are validated
+     * again on the way in, because the user may have changed the ABI since
+     * they were added and a stale one must not be injected silently.
+     */
+    private fun scanCustomLibs() {
+        val abi = _abi.value
+        val dir = customLibDir
+        if (!dir.isDirectory) return
+        val libs = dir.listFiles { f -> f.isFile && f.name.endsWith(".so") } ?: return
+        val loaded = libs.mapNotNull { file ->
+            when (val verdict = com.pickle.patcher.lib.validateElf(file, abi)) {
+                is com.pickle.patcher.lib.ElfVerdict.Ok -> CustomLib(
+                    name = file.name,
+                    file = file,
+                    machineName = com.pickle.patcher.lib.readElfInfo(file)?.machineName ?: "?",
+                    shadows = shadowedBy("lib/$abi/${file.name}"),
+                )
+                else -> null
+            }
+        }
+        _customLibs.value = loaded
     }
 
     /**
