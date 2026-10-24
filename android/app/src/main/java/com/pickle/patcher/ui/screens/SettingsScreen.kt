@@ -31,6 +31,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import com.pickle.patcher.patcher.PatcherViewModel
+import com.pickle.patcher.ui.DrawerWidthController
 import com.pickle.patcher.ui.theme.Accent
 import com.pickle.patcher.ui.theme.AlertRed
 import com.pickle.patcher.ui.theme.Gray40
@@ -44,9 +45,10 @@ import com.pickle.patcher.ui.theme.Gray40
  * first thing on the screen was configuration.
  */
 @Composable
-fun SettingsScreen(vm: PatcherViewModel) {
+fun SettingsScreen(vm: PatcherViewModel, drawerWidthController: DrawerWidthController) {
     val context = LocalContext.current
     val workers by vm.compileWorkers.collectAsState()
+    val drawerWidth by drawerWidthController.fraction.collectAsState()
     val maxWorkers = vm.maxCompileWorkers()
     val scriptRoot by vm.scriptRoot.collectAsState()
     val outputRoot by vm.outputRoot.collectAsState()
@@ -167,6 +169,35 @@ fun SettingsScreen(vm: PatcherViewModel) {
                     }
                 }
             }
+        }
+
+        Spacer(Modifier.height(16.dp))
+
+        SectionHeader("DRAWER")
+        AppCard {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = androidx.compose.foundation.layout.Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Text(
+                    "Drawer width",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurface,
+                )
+                Text("${(drawerWidth * 100).toInt()}%", style = MaterialTheme.typography.titleMedium, color = Accent)
+            }
+            Spacer(Modifier.height(2.dp))
+            Text(
+                "Width of the side menu as a percentage of the screen. Increase if the menu feels too narrow.",
+                style = MaterialTheme.typography.bodySmall,
+                color = Gray40,
+            )
+            Slider(
+                value = drawerWidth,
+                onValueChange = { drawerWidthController.setFraction(it) },
+                valueRange = 0.3f..0.85f,
+            )
         }
 
         Spacer(Modifier.height(24.dp))

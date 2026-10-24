@@ -81,6 +81,7 @@ import com.pickle.patcher.ui.screens.PluginsScreen
 import com.pickle.patcher.ui.screens.CrashLogScreen
 import com.pickle.patcher.ui.screens.PatchScreen
 import com.pickle.patcher.ui.IntroOverlay
+import com.pickle.patcher.ui.DrawerWidthController
 import com.pickle.patcher.ui.screens.SettingsScreen
 import com.pickle.patcher.ui.screens.StoreScreen
 import com.pickle.patcher.ui.screens.StoreLoginScreen
@@ -110,6 +111,7 @@ class MainActivity : ComponentActivity() {
             val themeChoice by themeController.choice.collectAsState()
             NexoraTheme(themeChoice, themeController) {
                 val vm: PatcherViewModel = viewModel()
+                val drawerWidthController: DrawerWidthController = viewModel()
                 LaunchedEffect(Unit) {
                     vm.autoInstallAddons()
                     vm.scanAddonsStatus()
@@ -148,10 +150,11 @@ private enum class Dest(val route: String) {
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun PatcherApp(vm: PatcherViewModel) {
+fun PatcherApp(vm: PatcherViewModel, drawerWidthController: DrawerWidthController) {
     val nav = rememberNavController()
     val entry by nav.currentBackStackEntryAsState()
     val currentRoute = entry?.destination?.route
+    val drawerWidthFraction by drawerWidthController.fraction.collectAsState()
     val context = androidx.compose.ui.platform.LocalContext.current
     val scope = androidx.compose.runtime.rememberCoroutineScope()
     var showAbout by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf(false) }
@@ -191,6 +194,7 @@ fun PatcherApp(vm: PatcherViewModel) {
         nav = nav,
         drawerState = drawerState,
         currentRoute = currentRoute,
+        drawerWidthFraction = drawerWidthFraction,
         onShareLogs = {
             scope.launch(kotlinx.coroutines.Dispatchers.IO) {
                 val text = vm.buildLogShareText()
@@ -313,7 +317,7 @@ fun PatcherApp(vm: PatcherViewModel) {
                 val api = StoreApi("https://nexora-store-jzh549tke-code-hammer02.vercel.app", context)
                 StoreManageScreen(api, onBack = { nav.popBackStack() })
             }
-            composable(Dest.Settings.route) { SettingsScreen(vm) }
+            composable(Dest.Settings.route) { SettingsScreen(vm, drawerWidthController) }
             composable(Dest.Plugins.route) { PluginsScreen(vm) }
             }
         }
@@ -454,6 +458,7 @@ private fun NavDrawer(
     nav: androidx.navigation.NavHostController,
     drawerState: androidx.compose.material3.DrawerState,
     currentRoute: String?,
+    drawerWidthFraction: Float,
     onShareLogs: () -> Unit,
     onRedownloadBundle: () -> Unit,
     onAbout: () -> Unit,
@@ -479,7 +484,7 @@ private fun NavDrawer(
         drawerContent = {
             androidx.compose.material3.ModalDrawerSheet(
                 modifier = androidx.compose.ui.Modifier
-                    .fillMaxWidth(0.4f)
+                    .fillMaxWidth(drawerWidthFraction)
                     .verticalScroll(androidx.compose.foundation.rememberScrollState()),
             ) {
                 DrawerHeader()
