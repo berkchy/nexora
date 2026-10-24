@@ -19,5 +19,3 @@ class DrawerWidthController(app: Application) : AndroidViewModel(app) {
         prefs.edit().putFloat("width_fraction", c).apply()
     }
 }
-EOF
-echo done
