@@ -1085,9 +1085,8 @@ private fun externalRoot(app: Application): File {
         override fun hashCode(): Int = name.hashCode()
     }
 
-    private val customLibDir by lazy {
+    private fun customLibDir(): File =
         File(getApplication<Application>().filesDir, "custom-libs").apply { mkdirs() }
-    }
 
     private val _customLibs = MutableStateFlow<List<CustomLib>>(emptyList())
     val customLibs: StateFlow<List<CustomLib>> = _customLibs.asStateFlow()
@@ -1126,7 +1125,7 @@ private fun externalRoot(app: Application): File {
                 continue
             }
 
-            val target = File(customLibDir, name)
+            val target = File(customLibDir(), name)
             try {
                 app.contentResolver.openInputStream(uri)?.use { input ->
                     target.outputStream().use { out -> input.copyTo(out) }
@@ -1198,7 +1197,7 @@ private fun externalRoot(app: Application): File {
      */
     private fun scanCustomLibs() {
         val abi = _abi.value
-        val dir = customLibDir
+        val dir = customLibDir()
         if (!dir.isDirectory) return
         val libs = dir.listFiles { f -> f.isFile && f.name.endsWith(".so") } ?: return
         val loaded = libs.mapNotNull { file ->

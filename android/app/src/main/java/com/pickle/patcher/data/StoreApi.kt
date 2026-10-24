@@ -26,6 +26,8 @@ class StoreApi(private val baseUrl: String) {
 
     private val json = "application/json; charset=utf-8".toMediaType()
 
+    var token: String? = null
+
     // ---- auth ----
 
     suspend fun register(email: String, password: String, username: String): Result<JSONObject> =
@@ -40,8 +42,7 @@ class StoreApi(private val baseUrl: String) {
 
     suspend fun logout(): Result<JSONObject> = post("/api/auth/logout", "{}")
 
-    suspend fun me(token: String?): Result<JSONObject> =
-        get("/api/auth/me", token)
+    suspend fun me(): Result<JSONObject> = get("/api/auth/me", null)
 
     suspend fun updateProfile(token: String, displayName: String?, username: String?): Result<JSONObject> =
         patch("/api/auth/profile", JSONObject().apply {
@@ -81,7 +82,7 @@ class StoreApi(private val baseUrl: String) {
         val body = builder.build()
         val req = Request.Builder()
             .url("$baseUrl/api/items")
-            .header("Authorization", "Bearer $token")
+            .header("Authorization", "Bearer ${token ?: this.token}")
             .post(body)
             .build()
         return execute(req)
@@ -104,7 +105,8 @@ class StoreApi(private val baseUrl: String) {
 
     private suspend fun get(path: String, token: String?): Result<JSONObject> = withContext(Dispatchers.IO) {
         val b = Request.Builder().url("$baseUrl$path")
-        if (token != null) b.header("Authorization", "Bearer $token")
+        val t = token ?: this.token
+        if (t != null) b.header("Authorization", "Bearer $t")
         execute(b.get().build())
     }
 
@@ -118,13 +120,15 @@ class StoreApi(private val baseUrl: String) {
     private suspend fun patch(path: String, body: String, token: String?): Result<JSONObject> = withContext(Dispatchers.IO) {
         val b = Request.Builder().url("$baseUrl$path")
             .patch(body.toRequestBody(json))
-        if (token != null) b.header("Authorization", "Bearer $token")
+        val t = token ?: this.token
+        if (t != null) b.header("Authorization", "Bearer $t")
         execute(b.build())
     }
 
     private suspend fun delete(path: String, token: String?): Result<JSONObject> = withContext(Dispatchers.IO) {
         val b = Request.Builder().url("$baseUrl$path").delete()
-        if (token != null) b.header("Authorization", "Bearer $token")
+        val t = token ?: this.token
+        if (t != null) b.header("Authorization", "Bearer $t")
         execute(b.build())
     }
 
