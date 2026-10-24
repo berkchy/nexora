@@ -1,9 +1,11 @@
 package com.pickle.patcher
 
-import android.content.ContentValues
+import android.app.AlertDialog
 import android.content.Context
 import android.os.Build
 import android.os.Environment
+import android.os.Handler
+import android.os.Looper
 import android.provider.MediaStore
 import android.util.Log
 import java.io.File
@@ -18,15 +20,55 @@ object CrashLog {
     private const val FILE_NAME = "nexora-crash.txt"
 
     fun install(context: Context) {
+        val appContext = context.applicationContext
         val prev = Thread.getDefaultUncaughtExceptionHandler()
         Thread.setDefaultUncaughtExceptionHandler { thread, throwable ->
             try {
-                write(context.applicationContext, throwable)
+                write(appContext, throwable)
             } catch (_: Throwable) {
             }
-            prev?.uncaughtException(thread, throwable)
-                ?: throwable.printStackTrace()
+            // Show a dialog instead of silently dying. The previous handler's
+            // job was to terminate the process; we do that ourselves after the
+            // user acknowledges, so the crash file is always flushed first.
+            try {
+                showCrashDialog(appContext, throwable)
+            } catch (_: Throwable) {
+                prev?.uncaughtException(thread, throwable)
+                    ?: throwable.printStackTrace()
+            }
         }
+    }
+
+    private fun showCrashDialog(context: Context, throwable: Throwable) {
+        val sw = StringWriter()
+        throwable.printStackTrace(PrintWriter(sw))
+        val preview = sw.toString().lines().take(20).joinToString("\n")
+
+        Handler(Looper.getMainLooper()).post {
+            try {
+                AlertDialog.Builder(context)
+                    .setTitle("Nexora crashed")
+                    .setMessage("The app hit an unexpected error and needs to close.\n\n$preview")
+                    .setCancelable(false)
+                    .setPositiveButton("Close") { _, _ ->
+                        android.os.Process.killProcess(android.os.Process.myPid())
+                        System.exit(1)
+                    }
+                    .show()
+            } catch (_: Throwable) {
+                android.os.Process.killProcess(android.os.Process.myPid())
+                System.exit(1)
+            }
+        }
+        // Give the dialog a moment to appear before the process is reaped by
+        // the system. Without this the kill above never runs because the
+        // handler returns and the default handler takes over.
+        try {
+            Thread.sleep(30_000)
+        } catch (_: InterruptedException) {
+        }
+        android.os.Process.killProcess(android.os.Process.myPid())
+        System.exit(1)
     }
 
     /** All locations where a crash file may have been written, most recent first. */
@@ -56,7 +98,7 @@ object CrashLog {
         if (Build.VERSION.SDK_INT >= 29) {
             runCatching {
                 val resolver = context.contentResolver
-                val values = ContentValues().apply {
+                val values = android.content.ContentValues().apply {
                     put(MediaStore.MediaColumns.DISPLAY_NAME, FILE_NAME)
                     put(MediaStore.MediaColumns.MIME_TYPE, "text/plain")
                     put(MediaStore.MediaColumns.RELATIVE_PATH, Environment.DIRECTORY_DOWNLOADS)
