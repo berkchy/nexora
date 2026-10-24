@@ -6,6 +6,8 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Login
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import com.pickle.patcher.data.StoreApi
@@ -33,7 +35,11 @@ fun StoreLoginScreen(
         Modifier.fillMaxSize().padding(24.dp),
         verticalArrangement = Arrangement.Center,
     ) {
-        Text("Login", style = MaterialTheme.typography.headlineMedium, color = White)
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Icon(Icons.Filled.Login, contentDescription = null, tint = Accent, modifier = Modifier.size(24.dp))
+            Spacer(Modifier.width(8.dp))
+            Text("Login", style = MaterialTheme.typography.headlineMedium, color = White)
+        }
         Spacer(Modifier.height(24.dp))
 
         OutlinedTextField(
@@ -82,6 +88,5 @@ fun StoreLoginScreen(
         }
         Spacer(Modifier.height(12.dp))
         TextButton(onClick = onRegister) { Text("No account? Register", color = Accent) }
-        TextButton(onClick = onBack) { Text("Back", color = Gray40) }
     }
 }

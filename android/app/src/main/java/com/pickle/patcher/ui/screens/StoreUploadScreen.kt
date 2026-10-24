@@ -17,6 +17,8 @@ import com.pickle.patcher.data.StoreApi
 import com.pickle.patcher.ui.theme.Accent
 import com.pickle.patcher.ui.theme.Gray40
 import com.pickle.patcher.ui.theme.White
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Upload
 import kotlinx.coroutines.launch
 import org.json.JSONObject
 import java.io.File
@@ -59,11 +61,9 @@ fun StoreUploadScreen(
         Modifier.fillMaxSize().padding(16.dp).verticalScroll(rememberScrollState()),
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
-            TextButton(onClick = onBack) { Text("← Back", color = Accent) }
-            Spacer(Modifier.weight(1f))
-            Text("Upload Lib", style = MaterialTheme.typography.titleMedium, color = White)
-            Spacer(Modifier.weight(1f))
-            Spacer(Modifier.width(60.dp))
+            Icon(Icons.Filled.Upload, contentDescription = null, tint = Accent, modifier = Modifier.size(24.dp))
+            Spacer(Modifier.width(8.dp))
+            Text("Upload Lib", style = MaterialTheme.typography.titleLarge, color = White)
         }
         Spacer(Modifier.height(16.dp))
 

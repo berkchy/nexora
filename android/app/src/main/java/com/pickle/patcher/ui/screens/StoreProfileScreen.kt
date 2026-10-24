@@ -13,6 +13,8 @@ import com.pickle.patcher.data.StoreApi
 import com.pickle.patcher.ui.theme.Accent
 import com.pickle.patcher.ui.theme.Gray40
 import com.pickle.patcher.ui.theme.White
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Person
 import kotlinx.coroutines.launch
 import org.json.JSONArray
 import org.json.JSONObject
@@ -45,9 +47,9 @@ fun StoreProfileScreen(
 
     Column(Modifier.fillMaxSize()) {
         Row(Modifier.fillMaxWidth().padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
-            TextButton(onClick = onBack) { Text("← Back", color = Accent) }
-            Spacer(Modifier.weight(1f))
-            Text("Profile", style = MaterialTheme.typography.titleMedium, color = White)
+            Icon(Icons.Filled.Person, contentDescription = null, tint = Accent, modifier = Modifier.size(24.dp))
+            Spacer(Modifier.width(8.dp))
+            Text("Profile", style = MaterialTheme.typography.titleLarge, color = White)
             Spacer(Modifier.weight(1f))
             val isOwn = profile?.optBoolean("isOwn", false) == true
             if (isOwn) {

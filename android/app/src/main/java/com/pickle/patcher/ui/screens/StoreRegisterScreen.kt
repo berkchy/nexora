@@ -6,6 +6,8 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.PersonAdd
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import com.pickle.patcher.data.StoreApi
@@ -32,7 +34,11 @@ fun StoreRegisterScreen(
         Modifier.fillMaxSize().padding(24.dp),
         verticalArrangement = Arrangement.Center,
     ) {
-        Text("Register", style = MaterialTheme.typography.headlineMedium, color = White)
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Icon(Icons.Filled.PersonAdd, contentDescription = null, tint = Accent, modifier = Modifier.size(24.dp))
+            Spacer(Modifier.width(8.dp))
+            Text("Register", style = MaterialTheme.typography.headlineMedium, color = White)
+        }
         Spacer(Modifier.height(24.dp))
 
         OutlinedTextField(value = email, onValueChange = { email = it }, label = { Text("Email") }, modifier = Modifier.fillMaxWidth(), singleLine = true)
@@ -71,6 +77,5 @@ fun StoreRegisterScreen(
             else Text("Register")
         }
         Spacer(Modifier.height(12.dp))
-        TextButton(onClick = onBack) { Text("Back", color = Gray40) }
     }
 }

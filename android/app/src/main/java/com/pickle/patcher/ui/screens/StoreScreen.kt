@@ -3,6 +3,8 @@ package com.pickle.patcher.ui.screens
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.ShoppingCart
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -17,10 +19,6 @@ import kotlinx.coroutines.launch
 import org.json.JSONArray
 import org.json.JSONObject
 
-/**
- * Store browse screen. Lists community-uploaded lib packs from the Nexora Store
- * API. Tapping an item opens its detail (download libs, view profile).
- */
 @Composable
 fun StoreScreen(
     api: StoreApi,
@@ -48,35 +46,31 @@ fun StoreScreen(
     }
 
     Column(Modifier.fillMaxSize()) {
+        // Title bar
         Row(
-            Modifier.fillMaxWidth().padding(12.dp),
+            Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 12.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            TextButton(onClick = onBack) { Text("← Back", color = Accent) }
-            Spacer(Modifier.weight(1f))
-            Text("Store", style = MaterialTheme.typography.titleMedium, color = White)
-            Spacer(Modifier.weight(1f))
-            Spacer(Modifier.width(60.dp))
+            Icon(Icons.Filled.ShoppingCart, contentDescription = null, tint = Accent, modifier = Modifier.size(24.dp))
+            Spacer(Modifier.width(8.dp))
+            Text("Store", style = MaterialTheme.typography.titleLarge, color = White)
         }
+        HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
 
         when {
-            loading -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                CircularProgressIndicator()
-            }
-            error != null -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                Text(error!!, color = Gray40)
-            }
+            loading -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { CircularProgressIndicator() }
+            error != null -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { Text(error!!, color = Gray40) }
             else -> {
                 val list = items
                 if (list == null || list.length() == 0) {
-                    Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                        Text("No items yet", color = Gray40)
-                    }
+                    Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { Text("No items yet", color = Gray40) }
                 } else {
-                    LazyColumn(Modifier.fillMaxSize().padding(horizontal = 12.dp)) {
+                    LazyColumn(
+                        Modifier.fillMaxSize().padding(horizontal = 12.dp, vertical = 8.dp),
+                        verticalArrangement = Arrangement.spacedBy(8.dp),
+                    ) {
                         items((0 until list.length()).map { list.getJSONObject(it) }) { obj ->
                             StoreItemCard(obj)
-                            Spacer(Modifier.height(8.dp))
                         }
                     }
                 }
@@ -92,45 +86,30 @@ private fun StoreItemCard(obj: JSONObject) {
         color = MaterialTheme.colorScheme.surfaceContainerHigh,
         modifier = Modifier.fillMaxWidth(),
     ) {
-        Column(Modifier.padding(12.dp)) {
-            Text(
-                obj.optString("title", "Untitled"),
-                style = MaterialTheme.typography.titleSmall,
-                color = White,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-            )
-            val desc = obj.optString("description", "")
-            if (desc.isNotBlank()) {
-                Text(
-                    desc,
-                    style = MaterialTheme.typography.bodySmall,
-                    color = Gray40,
-                    maxLines = 2,
-                    overflow = TextOverflow.Ellipsis,
-                )
+        Row(Modifier.padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
+            // Logo placeholder
+            Surface(
+                shape = MaterialTheme.shapes.small,
+                color = MaterialTheme.colorScheme.surfaceContainerHighest,
+                modifier = Modifier.size(48.dp),
+            ) {
+                Box(contentAlignment = Alignment.Center, modifier = Modifier.fillMaxSize()) {
+                    Text(obj.optString("title", "?").take(1).uppercase(), style = MaterialTheme.typography.titleMedium, color = Accent)
+                }
             }
-            Spacer(Modifier.height(4.dp))
-            Row {
-                Text(
-                    "by ${obj.optJSONObject("user")?.optString("username") ?: "?"}",
-                    style = MaterialTheme.typography.labelSmall,
-                    color = Accent,
-                )
-                Spacer(Modifier.weight(1f))
-                Text(
-                    "v${obj.optString("version", "1.0.0")}",
-                    style = MaterialTheme.typography.labelSmall,
-                    color = Gray40,
-                )
-            }
-            val libs = obj.optJSONArray("libs")
-            if (libs != null && libs.length() > 0) {
-                Text(
-                    "${libs.length()} lib(s)",
-                    style = MaterialTheme.typography.labelSmall,
-                    color = Gray40,
-                )
+            Spacer(Modifier.width(12.dp))
+            Column(Modifier.weight(1f)) {
+                Text(obj.optString("title", "Untitled"), style = MaterialTheme.typography.titleSmall, color = White, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                val desc = obj.optString("description", "")
+                if (desc.isNotBlank()) {
+                    Text(desc, style = MaterialTheme.typography.bodySmall, color = Gray40, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                }
+                Spacer(Modifier.height(4.dp))
+                Row {
+                    Text("by ${obj.optJSONObject("user")?.optString("username") ?: "?"}", style = MaterialTheme.typography.labelSmall, color = Accent)
+                    Spacer(Modifier.weight(1f))
+                    Text("v${obj.optString("version", "1.0.0")}", style = MaterialTheme.typography.labelSmall, color = Gray40)
+                }
             }
         }
     }

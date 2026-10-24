@@ -15,6 +15,8 @@ import com.pickle.patcher.ui.theme.Accent
 import com.pickle.patcher.ui.theme.AlertRed
 import com.pickle.patcher.ui.theme.Gray40
 import com.pickle.patcher.ui.theme.White
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Edit
 import kotlinx.coroutines.launch
 import org.json.JSONArray
 import org.json.JSONObject
@@ -56,11 +58,9 @@ fun StoreManageScreen(
 
     Column(Modifier.fillMaxSize()) {
         Row(Modifier.fillMaxWidth().padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
-            TextButton(onClick = onBack) { Text("← Back", color = Accent) }
-            Spacer(Modifier.weight(1f))
-            Text("Manage Libs", style = MaterialTheme.typography.titleMedium, color = White)
-            Spacer(Modifier.weight(1f))
-            Spacer(Modifier.width(60.dp))
+            Icon(Icons.Filled.Edit, contentDescription = null, tint = Accent, modifier = Modifier.size(24.dp))
+            Spacer(Modifier.width(8.dp))
+            Text("Manage Libs", style = MaterialTheme.typography.titleLarge, color = White)
         }
 
         when {
