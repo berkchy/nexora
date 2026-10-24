@@ -114,5 +114,3 @@ fun IntroOverlay(playKey: Long = 0L) {
         )
     }
 }
-EOF
-echo done
