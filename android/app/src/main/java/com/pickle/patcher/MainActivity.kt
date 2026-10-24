@@ -22,6 +22,7 @@ import androidx.compose.foundation.gestures.draggable
 import androidx.compose.foundation.gestures.rememberDraggableState
 import androidx.compose.material.icons.filled.Code
 import androidx.compose.material.icons.filled.Extension
+import androidx.compose.material.icons.filled.ShoppingCart
 import androidx.compose.material.icons.filled.History
 import androidx.compose.material.icons.filled.RocketLaunch
 import androidx.compose.foundation.layout.Column
@@ -78,6 +79,8 @@ import com.pickle.patcher.ui.screens.CrashLogScreen
 import com.pickle.patcher.ui.screens.PatchScreen
 import com.pickle.patcher.ui.IntroOverlay
 import com.pickle.patcher.ui.screens.SettingsScreen
+import com.pickle.patcher.ui.screens.StoreScreen
+import com.pickle.patcher.data.StoreApi
 import com.pickle.patcher.ui.screens.toDisplayVersion
 import com.pickle.patcher.ui.theme.NexoraTheme
 import com.pickle.patcher.ui.theme.Gray40
@@ -121,6 +124,7 @@ private enum class Dest(val route: String) {
     Patch("patch"),
     Compiler("compiler"),
     Addons("addons"),
+    Store("store"),
     // Settings and Plugins sit in the drawer next to the three tasks and are
     // peers of them, so they navigate as tabs too. As plain destinations they
     // stacked on the back stack and the app bar grew a back arrow, which made
@@ -276,6 +280,7 @@ fun PatcherApp(vm: PatcherViewModel) {
                 CompilerScreen(vm, onOpenSettings = { navToTab(nav, Dest.Settings.route, currentRoute) })
             }
             composable(Dest.Addons.route) { AddonsScreen(vm) }
+            composable(Dest.Store.route) { StoreScreen(StoreApi("https://nexora-store.vercel.app"), onBack = { nav.popBackStack() }) }
             composable(Dest.Settings.route) { SettingsScreen(vm) }
             composable(Dest.Plugins.route) { PluginsScreen(vm) }
             }
@@ -452,6 +457,9 @@ private fun NavDrawer(
                 }
                 DrawerItem("Addons", Icons.Filled.Extension, currentRoute == Dest.Addons.route) {
                     closeThen { navToTab(nav, Dest.Addons.route, currentRoute) }
+                }
+                DrawerItem("Store", Icons.Filled.ShoppingCart, currentRoute == Dest.Store.route) {
+                    closeThen { navToTab(nav, Dest.Store.route, currentRoute) }
                 }
                 DrawerItem("Settings", Icons.Filled.Tune, currentRoute == Dest.Settings.route) {
                     closeThen { navToTab(nav, Dest.Settings.route, currentRoute) }
