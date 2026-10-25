@@ -15,6 +15,7 @@ import com.pickle.patcher.ui.theme.Accent
 import com.pickle.patcher.ui.theme.AlertRed
 import com.pickle.patcher.ui.theme.Gray40
 import com.pickle.patcher.ui.theme.White
+import com.pickle.patcher.ui.theme.WarnYellow
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Edit
 import kotlinx.coroutines.launch
@@ -54,7 +55,12 @@ fun StoreManageScreen(
         }
     }
 
-    LaunchedEffect(Unit) { reload() }
+    LaunchedEffect(Unit) {
+        while (true) {
+            reload()
+            kotlinx.coroutines.delay(4000)
+        }
+    }
 
     Column(Modifier.fillMaxSize()) {
         Row(Modifier.fillMaxWidth().padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
@@ -81,7 +87,13 @@ fun StoreManageScreen(
                             ) {
                                 Column(Modifier.padding(12.dp)) {
                                     Text(obj.optString("title"), style = MaterialTheme.typography.bodyMedium, color = White)
-                                    Text("v${obj.optString("version")} · ${obj.optJSONArray("libs")?.length() ?: 0} lib(s)", style = MaterialTheme.typography.labelSmall, color = Gray40)
+                                    Row {
+                                        Text("v${obj.optString("version")} · ${obj.optJSONArray("libs")?.length() ?: 0} lib(s)", style = MaterialTheme.typography.labelSmall, color = Gray40)
+                                        if (obj.optString("status", "approved") != "approved") {
+                                            Spacer(Modifier.width(6.dp))
+                                            Text("• ${obj.optString("status")}", style = MaterialTheme.typography.labelSmall, color = WarnYellow)
+                                        }
+                                    }
                                     Spacer(Modifier.height(8.dp))
                                     Row {
                                         TextButton(onClick = { editTarget = obj }) { Text("Edit", color = Accent) }

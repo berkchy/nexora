@@ -67,7 +67,12 @@ fun StoreProfileScreen(
         }
     }
 
-    LaunchedEffect(username) { load() }
+    LaunchedEffect(username) {
+        while (true) {
+            load()
+            kotlinx.coroutines.delay(4000)
+        }
+    }
 
     Column(Modifier.fillMaxSize()) {
         Row(Modifier.fillMaxWidth().padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
