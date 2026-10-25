@@ -19,6 +19,9 @@ import java.util.concurrent.TimeUnit
  * failure mode hit.
  */
 class StoreApi(private val baseUrl: String, private val context: android.content.Context? = null) {
+
+    data class LibUpload(val name: String, val url: String, val size: Long)
+    data class CloudinaryUpload(val url: String, val bytes: Long)
     private val client = OkHttpClient.Builder()
         .connectTimeout(30, TimeUnit.SECONDS)
         .readTimeout(60, TimeUnit.SECONDS)
@@ -68,25 +71,66 @@ class StoreApi(private val baseUrl: String, private val context: android.content
 
     suspend fun getItem(id: String): Result<JSONObject> = get("/api/items/$id", null)
 
+    suspend fun signUpload(): Result<JSONObject> = get("/api/upload/sign", token)
+
+    suspend fun uploadToCloudinary(file: File): Result<CloudinaryUpload> = withContext(Dispatchers.IO) {
+        val sign = signUpload().getOrElse { return Result.failure(it) }
+        val cloudName = sign.optString("cloudName")
+        val apiKey = sign.optString("apiKey")
+        val timestamp = sign.optLong("timestamp")
+        val signature = sign.optString("signature")
+        if (cloudName.isBlank() || apiKey.isBlank() || signature.isBlank()) {
+            return Result.failure(Exception("Invalid sign response"))
+        }
+        val form = MultipartBody.Builder().setType(MultipartBody.FORM)
+            .addFormDataPart("file", file.name, file.asRequestBody())
+            .addFormDataPart("api_key", apiKey)
+            .addFormDataPart("timestamp", timestamp.toString())
+            .addFormDataPart("signature", signature)
+            .build()
+        val req = Request.Builder()
+            .url("https://api.cloudinary.com/v1_1/$cloudName/raw/upload")
+            .post(form)
+            .build()
+        try {
+            client.newCall(req).execute().use { resp ->
+                val body = resp.body?.string() ?: ""
+                val json = try { JSONObject(body) } catch (_: Exception) { JSONObject().put("raw", body) }
+                if (!resp.isSuccessful) return Result.failure(Exception(json.optString("error", "Cloudinary HTTP ${resp.code}")))
+                val url = json.optString("secure_url")
+                if (url.isBlank()) return Result.failure(Exception("No url from cloudinary"))
+                Result.success(CloudinaryUpload(url, json.optLong("bytes")))
+            }
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
     suspend fun createItem(
         token: String,
         title: String,
         description: String,
         version: String,
-        logo: File?,
-        libs: List<File>,
+        logoUrl: String?,
+        libs: List<LibUpload>,
     ): Result<JSONObject> {
-        val builder = MultipartBody.Builder().setType(MultipartBody.FORM)
-        builder.addFormDataPart("title", title)
-        builder.addFormDataPart("description", description)
-        builder.addFormDataPart("version", version)
-        if (logo != null) builder.addFormDataPart("logo", logo.name, logo.asRequestBody())
-        libs.forEachIndexed { i, f -> builder.addFormDataPart("lib_$i", f.name, f.asRequestBody()) }
-        val body = builder.build()
+        val body = JSONObject().apply {
+            put("title", title)
+            put("description", description)
+            put("version", version)
+            if (logoUrl != null) put("logoUrl", logoUrl)
+            val arr = org.json.JSONArray()
+            libs.forEach { l ->
+                arr.put(org.json.JSONObject().apply {
+                    put("name", l.name); put("url", l.url); put("size", l.size)
+                })
+            }
+            put("libs", arr)
+        }.toString()
         val req = Request.Builder()
             .url("$baseUrl/api/items")
             .header("Authorization", "Bearer ${token ?: this@StoreApi.token}")
-            .post(body)
+            .post(body.toRequestBody(json))
             .build()
         return execute(req)
     }
@@ -151,7 +195,17 @@ class StoreApi(private val baseUrl: String, private val context: android.content
                 val body = resp.body?.string() ?: ""
                 val json = try { JSONObject(body) } catch (_: Exception) { JSONObject().put("raw", body) }
                 if (resp.isSuccessful) Result.success(json)
-                else Result.failure(Exception(json.optString("error", "HTTP ${resp.code}")))
+                else {
+                    val serverMsg = json.optString("error", "").takeIf { it.isNotBlank() }
+                    val friendly = when (resp.code) {
+                        413 -> "File too large (max ~4.5MB per request)"
+                        429 -> serverMsg ?: "Too many requests, try later"
+                        401 -> "Not authorized, please log in"
+                        404 -> "Not found"
+                        else -> serverMsg ?: "HTTP ${resp.code}"
+                    }
+                    Result.failure(Exception(friendly))
+                }
             }
         } catch (e: Exception) {
             Result.failure(e)

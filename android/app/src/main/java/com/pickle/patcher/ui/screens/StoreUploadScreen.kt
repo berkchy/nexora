@@ -130,9 +130,37 @@ fun StoreUploadScreen(
                 if (token == null) { error = "Not logged in"; return@Button }
                 loading = true; error = null; cooldown = null
                 scope.launch {
-                    val logoFile = logoUri?.let { uriToFile(it, "logo") }
-                    val libFiles = libEntries.mapNotNull { uriToFile(it.first, "lib") }
-                    api.createItem(token, title, description, version, logoFile, libFiles).fold(
+                    // Preflight cooldown check to avoid uploading large files first.
+                    val me = api.me()
+                    val upload = me.getOrNull()?.optJSONObject("upload")
+                    val allowed = upload?.optBoolean("allowed", true) ?: true
+                    if (!allowed) {
+                        val next = upload?.optString("nextAllowedAt")
+                        cooldown = "Upload cooldown active" + (if (!next.isNullOrBlank()) " (next: $next)" else "")
+                        loading = false
+                        return@launch
+                    }
+                    // Upload files directly to Cloudinary (bypasses server body limit).
+                    var logoUrl: String? = null
+                    if (logoUri != null) {
+                        val f = uriToFile(logoUri!!, "logo")
+                        if (f != null) {
+                            val r = api.uploadToCloudinary(f)
+                            if (r.isFailure) { error = r.exceptionOrNull()?.message ?: "Logo upload failed"; loading = false; return@launch }
+                            logoUrl = r.getOrNull()?.url
+                        }
+                    }
+                    val libUploads = mutableListOf<StoreApi.LibUpload>()
+                    for ((uri, _) in libEntries) {
+                        val f = uriToFile(uri, "lib")
+                        if (f != null) {
+                            val r = api.uploadToCloudinary(f)
+                            if (r.isFailure) { error = r.exceptionOrNull()?.message ?: "Lib upload failed"; loading = false; return@launch }
+                            val u = r.getOrNull()!!
+                            libUploads.add(StoreApi.LibUpload(f.name, u.url, u.bytes))
+                        }
+                    }
+                    api.createItem(token, title, description, version, logoUrl, libUploads).fold(
                         onSuccess = { loading = false; onUploadSuccess() },
                         onFailure = { t ->
                             android.util.Log.e("StoreUpload", "upload failed", t)
