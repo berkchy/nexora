@@ -73,3 +73,18 @@ jobs:
             android/app/build/outputs/apk/release/nexora.apk
             version.txt
           generate_release_notes: true
+
+
+      - name: Notify Discord on successful release
+        if: success()
+        shell: bash
+        env:
+          DISCORD_WEBHOOK: ${{ secrets.DISCORD_WEBHOOK }}
+        run: |
+          set -euo pipefail
+          if [ -z "$DISCORD_WEBHOOK" ]; then echo "no webhook"; exit 0; fi
+          TAG="${{ steps.ver.outputs.version }}"
+          curl -sS -X POST "$DISCORD_WEBHOOK" \
+            -H 'Content-Type: application/json' \
+            -d "{"embeds":[{"title":"Nexora ${TAG} released","description":"Stable release published.\n[Download APK](https://github.com/berkchy/nexora/releases/tag/${TAG})","color":3944702,"footer":{"text":"Nexora CI"}}]}" \
+            || true
