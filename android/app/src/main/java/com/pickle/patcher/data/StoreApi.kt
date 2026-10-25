@@ -145,8 +145,8 @@ class StoreApi(private val baseUrl: String, private val context: android.content
         execute(b.build())
     }
 
-    private fun execute(req: Request): Result<JSONObject> {
-        return try {
+    private suspend fun execute(req: Request): Result<JSONObject> = withContext(Dispatchers.IO) {
+        try {
             client.newCall(req).execute().use { resp ->
                 val body = resp.body?.string() ?: ""
                 val json = try { JSONObject(body) } catch (_: Exception) { JSONObject().put("raw", body) }
