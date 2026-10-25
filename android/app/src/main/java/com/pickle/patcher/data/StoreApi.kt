@@ -71,38 +71,59 @@ class StoreApi(private val baseUrl: String, private val context: android.content
 
     suspend fun getItem(id: String): Result<JSONObject> = get("/api/items/$id", null)
 
-    suspend fun signUpload(): Result<JSONObject> = get("/api/upload/sign", token)
+    suspend fun signUpload(filename: String = "file.bin"): Result<JSONObject> = get("/api/upload/sign?filename=${java.net.URLEncoder.encode(filename, "UTF-8")}", token)
 
-    suspend fun uploadToCloudinary(file: File): Result<CloudinaryUpload> = withContext(Dispatchers.IO) {
-        val sign = signUpload().getOrElse { return@withContext Result.failure(it) }
-        val cloudName = sign.optString("cloudName")
-        val apiKey = sign.optString("apiKey")
-        val timestamp = sign.optLong("timestamp")
-        val signature = sign.optString("signature")
-        if (cloudName.isBlank() || apiKey.isBlank() || signature.isBlank()) {
-            return@withContext Result.failure(Exception("Invalid sign response"))
-        }
-        val form = MultipartBody.Builder().setType(MultipartBody.FORM)
-            .addFormDataPart("file", file.name, file.asRequestBody())
-            .addFormDataPart("api_key", apiKey)
-            .addFormDataPart("timestamp", timestamp.toString())
-            .addFormDataPart("signature", signature)
-            .build()
-        val req = Request.Builder()
-            .url("https://api.cloudinary.com/v1_1/$cloudName/raw/upload")
-            .post(form)
-            .build()
-        try {
-            client.newCall(req).execute().use { resp ->
-                val body = resp.body?.string() ?: ""
-                val json = try { JSONObject(body) } catch (_: Exception) { JSONObject().put("raw", body) }
-                if (!resp.isSuccessful) return@withContext Result.failure(Exception(json.optString("error", "Cloudinary HTTP ${resp.code}")))
-                val url = json.optString("secure_url")
-                if (url.isBlank()) return@withContext Result.failure(Exception("No url from cloudinary"))
-                Result.success(CloudinaryUpload(url, json.optLong("bytes")))
+    suspend fun uploadFile(file: File): Result<CloudinaryUpload> = withContext(Dispatchers.IO) {
+        val sign = signUpload(file.name).getOrElse { return@withContext Result.failure(it) }
+        val provider = sign.optString("provider", "cloudinary")
+        if (provider == "supabase") {
+            val uploadUrl = sign.optString("uploadUrl")
+            val publicUrl = sign.optString("publicUrl")
+            if (uploadUrl.isBlank() || publicUrl.isBlank()) return@withContext Result.failure(Exception("Invalid supabase sign"))
+            val req = Request.Builder()
+                .url(uploadUrl)
+                .put(file.asRequestBody())
+                .header("Content-Type", "application/octet-stream")
+                .build()
+            try {
+                client.newCall(req).execute().use { resp ->
+                    val body = resp.body?.string() ?: ""
+                    if (!resp.isSuccessful) return@withContext Result.failure(Exception("Supabase upload failed: ${resp.code} $body"))
+                    Result.success(CloudinaryUpload(publicUrl, file.length()))
+                }
+            } catch (e: Exception) {
+                Result.failure(e)
             }
-        } catch (e: Exception) {
-            Result.failure(e)
+        } else {
+            val cloudName = sign.optString("cloudName")
+            val apiKey = sign.optString("apiKey")
+            val timestamp = sign.optLong("timestamp")
+            val signature = sign.optString("signature")
+            if (cloudName.isBlank() || apiKey.isBlank() || signature.isBlank()) {
+                return@withContext Result.failure(Exception("Invalid sign response"))
+            }
+            val form = MultipartBody.Builder().setType(MultipartBody.FORM)
+                .addFormDataPart("file", file.name, file.asRequestBody())
+                .addFormDataPart("api_key", apiKey)
+                .addFormDataPart("timestamp", timestamp.toString())
+                .addFormDataPart("signature", signature)
+                .build()
+            val req = Request.Builder()
+                .url("https://api.cloudinary.com/v1_1/$cloudName/raw/upload")
+                .post(form)
+                .build()
+            try {
+                client.newCall(req).execute().use { resp ->
+                    val body = resp.body?.string() ?: ""
+                    val json = try { JSONObject(body) } catch (_: Exception) { JSONObject().put("raw", body) }
+                    if (!resp.isSuccessful) return@withContext Result.failure(Exception(json.optString("error", "Cloudinary HTTP ${resp.code}")))
+                    val url = json.optString("secure_url")
+                    if (url.isBlank()) return@withContext Result.failure(Exception("No url from cloudinary"))
+                    Result.success(CloudinaryUpload(url, json.optLong("bytes")))
+                }
+            } catch (e: Exception) {
+                Result.failure(e)
+            }
         }
     }
 

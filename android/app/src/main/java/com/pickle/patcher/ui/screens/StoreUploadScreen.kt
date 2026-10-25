@@ -145,7 +145,7 @@ fun StoreUploadScreen(
                     if (logoUri != null) {
                         val f = uriToFile(logoUri!!, "logo")
                         if (f != null) {
-                            val r = api.uploadToCloudinary(f)
+                            val r = api.uploadFile(f)
                             if (r.isFailure) { error = r.exceptionOrNull()?.message ?: "Logo upload failed"; loading = false; return@launch }
                             logoUrl = r.getOrNull()?.url
                         }
@@ -154,7 +154,7 @@ fun StoreUploadScreen(
                     for ((uri, _) in libEntries) {
                         val f = uriToFile(uri, "lib")
                         if (f != null) {
-                            val r = api.uploadToCloudinary(f)
+                            val r = api.uploadFile(f)
                             if (r.isFailure) { error = r.exceptionOrNull()?.message ?: "Lib upload failed"; loading = false; return@launch }
                             val u = r.getOrNull()!!
                             libUploads.add(StoreApi.LibUpload(f.name, u.url, u.bytes))
