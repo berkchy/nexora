@@ -171,6 +171,7 @@ DEFS=(
   -DHAVE_I64
   -D_snprintf=snprintf
   -D__BYTE_ORDER=__LITTLE_ENDIAN
+  -D_GNU_SOURCE
 )
 FLAGS=(
   -fPIC -O2 -g -fno-strict-aliasing -Wall -Wno-uninitialized -Wno-unused
@@ -833,7 +834,7 @@ cp "$PC_BUILD/amxxpc32.so" "$PC_BUILD/amxxpc.so"
 Z_DIR="$AMXX/third_party/zlib"
 for f in "$Z_DIR"/*.c; do
   [ -e "$f" ] || continue
-  "$HOSTCC" -O2 -fPIC -c "$f" -o "$PC_BUILD/obj/zlib-$(basename "${f%.c}").o"
+  "$HOSTCC" -O2 -fPIC -D_GNU_SOURCE -c "$f" -o "$PC_BUILD/obj/zlib-$(basename "${f%.c}").o"
 done
 
 PAWNCC=""
