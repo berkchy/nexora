@@ -8,6 +8,9 @@ import okhttp3.MultipartBody
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import okhttp3.RequestBody.Companion.toRequestBody
+import okio.Buffer
+import okio.BufferedSink
+import okio.Source
 import org.json.JSONArray
 import org.json.JSONObject
 import java.io.File
@@ -73,7 +76,7 @@ class StoreApi(private val baseUrl: String, private val context: android.content
 
     suspend fun signUpload(filename: String = "file.bin"): Result<JSONObject> = get("/api/upload/sign?filename=${java.net.URLEncoder.encode(filename, "UTF-8")}", token)
 
-    suspend fun uploadFile(file: File): Result<CloudinaryUpload> = withContext(Dispatchers.IO) {
+    suspend fun uploadFile(file: File, onProgress: (Long, Long) -> Unit = { _, _ -> }): Result<CloudinaryUpload> = withContext(Dispatchers.IO) {
         val sign = signUpload(file.name).getOrElse { return@withContext Result.failure(it) }
         val provider = sign.optString("provider", "cloudinary")
         if (provider == "supabase") {
@@ -83,7 +86,7 @@ class StoreApi(private val baseUrl: String, private val context: android.content
             if (uploadUrl.isBlank() || publicUrl.isBlank() || apiKey.isBlank()) return@withContext Result.failure(Exception("Invalid supabase sign"))
             val req = Request.Builder()
                 .url(uploadUrl)
-                .put(file.asRequestBody())
+                .put(ProgressRequestBody(file, "application/octet-stream", onProgress))
                 .header("Content-Type", "application/octet-stream")
                 .header("Authorization", "Bearer $apiKey")
                 .header("apikey", apiKey)
@@ -106,7 +109,7 @@ class StoreApi(private val baseUrl: String, private val context: android.content
                 return@withContext Result.failure(Exception("Invalid sign response"))
             }
             val form = MultipartBody.Builder().setType(MultipartBody.FORM)
-                .addFormDataPart("file", file.name, file.asRequestBody())
+                .addFormDataPart("file", file.name, ProgressRequestBody(file, "application/octet-stream", onProgress))
                 .addFormDataPart("api_key", apiKey)
                 .addFormDataPart("timestamp", timestamp.toString())
                 .addFormDataPart("signature", signature)
@@ -233,6 +236,30 @@ class StoreApi(private val baseUrl: String, private val context: android.content
             }
         } catch (e: Exception) {
             Result.failure(e)
+        }
+    }
+
+    private class ProgressRequestBody(
+        private val file: File,
+        private val contentType: String,
+        private val onProgress: (Long, Long) -> Unit,
+    ) : RequestBody() {
+        override fun contentType() = contentType.toMediaType()
+        override fun contentLength() = file.length()
+        override fun writeTo(sink: okio.BufferedSink) {
+            val source = file.inputStream().source()
+            val total = file.length()
+            var written = 0L
+            val buf = okio.Buffer()
+            val chunk = 8192L
+            while (true) {
+                val read = source.read(buf, chunk)
+                if (read == -1L) break
+                sink.write(buf, read)
+                written += read
+                onProgress(written, total)
+            }
+            source.close()
         }
     }
 

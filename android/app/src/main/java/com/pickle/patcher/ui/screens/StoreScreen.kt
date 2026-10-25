@@ -27,6 +27,7 @@ import com.pickle.patcher.data.StoreApi
 import com.pickle.patcher.ui.theme.Accent
 import com.pickle.patcher.ui.theme.Gray40
 import com.pickle.patcher.ui.theme.White
+import com.pickle.patcher.ui.theme.WarnYellow
 import com.pickle.patcher.ui.MarkdownText
 import kotlinx.coroutines.launch
 import org.json.JSONArray
@@ -215,6 +216,11 @@ private fun StoreItemCard(obj: JSONObject, onUserClick: (String) -> Unit, onOpen
                     }
                     Spacer(Modifier.weight(1f))
                     Text("v${obj.optString("version", "1.0.0")}", style = MaterialTheme.typography.labelSmall, color = Gray40)
+                    val st = obj.optString("status", "approved")
+                    if (st != "approved") {
+                        Spacer(Modifier.width(6.dp))
+                        Text("• $st", style = MaterialTheme.typography.labelSmall, color = WarnYellow)
+                    }
                 }
 
             }

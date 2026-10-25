@@ -40,6 +40,8 @@ fun StoreUploadScreen(
     // libUris paired with their content hash for dedup
     var libEntries by remember { mutableStateOf<List<Pair<Uri, String>>>(emptyList()) }
     var loading by remember { mutableStateOf(false) }
+    var progress by remember { mutableStateOf(0f) }
+    var progressLabel by remember { mutableStateOf("") }
     var error by remember { mutableStateOf<String?>(null) }
     var cooldown by remember { mutableStateOf<String?>(null) }
     var dupMsg by remember { mutableStateOf<String?>(null) }
@@ -122,6 +124,12 @@ fun StoreUploadScreen(
         Spacer(Modifier.height(8.dp))
         cooldown?.let { Text(it, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall) }
         error?.let { Text(it, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall) }
+        if (loading) {
+            Spacer(Modifier.height(8.dp))
+            if (progressLabel.isNotBlank()) Text(progressLabel, color = Gray40, style = MaterialTheme.typography.bodySmall)
+            LinearProgressIndicator(progress = { progress }, modifier = Modifier.fillMaxWidth())
+            Text("${(progress * 100).toInt()}%", color = Gray40, style = MaterialTheme.typography.labelSmall)
+        }
         Spacer(Modifier.height(16.dp))
 
         Button(
@@ -140,21 +148,26 @@ fun StoreUploadScreen(
                         loading = false
                         return@launch
                     }
-                    // Upload files directly to Cloudinary (bypasses server body limit).
+                    // Upload files directly to Cloudinary/Supabase (bypasses server body limit).
+                    progress = 0f
                     var logoUrl: String? = null
                     if (logoUri != null) {
                         val f = uriToFile(logoUri!!, "logo")
                         if (f != null) {
-                            val r = api.uploadFile(f)
+                            progressLabel = "Uploading logo..."
+                            val r = api.uploadFile(f) { w, t -> progress = if (t > 0) w.toFloat() / t else 0f }
                             if (r.isFailure) { error = r.exceptionOrNull()?.message ?: "Logo upload failed"; loading = false; return@launch }
                             logoUrl = r.getOrNull()?.url
                         }
                     }
                     val libUploads = mutableListOf<StoreApi.LibUpload>()
-                    for ((uri, _) in libEntries) {
+                    val totalLibs = libEntries.size
+                    libEntries.forEachIndexed { idx, (uri, _) ->
                         val f = uriToFile(uri, "lib")
                         if (f != null) {
-                            val r = api.uploadFile(f)
+                            progressLabel = "Uploading lib ${idx + 1}/$totalLibs: ${f.name}"
+                            progress = 0f
+                            val r = api.uploadFile(f) { w, t -> progress = if (t > 0) w.toFloat() / t else 0f }
                             if (r.isFailure) { error = r.exceptionOrNull()?.message ?: "Lib upload failed"; loading = false; return@launch }
                             val u = r.getOrNull()!!
                             libUploads.add(StoreApi.LibUpload(f.name, u.url, u.bytes))
