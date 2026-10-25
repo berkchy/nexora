@@ -135,7 +135,8 @@ fun StoreUploadScreen(
                     api.createItem(token, title, description, version, logoFile, libFiles).fold(
                         onSuccess = { loading = false; onUploadSuccess() },
                         onFailure = { t ->
-                            val msg = t.message ?: "Upload failed"
+                            android.util.Log.e("StoreUpload", "upload failed", t)
+                            val msg = (t.message ?: t.toString()).let { if (it.isBlank()) "Upload failed" else it }
                             if (msg.contains("cooldown", ignoreCase = true)) cooldown = msg
                             else error = msg
                             loading = false
