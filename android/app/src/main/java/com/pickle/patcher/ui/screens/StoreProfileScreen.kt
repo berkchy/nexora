@@ -201,5 +201,3 @@ private fun EditProfileDialog(api: StoreApi, username: String, onDismiss: () -> 
         dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel", color = Gray40) } },
     )
 }
-EOF
-echo done
