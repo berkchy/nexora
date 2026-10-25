@@ -79,11 +79,14 @@ class StoreApi(private val baseUrl: String, private val context: android.content
         if (provider == "supabase") {
             val uploadUrl = sign.optString("uploadUrl")
             val publicUrl = sign.optString("publicUrl")
-            if (uploadUrl.isBlank() || publicUrl.isBlank()) return@withContext Result.failure(Exception("Invalid supabase sign"))
+            val apiKey = sign.optString("apiKey")
+            if (uploadUrl.isBlank() || publicUrl.isBlank() || apiKey.isBlank()) return@withContext Result.failure(Exception("Invalid supabase sign"))
             val req = Request.Builder()
                 .url(uploadUrl)
                 .put(file.asRequestBody())
                 .header("Content-Type", "application/octet-stream")
+                .header("Authorization", "Bearer $apiKey")
+                .header("apikey", apiKey)
                 .build()
             try {
                 client.newCall(req).execute().use { resp ->
