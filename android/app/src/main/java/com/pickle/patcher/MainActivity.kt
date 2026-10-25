@@ -69,6 +69,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.unit.dp
 import androidx.navigation.NavGraph.Companion.findStartDestination
+import androidx.navigation.NavType
+import androidx.navigation.navArgument
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
@@ -138,7 +140,7 @@ private enum class Dest(val route: String) {
     StoreLogin("store/login"),
     StoreRegister("store/register"),
     StoreUpload("store/upload"),
-    StoreProfile("store/profile"),
+    StoreProfile("store/profile/{username}"),
     StoreManage("store/manage"),
     // Settings and Plugins sit in the drawer next to the three tasks and are
     // peers of them, so they navigate as tabs too. As plain destinations they
@@ -299,7 +301,7 @@ fun PatcherApp(vm: PatcherViewModel, drawerWidthController: DrawerWidthControlle
             composable(Dest.Addons.route) { AddonsScreen(vm) }
             composable(Dest.Store.route) {
                 val api = StoreApi("https://nexora-store-jzh549tke-code-hammer02.vercel.app", context)
-                StoreScreen(api, onBack = { nav.popBackStack() })
+                StoreScreen(api, onBack = { nav.popBackStack() }, onUserClick = { u -> nav.navigate("store/profile/$u") })
             }
             composable(Dest.StoreLogin.route) {
                 val api = StoreApi("https://nexora-store-jzh549tke-code-hammer02.vercel.app", context)
@@ -316,6 +318,14 @@ fun PatcherApp(vm: PatcherViewModel, drawerWidthController: DrawerWidthControlle
             composable(Dest.StoreManage.route) {
                 val api = StoreApi("https://nexora-store-jzh549tke-code-hammer02.vercel.app", context)
                 StoreManageScreen(api, onBack = { nav.popBackStack() })
+            }
+            composable(
+                route = Dest.StoreProfile.route,
+                arguments = listOf(navArgument("username") { type = NavType.StringType }),
+            ) { backStack ->
+                val username = backStack.arguments?.getString("username") ?: ""
+                val api = StoreApi("https://nexora-store-jzh549tke-code-hammer02.vercel.app", context)
+                StoreProfileScreen(api, username = username, onBack = { nav.popBackStack() }, onEditProfile = { })
             }
             composable(Dest.Settings.route) { SettingsScreen(vm, drawerWidthController) }
             composable(Dest.Plugins.route) { PluginsScreen(vm) }
