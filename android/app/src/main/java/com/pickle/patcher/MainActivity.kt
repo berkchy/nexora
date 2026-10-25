@@ -39,6 +39,7 @@ import androidx.compose.material.icons.filled.Tune
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Menu
 import androidx.compose.material.icons.filled.Palette
+import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Download
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.ui.input.pointer.PointerEventPass
@@ -521,6 +522,12 @@ private fun NavDrawer(
                         closeThen { nav.navigate(Dest.StoreLogin.route) }
                     }
                 } else {
+                    val uname = com.pickle.patcher.data.StoreSession.username(context)
+                    if (uname != null) {
+                        DrawerItem("My Profile", Icons.Filled.Person, currentRoute == Dest.StoreProfile.route) {
+                            closeThen { nav.navigate("store/profile/$uname") }
+                        }
+                    }
                     DrawerItem("Store Upload", Icons.Filled.Upload, currentRoute == Dest.StoreUpload.route) {
                         closeThen { nav.navigate(Dest.StoreUpload.route) }
                     }
