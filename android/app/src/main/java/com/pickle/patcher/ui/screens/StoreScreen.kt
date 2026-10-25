@@ -27,6 +27,7 @@ import com.pickle.patcher.data.StoreApi
 import com.pickle.patcher.ui.theme.Accent
 import com.pickle.patcher.ui.theme.Gray40
 import com.pickle.patcher.ui.theme.White
+import com.pickle.patcher.ui.MarkdownText
 import kotlinx.coroutines.launch
 import org.json.JSONArray
 import org.json.JSONObject
@@ -127,7 +128,7 @@ fun StoreScreen(
                     }
                     val desc = obj.optString("description", "")
                     if (desc.isNotBlank()) {
-                        Text(desc, style = MaterialTheme.typography.bodySmall, color = Gray40)
+                        MarkdownText(desc, color = Gray40, modifier = Modifier.fillMaxWidth())
                         Spacer(Modifier.height(8.dp))
                     }
                     Text("v${obj.optString("version", "1.0.0")}", style = MaterialTheme.typography.labelSmall, color = Gray40)
@@ -188,7 +189,7 @@ private fun StoreItemCard(obj: JSONObject, onUserClick: (String) -> Unit, onOpen
                 Text(obj.optString("title", "Untitled"), style = MaterialTheme.typography.titleSmall, color = White, maxLines = 1, overflow = TextOverflow.Ellipsis)
                 val desc = obj.optString("description", "")
                 if (desc.isNotBlank()) {
-                    Text(desc, style = MaterialTheme.typography.bodySmall, color = Gray40, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                    MarkdownText(desc, color = Gray40, modifier = Modifier.fillMaxWidth())
                 }
                 Spacer(Modifier.height(4.dp))
                 Row(verticalAlignment = Alignment.CenterVertically) {
