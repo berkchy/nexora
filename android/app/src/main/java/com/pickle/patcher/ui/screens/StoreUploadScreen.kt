@@ -14,14 +14,16 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import com.pickle.patcher.data.StoreApi
+import com.pickle.patcher.data.StoreSession
 import com.pickle.patcher.ui.theme.Accent
 import com.pickle.patcher.ui.theme.Gray40
 import com.pickle.patcher.ui.theme.White
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Upload
+import androidx.compose.material.icons.filled.Close
 import kotlinx.coroutines.launch
-import org.json.JSONObject
 import java.io.File
+import java.security.MessageDigest
 
 @Composable
 fun StoreUploadScreen(
@@ -35,16 +37,32 @@ fun StoreUploadScreen(
     var description by remember { mutableStateOf("") }
     var version by remember { mutableStateOf("1.0.0") }
     var logoUri by remember { mutableStateOf<Uri?>(null) }
-    var libUris by remember { mutableStateOf<List<Uri>>(emptyList()) }
+    // libUris paired with their content hash for dedup
+    var libEntries by remember { mutableStateOf<List<Pair<Uri, String>>>(emptyList()) }
     var loading by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf<String?>(null) }
     var cooldown by remember { mutableStateOf<String?>(null) }
+    var dupMsg by remember { mutableStateOf<String?>(null) }
 
     val logoPicker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
         if (uri != null) logoUri = uri
     }
     val libPicker = rememberLauncherForActivityResult(ActivityResultContracts.OpenMultipleDocuments()) { uris ->
-        if (uris.isNotEmpty()) libUris = libUris + uris
+        if (uris.isNotEmpty()) {
+            scope.launch {
+                val existing = libEntries.map { it.second }.toMutableSet()
+                val added = mutableListOf<Pair<Uri, String>>()
+                var skipped = 0
+                for (u in uris) {
+                    val h = hashUri(context, u)
+                    if (h == null || h in existing) { skipped++; continue }
+                    existing.add(h)
+                    added.add(u to h)
+                }
+                if (added.isNotEmpty()) libEntries = libEntries + added
+                dupMsg = if (skipped > 0) "$skipped duplicate lib(s) skipped" else null
+            }
+        }
     }
 
     fun uriToFile(uri: Uri, prefix: String): File? {
@@ -84,14 +102,23 @@ fun StoreUploadScreen(
         Row(verticalAlignment = Alignment.CenterVertically) {
             Button(onClick = { libPicker.launch(arrayOf("*/*")) }) { Text("Add Libs") }
             Spacer(Modifier.width(8.dp))
-            Text("${libUris.size} lib(s) selected", color = Gray40, style = MaterialTheme.typography.bodySmall)
+            Text("${libEntries.size} lib(s) selected", color = Gray40, style = MaterialTheme.typography.bodySmall)
         }
-        if (libUris.isNotEmpty()) {
+        if (libEntries.isNotEmpty()) {
             Spacer(Modifier.height(4.dp))
-            libUris.forEach { uri ->
-                Text("  • ${uri.lastPathSegment}", color = Gray40, style = MaterialTheme.typography.labelSmall)
+            libEntries.forEach { (uri, _) ->
+                Row(
+                    Modifier.fillMaxWidth().padding(vertical = 2.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Text("  • ${uri.lastPathSegment}", color = Gray40, style = MaterialTheme.typography.labelSmall, modifier = Modifier.weight(1f))
+                    IconButton(onClick = { libEntries = libEntries.filter { it.first != uri } }, modifier = Modifier.size(20.dp)) {
+                        Icon(Icons.Filled.Close, contentDescription = "Remove", tint = Gray40, modifier = Modifier.size(14.dp))
+                    }
+                }
             }
         }
+        dupMsg?.let { Text(it, color = Accent, style = MaterialTheme.typography.bodySmall) }
         Spacer(Modifier.height(8.dp))
         cooldown?.let { Text(it, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall) }
         error?.let { Text(it, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall) }
@@ -99,11 +126,13 @@ fun StoreUploadScreen(
 
         Button(
             onClick = {
+                val token = StoreSession.token(context) ?: api.token
+                if (token == null) { error = "Not logged in"; return@Button }
                 loading = true; error = null; cooldown = null
                 scope.launch {
                     val logoFile = logoUri?.let { uriToFile(it, "logo") }
-                    val libFiles = libUris.mapNotNull { uriToFile(it, "lib") }
-                    api.createItem(api.token ?: "", title, description, version, logoFile, libFiles).fold(
+                    val libFiles = libEntries.mapNotNull { uriToFile(it.first, "lib") }
+                    api.createItem(token, title, description, version, logoFile, libFiles).fold(
                         onSuccess = { loading = false; onUploadSuccess() },
                         onFailure = { t ->
                             val msg = t.message ?: "Upload failed"
@@ -121,4 +150,17 @@ fun StoreUploadScreen(
             else Text("Upload")
         }
     }
+}
+
+private suspend fun hashUri(context: Context, uri: Uri): String? = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+    try {
+        val input = context.contentResolver.openInputStream(uri) ?: return@withContext null
+        val md = MessageDigest.getInstance("SHA-256")
+        input.use { ins ->
+            val buf = ByteArray(8192)
+            var n: Int
+            while (ins.read(buf).also { n = it } != -1) md.update(buf, 0, n)
+        }
+        md.digest().joinToString("") { "%02x".format(it) }
+    } catch (_: Exception) { null }
 }

@@ -122,6 +122,11 @@ fun PatchScreen(vm: PatcherViewModel) {
         SectionHeader("LIBS")
         LibListCard(vm)
 
+        Spacer(Modifier.height(12.dp))
+
+        SectionHeader("CUSTOM LIBS")
+        CustomLibsCard(vm)
+
         Spacer(Modifier.height(16.dp))
 
         SectionHeader("BUILD")
@@ -385,6 +390,79 @@ private fun BundleSummaryLine(
 }
 
 @Composable
+@Composable
+private fun CustomLibsCard(vm: PatcherViewModel) {
+    val customLibs by vm.customLibs.collectAsState()
+    val context = LocalContext.current
+    val abi by vm.abi.collectAsState()
+    val stale = remember(customLibs, abi) { vm.staleCustomLibs() }
+
+    val picker = androidx.activity.compose.rememberLauncherForActivityResult(
+        androidx.activity.result.contract.ActivityResultContracts.OpenDocument(),
+    ) { uri ->
+        if (uri != null) vm.addCustomLibs(listOf(uri))
+    }
+
+    AppCard {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Text(
+                if (customLibs.isEmpty()) "Custom libs" else "${customLibs.size} custom lib(s)",
+                style = MaterialTheme.typography.titleSmall,
+                color = Gray40,
+            )
+            GhostButton(text = "Add", onClick = { picker.launch(arrayOf("*/*")) })
+        }
+        Spacer(Modifier.height(4.dp))
+        if (customLibs.isEmpty()) {
+            Text(
+                "No custom libs added yet. Tap Add to pick a .so.",
+                style = MaterialTheme.typography.bodySmall,
+                color = Gray60,
+            )
+        } else {
+            Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                customLibs.forEach { lib ->
+                    val isStale = lib in stale
+                    Surface(
+                        shape = RoundedCornerShape(8.dp),
+                        color = MaterialTheme.colorScheme.surfaceContainerHigh,
+                        modifier = Modifier.fillMaxWidth(),
+                    ) {
+                        Row(
+                            Modifier.padding(10.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            Column(Modifier.weight(1f)) {
+                                Text(lib.name, style = MaterialTheme.typography.bodyMedium, color = White, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                                Text(
+                                    "lib/$abi/${lib.name} · ${lib.machineName}",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = Gray40,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis,
+                                )
+                                if (lib.shadows != null) {
+                                    Text("replaces ${lib.shadows}", style = MaterialTheme.typography.bodySmall, color = WarnYellow)
+                                }
+                                if (isStale) {
+                                    Text("not built for $abi", style = MaterialTheme.typography.bodySmall, color = AlertRed)
+                                }
+                            }
+                            IconButton(onClick = { vm.removeCustomLib(lib.name) }) {
+                                Icon(Icons.Filled.Close, contentDescription = "Remove ${lib.name}", tint = Gray60)
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
 private fun LibListCard(vm: PatcherViewModel) {
     val libs by vm.libs.collectAsState()
     val checking by vm.libsChecking.collectAsState()

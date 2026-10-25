@@ -26,7 +26,10 @@ class StoreApi(private val baseUrl: String, private val context: android.content
 
     private val json = "application/json; charset=utf-8".toMediaType()
 
-    var token: String? = context?.let { com.pickle.patcher.data.StoreSession.token(it) }
+    private var _token: String? = context?.let { com.pickle.patcher.data.StoreSession.token(it) }
+    var token: String?
+        get() = context?.let { com.pickle.patcher.data.StoreSession.token(it) } ?: _token
+        set(value) { _token = value }
 
     // ---- auth ----
 
