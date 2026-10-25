@@ -733,7 +733,7 @@ jobs:
               git push origin continuous
               gh release create continuous --title "Nexora Continuous" --notes "Nexora Continuous build"
             fi
-            gh release upload continuous --clobber version.txt android/app/build/outputs/apk/release/*.apk CS16Client-Android.apk 2>/dev/null || true
+            gh release upload continuous --clobber version.txt android/app/build/outputs/apk/release/*.apk 2>/dev/null || true
           fi
 
           # --- libs tag: all native libs + manifests ---
@@ -757,7 +757,7 @@ jobs:
               git push origin extras
               gh release create extras --title "Nexora Extras" --notes "Addons and game assets (rolling)."
             fi
-            gh release upload extras --clobber amxx-addons.zip game-assets.zip 2>/dev/null || true
+            gh release upload extras --clobber amxx-addons.zip game-assets.zip CS16Client-Android.apk 2>/dev/null || true
           fi
 
           BODY="Nexora Continuous build ${APP_VERSION_NAME:-}
