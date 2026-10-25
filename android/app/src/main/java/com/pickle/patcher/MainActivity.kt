@@ -301,23 +301,23 @@ fun PatcherApp(vm: PatcherViewModel, drawerWidthController: DrawerWidthControlle
             }
             composable(Dest.Addons.route) { AddonsScreen(vm) }
             composable(Dest.Store.route) {
-                val api = StoreApi("https://nexora-store-jzh549tke-code-hammer02.vercel.app", context)
+                val api = StoreApi("https://nexora-store-tawny.vercel.app", context)
                 StoreScreen(api, onBack = { nav.popBackStack() }, onUserClick = { u -> nav.navigate("store/profile/$u") })
             }
             composable(Dest.StoreLogin.route) {
-                val api = StoreApi("https://nexora-store-jzh549tke-code-hammer02.vercel.app", context)
+                val api = StoreApi("https://nexora-store-tawny.vercel.app", context)
                 StoreLoginScreen(api, onBack = { nav.popBackStack() }, onLoginSuccess = { nav.popBackStack() }, onRegister = { nav.navigate(Dest.StoreRegister.route) })
             }
             composable(Dest.StoreRegister.route) {
-                val api = StoreApi("https://nexora-store-jzh549tke-code-hammer02.vercel.app", context)
+                val api = StoreApi("https://nexora-store-tawny.vercel.app", context)
                 StoreRegisterScreen(api, onBack = { nav.popBackStack() }, onRegisterSuccess = { nav.popBackStack() })
             }
             composable(Dest.StoreUpload.route) {
-                val api = StoreApi("https://nexora-store-jzh549tke-code-hammer02.vercel.app", context)
+                val api = StoreApi("https://nexora-store-tawny.vercel.app", context)
                 StoreUploadScreen(api, onBack = { nav.popBackStack() }, onUploadSuccess = { nav.popBackStack() })
             }
             composable(Dest.StoreManage.route) {
-                val api = StoreApi("https://nexora-store-jzh549tke-code-hammer02.vercel.app", context)
+                val api = StoreApi("https://nexora-store-tawny.vercel.app", context)
                 StoreManageScreen(api, onBack = { nav.popBackStack() })
             }
             composable(
@@ -325,7 +325,7 @@ fun PatcherApp(vm: PatcherViewModel, drawerWidthController: DrawerWidthControlle
                 arguments = listOf(navArgument("username") { type = NavType.StringType }),
             ) { backStack ->
                 val username = backStack.arguments?.getString("username") ?: ""
-                val api = StoreApi("https://nexora-store-jzh549tke-code-hammer02.vercel.app", context)
+                val api = StoreApi("https://nexora-store-tawny.vercel.app", context)
                 StoreProfileScreen(api, username = username, onBack = { nav.popBackStack() }, onEditProfile = { })
             }
             composable(Dest.Settings.route) { SettingsScreen(vm, drawerWidthController) }
