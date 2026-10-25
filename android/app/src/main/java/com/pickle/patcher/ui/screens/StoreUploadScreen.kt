@@ -161,7 +161,7 @@ fun StoreUploadScreen(
                         }
                     }
                     api.createItem(token, title, description, version, logoUrl, libUploads).fold(
-                        onSuccess = { loading = false; onUploadSuccess() },
+                        onSuccess = { loading = false; android.widget.Toast.makeText(context, "Submitted for approval", android.widget.Toast.LENGTH_SHORT).show(); onUploadSuccess() },
                         onFailure = { t ->
                             android.util.Log.e("StoreUpload", "upload failed", t)
                             val msg = (t.message ?: t.toString()).let { if (it.isBlank()) "Upload failed" else it }

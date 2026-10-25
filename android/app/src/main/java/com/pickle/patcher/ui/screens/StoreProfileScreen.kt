@@ -26,6 +26,7 @@ import com.pickle.patcher.data.StoreSession
 import com.pickle.patcher.ui.theme.Accent
 import com.pickle.patcher.ui.theme.Gray40
 import com.pickle.patcher.ui.theme.White
+import com.pickle.patcher.ui.theme.WarnYellow
 import com.pickle.patcher.ui.MarkdownText
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Person
@@ -131,7 +132,13 @@ fun StoreProfileScreen(
                                         Spacer(Modifier.width(8.dp))
                                         Column(Modifier.weight(1f)) {
                                             Text(item.optString("title"), style = MaterialTheme.typography.bodyMedium, color = White)
-                                            Text("v${item.optString("version")}", style = MaterialTheme.typography.labelSmall, color = Gray40)
+                                            Row {
+                                                Text("v${item.optString("version")}", style = MaterialTheme.typography.labelSmall, color = Gray40)
+                                                if (item.optString("status", "approved") != "approved") {
+                                                    Spacer(Modifier.width(6.dp))
+                                                    Text("• pending approval", style = MaterialTheme.typography.labelSmall, color = WarnYellow)
+                                                }
+                                            }
                                         }
                                         Icon(Icons.Filled.Download, contentDescription = null, tint = Gray40, modifier = Modifier.size(16.dp))
                                     }
