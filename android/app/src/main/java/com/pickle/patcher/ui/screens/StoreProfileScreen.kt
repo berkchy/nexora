@@ -1,15 +1,22 @@
 package com.pickle.patcher.ui.screens
 
 import android.net.Uri
+import android.app.DownloadManager
+import android.content.Context
+import android.os.Environment
+import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -21,6 +28,7 @@ import com.pickle.patcher.ui.theme.Gray40
 import com.pickle.patcher.ui.theme.White
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Person
+import androidx.compose.material.icons.filled.Download
 import kotlinx.coroutines.launch
 import org.json.JSONArray
 import org.json.JSONObject
@@ -39,6 +47,7 @@ fun StoreProfileScreen(
     var loading by remember { mutableStateOf(true) }
     var error by remember { mutableStateOf<String?>(null) }
     var showEdit by remember { mutableStateOf(false) }
+    var detailItem by remember { mutableStateOf<JSONObject?>(null) }
 
     fun load() {
         scope.launch {
@@ -81,7 +90,7 @@ fun StoreProfileScreen(
                 val avatarUrl = p.optString("avatarUrl", "").takeIf { it.isNotBlank() }
                 Column(Modifier.fillMaxSize().padding(16.dp)) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
-                        Surface(shape = MaterialTheme.shapes.medium, color = MaterialTheme.colorScheme.surfaceContainerHigh, modifier = Modifier.size(64.dp)) {
+                        Surface(shape = MaterialTheme.shapes.medium, color = MaterialTheme.colorScheme.surfaceContainerHigh, modifier = Modifier.size(64.dp).clip(CircleShape)) {
                             Box(contentAlignment = Alignment.Center, modifier = Modifier.fillMaxSize()) {
                                 if (avatarUrl != null) {
                                     AsyncImage(model = avatarUrl, contentDescription = null, modifier = Modifier.fillMaxSize())
@@ -108,11 +117,22 @@ fun StoreProfileScreen(
                                 Surface(
                                     shape = MaterialTheme.shapes.small,
                                     color = MaterialTheme.colorScheme.surfaceContainerHigh,
-                                    modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
+                                    modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp).clickable { detailItem = item },
                                 ) {
-                                    Column(Modifier.padding(12.dp)) {
-                                        Text(item.optString("title"), style = MaterialTheme.typography.bodyMedium, color = White)
-                                        Text("v${item.optString("version")}", style = MaterialTheme.typography.labelSmall, color = Gray40)
+                                    Row(Modifier.padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
+                                        val logoUrl = item.optString("logoUrl", "").takeIf { it.isNotBlank() }
+                                        Surface(shape = MaterialTheme.shapes.small, color = MaterialTheme.colorScheme.surfaceContainerHighest, modifier = Modifier.size(32.dp)) {
+                                            Box(contentAlignment = Alignment.Center, modifier = Modifier.fillMaxSize()) {
+                                                if (logoUrl != null) AsyncImage(model = logoUrl, contentDescription = null, modifier = Modifier.fillMaxSize())
+                                                else Text(item.optString("title", "?").take(1).uppercase(), style = MaterialTheme.typography.labelMedium, color = Accent)
+                                            }
+                                        }
+                                        Spacer(Modifier.width(8.dp))
+                                        Column(Modifier.weight(1f)) {
+                                            Text(item.optString("title"), style = MaterialTheme.typography.bodyMedium, color = White)
+                                            Text("v${item.optString("version")}", style = MaterialTheme.typography.labelSmall, color = Gray40)
+                                        }
+                                        Icon(Icons.Filled.Download, contentDescription = null, tint = Gray40, modifier = Modifier.size(16.dp))
                                     }
                                 }
                             }
@@ -121,6 +141,63 @@ fun StoreProfileScreen(
                 }
             }
         }
+    }
+
+
+    detailItem?.let { item ->
+        val libs = item.optJSONArray("libs")
+        val libCount = libs?.length() ?: 0
+        AlertDialog(
+            onDismissRequest = { detailItem = null },
+            title = { Text(item.optString("title", "Untitled")) },
+            text = {
+                Column {
+                    val logoUrl = item.optString("logoUrl", "").takeIf { it.isNotBlank() }
+                    if (logoUrl != null) {
+                        AsyncImage(model = logoUrl, contentDescription = null, modifier = Modifier.fillMaxWidth().height(120.dp))
+                        Spacer(Modifier.height(8.dp))
+                    }
+                    val desc = item.optString("description", "")
+                    if (desc.isNotBlank()) {
+                        Text(desc, style = MaterialTheme.typography.bodySmall, color = Gray40)
+                        Spacer(Modifier.height(8.dp))
+                    }
+                    Text("v${item.optString("version", "1.0.0")}", style = MaterialTheme.typography.labelSmall, color = Gray40)
+                    if (libCount > 0) {
+                        Spacer(Modifier.height(8.dp))
+                        Text("Libs", style = MaterialTheme.typography.titleSmall, color = Accent)
+                        Spacer(Modifier.height(4.dp))
+                        (0 until libCount).map { libs!!.getJSONObject(it) }.forEach { l ->
+                            Row(Modifier.fillMaxWidth().padding(vertical = 4.dp), verticalAlignment = Alignment.CenterVertically) {
+                                Column(Modifier.weight(1f)) {
+                                    Text(l.optString("name"), style = MaterialTheme.typography.bodySmall, color = White, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                                    Text("${l.optInt("size", 0)} B", style = MaterialTheme.typography.labelSmall, color = Gray40)
+                                }
+                                TextButton(onClick = {
+                                    val ctx = context
+                                    try {
+                                        val dm = ctx.getSystemService(Context.DOWNLOAD_SERVICE) as DownloadManager
+                                        val req = DownloadManager.Request(Uri.parse(l.optString("url")))
+                                            .setTitle(l.optString("name"))
+                                            .setNotificationVisibility(DownloadManager.Request.VISIBILITY_VISIBLE_NOTIFY_COMPLETED)
+                                            .setDestinationInExternalPublicDir(Environment.DIRECTORY_DOWNLOADS, l.optString("name"))
+                                        dm.enqueue(req)
+                                        Toast.makeText(ctx, "Downloading ${l.optString("name")}", Toast.LENGTH_SHORT).show()
+                                    } catch (e: Exception) {
+                                        Toast.makeText(ctx, "Download failed: ${e.message}", Toast.LENGTH_SHORT).show()
+                                    }
+                                }) {
+                                    Icon(Icons.Filled.Download, contentDescription = null, modifier = Modifier.size(14.dp), tint = Accent)
+                                    Spacer(Modifier.width(4.dp))
+                                    Text("Download", color = Accent)
+                                }
+                            }
+                        }
+                    }
+                }
+            },
+            confirmButton = { TextButton(onClick = { detailItem = null }) { Text("Close", color = Gray40) } },
+        )
     }
 
     if (showEdit) {

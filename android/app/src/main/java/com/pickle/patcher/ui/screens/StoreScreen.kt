@@ -16,6 +16,8 @@ import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -43,7 +45,7 @@ fun StoreScreen(
     var refreshing by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf<String?>(null) }
     var page by remember { mutableStateOf(1) }
-    var downloadItem by remember { mutableStateOf<JSONObject?>(null) }
+    var detailItem by remember { mutableStateOf<JSONObject?>(null) }
 
     fun load(isRefresh: Boolean = false) {
         scope.launch {
@@ -98,7 +100,7 @@ fun StoreScreen(
                                 StoreItemCard(
                                     obj = obj,
                                     onUserClick = onUserClick,
-                                    onDownload = { downloadItem = obj },
+                                    onOpenDetail = { detailItem = obj },
                                 )
                             }
                         }
@@ -108,29 +110,30 @@ fun StoreScreen(
         }
     }
 
-    // Download dialog for multiple libs
-    downloadItem?.let { obj ->
+    // Detail dialog with download buttons
+    detailItem?.let { obj ->
         val libs = obj.optJSONArray("libs")
         val libCount = libs?.length() ?: 0
-        if (libCount <= 1) {
-            // direct download
-            LaunchedEffect(obj) {
-                if (libCount == 1) {
-                    val l = libs!!.getJSONObject(0)
-                    downloadLib(context, l.optString("url"), l.optString("name"))
-                } else {
-                    // no libs
-                }
-                downloadItem = null
-            }
-        } else {
-            AlertDialog(
-                onDismissRequest = { downloadItem = null },
-                title = { Text("Download libs") },
-                text = {
-                    Column {
-                        Text(obj.optString("title"), style = MaterialTheme.typography.titleSmall, color = White)
+        AlertDialog(
+            onDismissRequest = { detailItem = null },
+            title = { Text(obj.optString("title", "Untitled")) },
+            text = {
+                Column {
+                    val logoUrl = obj.optString("logoUrl", "").takeIf { it.isNotBlank() }
+                    if (logoUrl != null) {
+                        AsyncImage(model = logoUrl, contentDescription = null, modifier = Modifier.fillMaxWidth().height(120.dp))
                         Spacer(Modifier.height(8.dp))
+                    }
+                    val desc = obj.optString("description", "")
+                    if (desc.isNotBlank()) {
+                        Text(desc, style = MaterialTheme.typography.bodySmall, color = Gray40)
+                        Spacer(Modifier.height(8.dp))
+                    }
+                    Text("v${obj.optString("version", "1.0.0")}", style = MaterialTheme.typography.labelSmall, color = Gray40)
+                    Spacer(Modifier.height(8.dp))
+                    if (libCount > 0) {
+                        Text("Libs", style = MaterialTheme.typography.titleSmall, color = Accent)
+                        Spacer(Modifier.height(4.dp))
                         (0 until libCount).map { libs!!.getJSONObject(it) }.forEach { l ->
                             Row(
                                 Modifier.fillMaxWidth().padding(vertical = 4.dp),
@@ -141,26 +144,28 @@ fun StoreScreen(
                                     Text("${l.optInt("size", 0)} B", style = MaterialTheme.typography.labelSmall, color = Gray40)
                                 }
                                 TextButton(onClick = { downloadLib(context, l.optString("url"), l.optString("name")) }) {
+                                    Icon(Icons.Filled.Download, contentDescription = null, modifier = Modifier.size(14.dp), tint = Accent)
+                                    Spacer(Modifier.width(4.dp))
                                     Text("Download", color = Accent)
                                 }
                             }
                         }
                     }
-                },
-                confirmButton = {
-                    TextButton(onClick = { downloadItem = null }) { Text("Close", color = Gray40) }
-                },
-            )
-        }
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = { detailItem = null }) { Text("Close", color = Gray40) }
+            },
+        )
     }
 }
 
 @Composable
-private fun StoreItemCard(obj: JSONObject, onUserClick: (String) -> Unit, onDownload: () -> Unit) {
+private fun StoreItemCard(obj: JSONObject, onUserClick: (String) -> Unit, onOpenDetail: () -> Unit) {
     Surface(
         shape = MaterialTheme.shapes.medium,
         color = MaterialTheme.colorScheme.surfaceContainerHigh,
-        modifier = Modifier.fillMaxWidth(),
+        modifier = Modifier.fillMaxWidth().clickable { onOpenDetail() },
     ) {
         Row(Modifier.padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
             Surface(
@@ -169,7 +174,12 @@ private fun StoreItemCard(obj: JSONObject, onUserClick: (String) -> Unit, onDown
                 modifier = Modifier.size(48.dp),
             ) {
                 Box(contentAlignment = Alignment.Center, modifier = Modifier.fillMaxSize()) {
-                    Text(obj.optString("title", "?").take(1).uppercase(), style = MaterialTheme.typography.titleMedium, color = Accent)
+                    val logoUrl = obj.optString("logoUrl", "").takeIf { it.isNotBlank() }
+                    if (logoUrl != null) {
+                        AsyncImage(model = logoUrl, contentDescription = null, modifier = Modifier.fillMaxSize())
+                    } else {
+                        Text(obj.optString("title", "?").take(1).uppercase(), style = MaterialTheme.typography.titleMedium, color = Accent)
+                    }
                 }
             }
             Spacer(Modifier.width(12.dp))
@@ -188,7 +198,7 @@ private fun StoreItemCard(obj: JSONObject, onUserClick: (String) -> Unit, onDown
                         AsyncImage(
                             model = avatarUrl,
                             contentDescription = null,
-                            modifier = Modifier.size(16.dp).padding(end = 4.dp),
+                            modifier = Modifier.size(16.dp).clip(CircleShape),
                         )
                     } else {
                         Surface(shape = MaterialTheme.shapes.extraSmall, color = Accent.copy(alpha = 0.2f), modifier = Modifier.size(16.dp)) {
@@ -204,15 +214,7 @@ private fun StoreItemCard(obj: JSONObject, onUserClick: (String) -> Unit, onDown
                     Spacer(Modifier.weight(1f))
                     Text("v${obj.optString("version", "1.0.0")}", style = MaterialTheme.typography.labelSmall, color = Gray40)
                 }
-                val libs = obj.optJSONArray("libs")
-                if (libs != null && libs.length() > 0) {
-                    Spacer(Modifier.height(4.dp))
-                    TextButton(onClick = onDownload, contentPadding = PaddingValues(0.dp)) {
-                        Icon(Icons.Filled.Download, contentDescription = null, modifier = Modifier.size(14.dp), tint = Accent)
-                        Spacer(Modifier.width(4.dp))
-                        Text("Download (${libs.length()})", style = MaterialTheme.typography.labelSmall, color = Accent)
-                    }
-                }
+
             }
         }
     }
