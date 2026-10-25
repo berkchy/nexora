@@ -462,6 +462,7 @@ private fun CustomLibsCard(vm: PatcherViewModel) {
     }
 }
 
+@Composable
 private fun LibListCard(vm: PatcherViewModel) {
     val libs by vm.libs.collectAsState()
     val checking by vm.libsChecking.collectAsState()
