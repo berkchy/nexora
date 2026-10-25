@@ -1,5 +1,4 @@
 package com.pickle.patcher.data
-
 import android.content.Context
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -8,8 +7,7 @@ import okhttp3.MultipartBody
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import okhttp3.RequestBody
-import okhttp3.Request
-import okhttp3.RequestBodyBody.Companion.toRequestBody
+import okhttp3.RequestBody.Companion.toRequestBody
 import okio.Buffer
 import okio.BufferedSink
 import okio.Source
@@ -17,7 +15,10 @@ import okio.source
 import org.json.JSONArray
 import org.json.JSONObject
 import java.io.File
+import java.net.URLEncoder
 import java.util.concurrent.TimeUnit
+
+
 
 /**
  * Minimal client for the Nexora Store API. Deliberately thin: every call
