@@ -73,5 +73,3 @@ jobs:
             android/app/build/outputs/apk/release/nexora.apk
             version.txt
           generate_release_notes: true
-EOF
-echo done
