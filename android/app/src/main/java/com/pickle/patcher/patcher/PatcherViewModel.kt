@@ -2059,11 +2059,19 @@ private fun externalRoot(app: Application): File {
         viewModelScope.launch(Dispatchers.IO) {
             _appUpdate.value = AppUpdate.Checking
             try {
-                val tag = CONTINUOUS_TAG
+                // Prefer a stable release tag (v*) when one exists and is
+                // newer than the installed build; fall back to the rolling
+                // "continuous" tag otherwise.
+                val latest = ReleaseRepository.latestReleaseTag(APP_RELEASE_REPO)
+                val (tag, apkName) = if (latest != null) {
+                    latest to RELEASE_APK
+                } else {
+                    CONTINUOUS_TAG to CONTINUOUS_APK
+                }
                 val remoteVersion = ReleaseRepository.fetchText(
                     ReleaseRepository.assetUrl(APP_RELEASE_REPO, tag, VERSION_FILE)
                 ) ?: throw IOException("Could not reach GitHub releases")
-                val apkUrl = ReleaseRepository.assetUrl(APP_RELEASE_REPO, tag, CONTINUOUS_APK)
+                val apkUrl = ReleaseRepository.assetUrl(APP_RELEASE_REPO, tag, apkName)
                 val apkSize = ReleaseRepository.probeSize(apkUrl)
 
                 val app = getApplication<Application>()
@@ -2927,6 +2935,7 @@ private fun externalRoot(app: Application): File {
          */
         const val CONTINUOUS_TAG = "continuous"
         const val CONTINUOUS_APK = "nexora_continuous.apk"
+        const val RELEASE_APK = "nexora.apk"
         const val VERSION_FILE = "version.txt"
         /**
          * User-edited AMXX config files from addons/amxmodx/configs/. The addons

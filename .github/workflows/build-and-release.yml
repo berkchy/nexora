@@ -782,6 +782,25 @@ jobs:
           generate_release_notes: true
           fail_on_unmatched_files: false
 
+      - name: Release extras (addons, assets, libs)
+        # Publish the non-APK payloads under a rolling "extras" tag so they can
+        # be fetched independently of the app release.
+        if: >-
+          success() &&
+          (steps.build_type.outputs.needs_libs == 'true')
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          gh release delete extras --yes 2>/dev/null || true
+          gh release create extras \
+            --title "Nexora Extras" \
+            --notes "Addons, game assets and native libs (rolling)." \
+            amxx-addons.zip game-assets.zip manifest.json manifest-v7a.json build-meta.json \
+            incremental/arm64-v8a/*.so incremental-v7a/armeabi-v7a/*.so compiler-assets/* 2>/dev/null || true
+          echo "extras release updated"
+
       - name: Notify Discord on successful release
         # Only release tags (v*) announce themselves: `continuous` is the rolling
         # channel players already follow, and a manual dispatch on master

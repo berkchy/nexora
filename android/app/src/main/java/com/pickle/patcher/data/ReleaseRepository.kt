@@ -71,7 +71,7 @@ object ReleaseRepository {
      * First entry of the repository's releases feed, which unlike /releases/latest
      * also carries the pre-releases. Still no api.github.com, so no quota.
      */
-    private suspend fun latestTagFromFeed(repo: String): String? {
+    suspend fun latestTagFromFeed(repo: String): String? {
         return try {
             val req = Request.Builder()
                 .url("https://github.com/$repo/releases.atom")
@@ -88,6 +88,30 @@ object ReleaseRepository {
                     ?.substringBefore('"')
                     ?.trim()
                     ?.ifBlank { null }
+            }
+        } catch (_: Throwable) {
+            null
+        }
+    }
+
+    /**
+     * Latest stable release tag (v*), scanning the releases feed for the first
+     * tag that starts with "v". Returns null when no release tag exists.
+     */
+    suspend fun latestReleaseTag(repo: String): String? {
+        return try {
+            val req = Request.Builder()
+                .url("https://github.com/$repo/releases.atom")
+                .header("User-Agent", "cs16-amxx-patcher")
+                .get()
+                .build()
+            webClient.newCall(req).execute().use { resp ->
+                if (!resp.isSuccessful) return null
+                val body = resp.body?.string().orEmpty()
+                Regex("/releases/tag/([^<\"]+)")
+                    .findAll(body)
+                    .mapNotNull { it.groupValues.getOrNull(1)?.substringBefore('"')?.trim() }
+                    .firstOrNull { it.startsWith("v") }
             }
         } catch (_: Throwable) {
             null
