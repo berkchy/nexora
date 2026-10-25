@@ -390,7 +390,6 @@ private fun BundleSummaryLine(
 }
 
 @Composable
-@Composable
 private fun CustomLibsCard(vm: PatcherViewModel) {
     val customLibs by vm.customLibs.collectAsState()
     val context = LocalContext.current
