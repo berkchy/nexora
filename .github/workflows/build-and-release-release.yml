@@ -98,5 +98,8 @@ jobs:
           }
           data = json.dumps(payload).encode()
           req = urllib.request.Request(url, data=data, headers={"Content-Type": "application/json"})
-          urllib.request.urlopen(req)
+          try:
+            urllib.request.urlopen(req)
+          except Exception as e:
+            print("discord failed:", e)
           PYEOF
