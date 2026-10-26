@@ -1,0 +1,99 @@
+name: build client APK (extras)
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - 'cs16-client.pin'
+      - 'cs16-client-launcher.patch'
+
+permissions:
+  contents: write
+
+env:
+  CS16_CLIENT_URL: https://github.com/Velaron/cs16-client.git
+
+jobs:
+  build-client:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      - name: Fetch cs16-client
+        shell: bash
+        run: |
+          set -euo pipefail
+          PIN=$(tr -d '[:space:]' < cs16-client.pin)
+          [ -n "$PIN" ] || { echo "::error::cs16-client.pin is empty"; exit 1; }
+          git clone "$CS16_CLIENT_URL" cs16-client
+          git -C cs16-client fetch origin "$PIN" 2>/dev/null || git -C cs16-client fetch origin
+          git -C cs16-client checkout "$PIN"
+          git -C cs16-client submodule update --init --recursive
+          GOT=$(git -C cs16-client rev-parse HEAD)
+          [ "$GOT" = "$PIN" ] || { echo "::error::cs16-client is $GOT, pin says $PIN"; exit 1; }
+          echo "cs16-client -> $GOT"
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Install NDK r25c
+        shell: bash
+        run: |
+          SDKMANAGER=$(ls -d "$ANDROID_HOME"/cmdline-tools/*/bin/sdkmanager 2>/dev/null | head -1)
+          [ -n "$SDKMANAGER" ] || SDKMANAGER="$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager"
+          if [ ! -d "$ANDROID_HOME/ndk/25.2.9519653" ]; then
+            echo "y" | "$SDKMANAGER" "ndk;25.2.9519653" || true
+          fi
+
+      - name: Bundle debug signing keystore
+        shell: bash
+        run: |
+          mkdir -p cs16-client/android/app/src/main/assets/keystore 2>/dev/null || true
+
+      - name: Apply launcher patch
+        shell: bash
+        run: |
+          set -euo pipefail
+          git -C cs16-client apply --check cs16-client-launcher.patch
+          git -C cs16-client apply cs16-client-launcher.patch
+
+      - name: Build the client APK
+        working-directory: cs16-client/android
+        env:
+          KEYSTORE_FILE_PATH: ${{ github.workspace }}/signingkey.jks
+          KEYSTORE_PASSWORD: ${{ secrets.KEY_STORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.ALIAS }}
+          KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
+        run: |
+          if [ -n "${{ secrets.SIGNING_KEY }}" ]; then
+            echo "${{ secrets.SIGNING_KEY }}" | base64 --decode > "$KEYSTORE_FILE_PATH"
+            ./gradlew --no-daemon assembleGitContinuous --stacktrace
+            cp app/build/outputs/apk/git/continuous/app-git-continuous.apk \
+               "$GITHUB_WORKSPACE/CS16Client-Android.apk"
+          else
+            echo "::warning::SIGNING_KEY is empty, building the unsigned debug variant"
+            ./gradlew --no-daemon assembleGitDebug --stacktrace
+            cp app/build/outputs/apk/git/debug/app-git-debug.apk \
+               "$GITHUB_WORKSPACE/CS16Client-Android.apk"
+          fi
+          ls -lh "$GITHUB_WORKSPACE/CS16Client-Android.apk"
+
+      - name: Upload to extras release
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          if ! gh release view extras >/dev/null 2>&1; then
+            git config user.name "github-actions[bot]"
+            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+            git tag -f extras
+            git push origin extras
+            gh release create extras --title "Nexora Extras" --notes "Addons, game assets and client APK (rolling)."
+          fi
+          gh release upload extras --clobber "$GITHUB_WORKSPACE/CS16Client-Android.apk"
+          echo "uploaded CS16Client-Android.apk to extras"

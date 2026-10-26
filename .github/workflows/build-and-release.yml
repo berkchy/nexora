@@ -34,20 +34,6 @@ jobs:
       # does not fetch it and `git diff` cannot see it change. cs16-client.pin
       # holds the commit to build and takes that role: changing it is what makes
       # the native rebuild notice, exactly as moving a gitlink used to.
-      - name: Fetch cs16-client
-        shell: bash
-        run: |
-          set -euo pipefail
-          PIN=$(tr -d '[:space:]' < cs16-client.pin)
-          [ -n "$PIN" ] || { echo "::error::cs16-client.pin is empty"; exit 1; }
-          git clone "$CS16_CLIENT_URL" cs16-client
-          git -C cs16-client fetch origin "$PIN" 2>/dev/null || git -C cs16-client fetch origin
-          git -C cs16-client checkout "$PIN"
-          git -C cs16-client submodule update --init --recursive
-          GOT=$(git -C cs16-client rev-parse HEAD)
-          [ "$GOT" = "$PIN" ] || { echo "::error::cs16-client is $GOT, pin says $PIN"; exit 1; }
-          echo "cs16-client -> $GOT"
-
       - name: Detect build type
         id: build_type
         shell: bash
@@ -636,62 +622,6 @@ jobs:
           # -DCMAKE_C_COMPILER_LAUNCHER=ccache into CMake, which fails outright
           # when ccache is missing. Neither is the r25c the .so build uses, so
           # both are installed here, only for the run that needs them.
-      - name: Install client APK build deps
-        if: steps.build_type.outputs.needs_android == 'true'
-        shell: bash
-        run: |
-          set -e
-          command -v ccache >/dev/null 2>&1 || { sudo apt-get update -qq && sudo apt-get install -y -qq ccache; }
-          echo "ccache: $(command -v ccache)"
-          NDK_VER=$(grep -oP 'ndkVersion\s*=\s*"\K[^"]+' cs16-client/android/app/build.gradle)
-          echo "client ndk: $NDK_VER"
-          SDKMANAGER=$(ls -d "$ANDROID_HOME"/cmdline-tools/*/bin/sdkmanager 2>/dev/null | head -1)
-          [ -n "$SDKMANAGER" ] || SDKMANAGER="$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager"
-          if [ ! -d "$ANDROID_HOME/ndk/$NDK_VER" ]; then
-            echo "y" | "$SDKMANAGER" "ndk;$NDK_VER" || true
-          fi
-          ls -d "$ANDROID_HOME/ndk/$NDK_VER"
-
-      # The stock client APK the patcher adopts and rewrites. Built here rather
-      # than fetched from the client repo's own release, so the whole update
-      # chain - patcher, libs, client APK - resolves against a single rolling
-      # release. Uses cs16-client's own gradle project and its "gitContinuous"
-      # build type, which signs from the keystore below and drops the .test
-      # application id suffix.
-      - name: Build the client APK
-        if: steps.build_type.outputs.needs_android == 'true'
-        working-directory: cs16-client/android
-        env:
-          KEYSTORE_FILE_PATH: ${{ github.workspace }}/signingkey.jks
-          KEYSTORE_PASSWORD: ${{ secrets.KEY_STORE_PASSWORD }}
-          KEY_ALIAS: ${{ secrets.ALIAS }}
-          KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
-        run: |
-          if [ -n "${{ secrets.SIGNING_KEY }}" ]; then
-            echo "${{ secrets.SIGNING_KEY }}" | base64 --decode > "$KEYSTORE_FILE_PATH"
-            # Strip the client, the menu and the server out of the APK. Nexora
-            # injects its own builds of the first two into this package at
-            # patch time, so the copies gradle would put here are ~13 MB per
-            # ABI of dead weight. Fails loudly if the pin moves and the patch
-            # stops applying rather than silently shipping the fat APK again.
-            git -C "$GITHUB_WORKSPACE/cs16-client" apply --check "$GITHUB_WORKSPACE/cs16-client-launcher.patch" \
-              || { echo "::error::cs16-client-launcher.patch does not apply to $(cat "$GITHUB_WORKSPACE/cs16-client.pin")"; exit 1; }
-            git -C "$GITHUB_WORKSPACE/cs16-client" apply "$GITHUB_WORKSPACE/cs16-client-launcher.patch"
-            ./gradlew --no-daemon assembleGitContinuous --stacktrace
-            cp app/build/outputs/apk/git/continuous/app-git-continuous.apk \
-               "$GITHUB_WORKSPACE/CS16Client-Android.apk"
-          else
-            echo "::warning::SIGNING_KEY is empty, building the unsigned debug variant"
-            ./gradlew --no-daemon assembleGitDebug --stacktrace
-            cp app/build/outputs/apk/git/debug/app-git-debug.apk \
-               "$GITHUB_WORKSPACE/CS16Client-Android.apk"
-          fi
-          ls -lh "$GITHUB_WORKSPACE/CS16Client-Android.apk"
-
-      # Same rule as the version naming in "Detect build type": the
-      # continuous tag, or a manual run on master. With the tag-only
-      # condition this step was skipped on dispatch, so the run built
-      # everything and then published nothing.
       - name: Release (rolling continuous)
         if: >-
           (startsWith(github.ref, 'refs/tags/') && github.ref_name == 'continuous') ||
@@ -733,7 +663,7 @@ jobs:
               git push origin continuous
               gh release create continuous --title "Nexora Continuous" --notes "Nexora Continuous build"
             fi
-            gh release upload continuous --clobber version.txt android/app/build/outputs/apk/release/*.apk CS16Client-Android.apk 2>/dev/null || true
+            gh release upload continuous --clobber version.txt android/app/build/outputs/apk/release/*.apk 2>/dev/null || true
           fi
 
           # --- libs tag: all native libs + manifests ---
@@ -758,7 +688,6 @@ jobs:
               gh release create extras --title "Nexora Extras" --notes "Addons and game assets (rolling)."
             fi
             gh release upload extras --clobber amxx-addons.zip game-assets.zip 2>/dev/null || true
-            gh release upload extras --clobber CS16Client-Android.apk || echo "CS16Client upload failed"
           fi
 
           BODY="Nexora Continuous build ${APP_VERSION_NAME:-}
