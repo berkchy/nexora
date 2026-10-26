@@ -570,7 +570,7 @@ private fun externalRoot(app: Application): File {
                 _sourceDownload.value = null
                 return@launch
             }
-            val tag = ReleaseRepository.latestTagRedirect(CLIENT_APK_REPO)
+            val tag = "extras"
             val remote = tag?.let {
                 ReleaseRepository.probe(ReleaseRepository.assetUrl(CLIENT_APK_REPO, it, CLIENT_APK_ASSET))
             }
@@ -701,8 +701,7 @@ private fun externalRoot(app: Application): File {
             var partial: File? = null
             try {
                 val repo = CLIENT_APK_REPO
-                val tag = ReleaseRepository.latestTagRedirect(repo)
-                    ?: throw IOException("Could not resolve the latest $repo release")
+                val tag = "extras"
                 val name = CLIENT_APK_ASSET
                 val url = ReleaseRepository.assetUrl(repo, tag, name)
                 val remote = ReleaseRepository.probe(url)
@@ -817,7 +816,7 @@ private fun externalRoot(app: Application): File {
             if (checkRemote) {
                 _libsChecking.value = true
                 try {
-                    tagName = ReleaseRepository.latestTagRedirect(repo) ?: tagName
+                    tagName = "libs"
                     assets = IncrementalUpdateManager.fetchReleaseAssets(tagName, abi)
                 } catch (_: Throwable) { } finally {
                     _libsChecking.value = false
@@ -867,7 +866,7 @@ private fun externalRoot(app: Application): File {
 
     private suspend fun downloadLib(libName: String) {
         try {
-            val tagName = ReleaseRepository.latestTagRedirect(repo) ?: return
+            val tagName = "libs"
             val assets = IncrementalUpdateManager.fetchReleaseAssets(tagName, _abi.value)
             val asset = assets.find { it.cleanName == libName } ?: return
             _libs.value = _libs.value.map {
@@ -902,8 +901,7 @@ private fun externalRoot(app: Application): File {
             _bundle.value = BundleState.Downloading(0.04f)
             var jobStarted = false
             try {
-                val tagName = ReleaseRepository.latestTagRedirect(repo)
-                    ?: throw IOException("Could not reach GitHub releases")
+                val tagName = "libs"
                 _releaseNote.value = tagName
 
                 val assets = IncrementalUpdateManager.fetchReleaseAssets(tagName, _abi.value)
