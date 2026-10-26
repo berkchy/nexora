@@ -38,7 +38,7 @@ fun StoreUploadScreen(
     var version by remember { mutableStateOf("1.0.0") }
     var logoUri by remember { mutableStateOf<Uri?>(null) }
     // libUris paired with their content hash for dedup
-    var libEntries by remember { mutableStateOf<List<Pair<Uri, String>>>(emptyList()) }
+    var libEntries by remember { mutableStateOf<List<Triple<Uri, String, String>>>(emptyList()) }
     var loading by remember { mutableStateOf(false) }
     var progress by remember { mutableStateOf(0f) }
     var progressLabel by remember { mutableStateOf("") }
@@ -53,13 +53,14 @@ fun StoreUploadScreen(
         if (uris.isNotEmpty()) {
             scope.launch {
                 val existing = libEntries.map { it.second }.toMutableSet()
-                val added = mutableListOf<Pair<Uri, String>>()
+                val added = mutableListOf<Triple<Uri, String, String>>()
                 var skipped = 0
                 for (u in uris) {
                     val h = hashUri(context, u)
                     if (h == null || h in existing) { skipped++; continue }
                     existing.add(h)
-                    added.add(u to h)
+                    val name = displayName(context, u)
+                    added.add(Triple(u, h, name))
                 }
                 if (added.isNotEmpty()) libEntries = libEntries + added
                 dupMsg = if (skipped > 0) "$skipped duplicate lib(s) skipped" else null
@@ -67,10 +68,10 @@ fun StoreUploadScreen(
         }
     }
 
-    fun uriToFile(uri: Uri, prefix: String): File? {
+    fun uriToFile(uri: Uri, prefix: String, nameOverride: String? = null): File? {
         return try {
             val input = context.contentResolver.openInputStream(uri) ?: return null
-            val name = uri.lastPathSegment?.substringAfterLast('/') ?: "$prefix.bin"
+            val name = nameOverride ?: (uri.lastPathSegment?.substringAfterLast('/') ?: "$prefix.bin")
             val file = File(context.cacheDir, name)
             input.use { ins -> file.outputStream().use { outs -> ins.copyTo(outs) } }
             file
@@ -113,7 +114,7 @@ fun StoreUploadScreen(
                     Modifier.fillMaxWidth().padding(vertical = 2.dp),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
-                    Text("  • ${uri.lastPathSegment}", color = Gray40, style = MaterialTheme.typography.labelSmall, modifier = Modifier.weight(1f))
+                    Text("  • ${libEntries.find { it.first == uri }?.third ?: uri.lastPathSegment}", color = Gray40, style = MaterialTheme.typography.labelSmall, modifier = Modifier.weight(1f))
                     IconButton(onClick = { libEntries = libEntries.filter { it.first != uri } }, modifier = Modifier.size(20.dp)) {
                         Icon(Icons.Filled.Close, contentDescription = "Remove", tint = Gray40, modifier = Modifier.size(14.dp))
                     }
@@ -162,8 +163,8 @@ fun StoreUploadScreen(
                     }
                     val libUploads = mutableListOf<StoreApi.LibUpload>()
                     val totalLibs = libEntries.size
-                    libEntries.forEachIndexed { idx, (uri, _) ->
-                        val f = uriToFile(uri, "lib")
+                    libEntries.forEachIndexed { idx, (uri, _, name) ->
+                        val f = uriToFile(uri, "lib", name)
                         if (f != null) {
                             progressLabel = "Uploading lib ${idx + 1}/$totalLibs: ${f.name}"
                             progress = 0f
@@ -192,6 +193,22 @@ fun StoreUploadScreen(
             else Text("Upload")
         }
     }
+}
+
+private fun displayName(context: Context, uri: Uri): String {
+    val fromColumn = try {
+        context.contentResolver.query(uri, arrayOf(android.provider.OpenableColumns.DISPLAY_NAME), null, null, null)?.use { c ->
+            if (c.moveToFirst()) {
+                val idx = c.getColumnIndex(android.provider.OpenableColumns.DISPLAY_NAME)
+                if (idx >= 0) c.getString(idx) else null
+            } else null
+        }
+    } catch (_: Exception) { null }
+    val fromPath = uri.lastPathSegment?.substringAfterLast('/')
+    // Prefer a name that carries an extension; fall back to whatever is available.
+    val candidates = listOfNotNull(fromColumn, fromPath)
+    val withExt = candidates.firstOrNull { it.contains('.') }
+    return (withExt ?: candidates.firstOrNull() ?: "file.bin")
 }
 
 private suspend fun hashUri(context: Context, uri: Uri): String? = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {

@@ -1295,8 +1295,7 @@ private fun externalRoot(app: Application): File {
             _addons.value = AddonsState.Downloading(0f, "Resolving latest release…")
             JobProgress.begin(app, JOB_ADDONS, "Addons", "Resolving the release…")
             try {
-                val tag = ReleaseRepository.latestTagRedirect(repo)
-                    ?: throw IOException("Could not reach GitHub releases")
+                val tag = "extras"
                 val zip = File(bundleProvider.cacheDir(), "amxx-addons.zip")
                 _addons.value = AddonsState.Downloading(0f, "Downloading addons…")
                 ReleaseRepository.downloadUrl(
@@ -1428,8 +1427,7 @@ private fun externalRoot(app: Application): File {
         } else {
             if (zip.exists()) zip.delete()
             onStatus("Downloading game content…")
-            val tag = ReleaseRepository.latestTagRedirect(repo)
-                ?: throw IOException("Could not reach GitHub releases")
+            val tag = "extras"
             ReleaseRepository.downloadUrl(
                 ReleaseRepository.assetUrl(repo, tag, "game-assets.zip"),
                 zip,
