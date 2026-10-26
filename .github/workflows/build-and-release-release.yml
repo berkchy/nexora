@@ -97,7 +97,7 @@ jobs:
             }]
           }
           data = json.dumps(payload).encode()
-          req = urllib.request.Request(url, data=data, headers={"Content-Type": "application/json"})
+          req = urllib.request.Request(url, data=data, headers={"Content-Type": "application/json", "User-Agent": "Nexora-CI/1.0"})
           try:
             urllib.request.urlopen(req)
           except Exception as e:
