@@ -84,7 +84,19 @@ jobs:
           set -euo pipefail
           if [ -z "$DISCORD_WEBHOOK" ]; then echo "no webhook"; exit 0; fi
           TAG="${{ steps.ver.outputs.version }}"
-          curl -sS -X POST "$DISCORD_WEBHOOK" \
-            -H 'Content-Type: application/json' \
-            -d "{"embeds":[{"title":"Nexora ${TAG} released","description":"Stable release published.\n[Download APK](https://github.com/berkchy/nexora/releases/tag/${TAG})","color":3944702,"footer":{"text":"Nexora CI"}}]}" \
-            || true
+          python3 - "$TAG" "$DISCORD_WEBHOOK" <<'PYEOF'
+          import sys, json, urllib.request
+          tag = sys.argv[1]
+          url = sys.argv[2]
+          payload = {
+            "embeds": [{
+              "title": "Nexora " + tag + " released",
+              "description": "Stable release published.\n[Download APK](https://github.com/berkchy/nexora/releases/tag/" + tag + ")",
+              "color": 3944702,
+              "footer": {"text": "Nexora CI"}
+            }]
+          }
+          data = json.dumps(payload).encode()
+          req = urllib.request.Request(url, data=data, headers={"Content-Type": "application/json"})
+          urllib.request.urlopen(req)
+          PYEOF
