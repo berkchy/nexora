@@ -83,7 +83,6 @@ import com.pickle.patcher.ui.screens.CompilerScreen
 import com.pickle.patcher.ui.screens.PluginsScreen
 import com.pickle.patcher.ui.screens.CrashLogScreen
 import com.pickle.patcher.ui.screens.PatchScreen
-import com.pickle.patcher.ui.IntroOverlay
 import com.pickle.patcher.ui.DrawerWidthController
 import com.pickle.patcher.ui.screens.SettingsScreen
 import com.pickle.patcher.ui.screens.StoreScreen
@@ -119,14 +118,8 @@ class MainActivity : ComponentActivity() {
                     vm.autoInstallAddons()
                     vm.scanAddonsStatus()
                 }
-                val bundleVersion by vm.bundleVersion.collectAsState()
-                var introKey by remember { mutableStateOf(0L) }
-                LaunchedEffect(bundleVersion) {
-                    if (vm.shouldReplayIntro(bundleVersion)) introKey++
-                }
                 Box(Modifier.fillMaxSize()) {
                     PatcherApp(vm, drawerWidthController)
-                    IntroOverlay(playKey = introKey)
                 }
             }
         }

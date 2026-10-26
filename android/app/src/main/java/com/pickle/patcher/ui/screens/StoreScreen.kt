@@ -229,12 +229,17 @@ private fun StoreItemCard(obj: JSONObject, onUserClick: (String) -> Unit, onOpen
 }
 
 private fun downloadLib(context: Context, url: String, name: String) {
+    if (url.isBlank()) {
+        Toast.makeText(context, "No download URL", Toast.LENGTH_SHORT).show()
+        return
+    }
     try {
         val dm = context.getSystemService(Context.DOWNLOAD_SERVICE) as DownloadManager
+        val safeName = name.replace(Regex("[^A-Za-z0-9._-]"), "_")
         val req = DownloadManager.Request(Uri.parse(url))
             .setTitle(name)
             .setNotificationVisibility(DownloadManager.Request.VISIBILITY_VISIBLE_NOTIFY_COMPLETED)
-            .setDestinationInExternalPublicDir(Environment.DIRECTORY_DOWNLOADS, name)
+            .setDestinationInExternalPublicDir(Environment.DIRECTORY_DOWNLOADS, safeName)
         dm.enqueue(req)
         Toast.makeText(context, "Downloading $name", Toast.LENGTH_SHORT).show()
     } catch (e: Exception) {
