@@ -58,8 +58,8 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          git -C cs16-client apply --check cs16-client-launcher.patch
-          git -C cs16-client apply cs16-client-launcher.patch
+          git -C cs16-client apply --check "$GITHUB_WORKSPACE/cs16-client-launcher.patch"
+          git -C cs16-client apply "$GITHUB_WORKSPACE/cs16-client-launcher.patch"
 
       - name: Build the client APK
         working-directory: cs16-client/android
