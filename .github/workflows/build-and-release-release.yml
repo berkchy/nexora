@@ -89,7 +89,7 @@ jobs:
           tag = sys.argv[1]
           url = sys.argv[2]
           desc = (
-            "## \U0001F680 Nexora " + tag + " \u2014 Stable Release\n\n"
+            "## \U0001F4E3 Nexora " + tag + " \u2014 Stable Release\n\n"
             "**A new version is out!** Download the APK from the link below.\n\n"
             "### \U0001F4E6 Contents\n"
             "- `nexora.apk` \u2014 patcher app\n"
@@ -102,13 +102,12 @@ jobs:
           )
           payload = {
             "embeds": [{
-              "title": "\U0001F680 Nexora " + tag + " released",
+              "title": "\U0001F4E3 Nexora " + tag + " released",
               "description": desc,
               "color": 3944702,
               "footer": {"text": "Nexora CI \u2022 Stable Release"},
               "fields": [
                 {"name": "Tag", "value": "`" + tag + "`", "inline": True},
-                {"name": "Kanal", "value": "stable", "inline": True},
               ],
             }]
           }
