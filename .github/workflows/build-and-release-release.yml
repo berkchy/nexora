@@ -102,7 +102,7 @@ jobs:
           )
           payload = {
             "embeds": [{
-              "title": "\U0001F4E3 Nexora " + tag + " released",
+              "title": "Nexora " + tag + " released",
               "description": desc,
               "color": 3944702,
               "footer": {"text": "Nexora CI \u2022 Stable Release"},
