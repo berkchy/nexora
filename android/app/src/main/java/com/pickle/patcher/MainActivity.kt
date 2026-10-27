@@ -547,7 +547,7 @@ private fun NavDrawer(
                         closeThen { nav.navigate(Dest.StoreManage.route) }
                     }
                     if (isAdmin) {
-                        DrawerItem("Admin", Icons.Filled.AdminPanelSettings, currentRoute == Dest.StoreAdmin.route) {
+                        DrawerItem("Admin", Icons.Filled.Security, currentRoute == Dest.StoreAdmin.route) {
                             closeThen { nav.navigate(Dest.StoreAdmin.route) }
                         }
                     }
