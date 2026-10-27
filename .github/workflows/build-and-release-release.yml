@@ -88,18 +88,35 @@ jobs:
           import sys, json, urllib.request
           tag = sys.argv[1]
           url = sys.argv[2]
+          desc = (
+            "## \U0001F680 Nexora " + tag + " \u2014 Stable Release\n\n"
+            "**Yeni sürüm yayınlandı!** Aşağıdaki bağlantıdan APK'yı indirebilirsiniz.\n\n"
+            "### \U0001F4E6 İçerik\n"
+            "- `nexora.apk` \u2014 patcher uygulaması\n"
+            "- `version.txt` \u2014 sürüm bilgisi\n\n"
+            "### \U0001F517 İndir\n"
+            "[**APK'yı İndir**](https://github.com/berkchy/nexora/releases/tag/" + tag + ")\n\n"
+            "> *Not:* Libs ve extras ayrı release'lerde (`libs`, `extras`) bulunur.\n\n"
+            "---\n"
+            "*Nexora CI tarafından otomatik oluşturuldu.*"
+          )
           payload = {
             "embeds": [{
-              "title": "Nexora " + tag + " released",
-              "description": "Stable release published.\n[Download APK](https://github.com/berkchy/nexora/releases/tag/" + tag + ")",
+              "title": "\U0001F680 Nexora " + tag + " released",
+              "description": desc,
               "color": 3944702,
-              "footer": {"text": "Nexora CI"}
+              "footer": {"text": "Nexora CI \u2022 Stable Release"},
+              "fields": [
+                {"name": "Tag", "value": "`" + tag + "`", "inline": True},
+                {"name": "Kanal", "value": "stable", "inline": True},
+              ],
             }]
           }
-          data = json.dumps(payload).encode()
-          req = urllib.request.Request(url, data=data, headers={"Content-Type": "application/json", "User-Agent": "Nexora-CI/1.0"})
+          data = json.dumps(payload, ensure_ascii=False).encode("utf-8")
+          req = urllib.request.Request(url, data=data, headers={"Content-Type": "application/json; charset=utf-8", "User-Agent": "Nexora-CI/1.0"})
           try:
             urllib.request.urlopen(req)
+            print("discord notified")
           except Exception as e:
             print("discord failed:", e)
           PYEOF
