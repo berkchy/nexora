@@ -57,7 +57,6 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.Text
-import androidx.compose.material3.HorizontalDivider
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -91,6 +90,7 @@ import com.pickle.patcher.ui.screens.StoreRegisterScreen
 import com.pickle.patcher.ui.screens.StoreUploadScreen
 import com.pickle.patcher.ui.screens.StoreProfileScreen
 import com.pickle.patcher.ui.screens.StoreManageScreen
+import com.pickle.patcher.ui.screens.AdminScreen
 import com.pickle.patcher.data.StoreApi
 import com.pickle.patcher.ui.screens.toDisplayVersion
 import com.pickle.patcher.ui.theme.NexoraTheme
@@ -136,6 +136,7 @@ private enum class Dest(val route: String) {
     StoreUpload("store/upload"),
     StoreProfile("store/profile/{username}"),
     StoreManage("store/manage"),
+    StoreAdmin("store/admin"),
     // Settings and Plugins sit in the drawer next to the three tasks and are
     // peers of them, so they navigate as tabs too. As plain destinations they
     // stacked on the back stack and the app bar grew a back arrow, which made
@@ -312,6 +313,10 @@ fun PatcherApp(vm: PatcherViewModel, drawerWidthController: DrawerWidthControlle
             composable(Dest.StoreManage.route) {
                 val api = StoreApi("https://nexora-store-tawny.vercel.app", context)
                 StoreManageScreen(api, onBack = { nav.popBackStack() })
+            }
+            composable(Dest.StoreAdmin.route) {
+                val api = StoreApi("https://nexora-store-tawny.vercel.app", context)
+                AdminScreen(api, onBack = { nav.popBackStack() })
             }
             composable(
                 route = Dest.StoreProfile.route,
@@ -492,6 +497,8 @@ private fun NavDrawer(
                     .verticalScroll(androidx.compose.foundation.rememberScrollState()),
             ) {
                 DrawerHeader()
+
+                DrawerSection("PATCHER")
                 DrawerItem("Patch", Icons.Filled.RocketLaunch, currentRoute == Dest.Patch.route) {
                     closeThen { navToTab(nav, Dest.Patch.route, currentRoute) }
                 }
@@ -502,14 +509,26 @@ private fun NavDrawer(
                     closeThen { navToTab(nav, Dest.Addons.route, currentRoute) }
                 }
 
-                HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
-
+                DrawerSection("STORE")
                 DrawerItem("Store", Icons.Filled.ShoppingCart, currentRoute == Dest.Store.route) {
                     closeThen { navToTab(nav, Dest.Store.route, currentRoute) }
                 }
                 // Only show account actions when there is a session. Upload and
                 // Manage are useless (and confusing) to an anonymous user.
                 val loggedIn = com.pickle.patcher.data.StoreSession.token(context) != null
+                // Resolve role: use cached value, fall back to a me() fetch so
+                // users who logged in before role was persisted still get admin.
+                var role by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf(com.pickle.patcher.data.StoreSession.role(context)) }
+                androidx.compose.runtime.LaunchedEffect(loggedIn) {
+                    if (loggedIn && role == null) {
+                        val api = com.pickle.patcher.data.StoreApi("https://nexora-store-tawny.vercel.app", context)
+                        api.me().getOrNull()?.optJSONObject("user")?.optString("role")?.let { r ->
+                            role = r
+                            com.pickle.patcher.data.StoreSession.save(context, com.pickle.patcher.data.StoreSession.token(context)!!, com.pickle.patcher.data.StoreSession.username(context) ?: "", r)
+                        }
+                    }
+                }
+                val isAdmin = role == "admin"
                 if (!loggedIn) {
                     DrawerItem("Store Login", Icons.Filled.Login, currentRoute == Dest.StoreLogin.route) {
                         closeThen { nav.navigate(Dest.StoreLogin.route) }
@@ -527,10 +546,14 @@ private fun NavDrawer(
                     DrawerItem("Store Manage", Icons.Filled.Edit, currentRoute == Dest.StoreManage.route) {
                         closeThen { nav.navigate(Dest.StoreManage.route) }
                     }
+                    if (isAdmin) {
+                        DrawerItem("Admin", Icons.Filled.AdminPanelSettings, currentRoute == Dest.StoreAdmin.route) {
+                            closeThen { nav.navigate(Dest.StoreAdmin.route) }
+                        }
+                    }
                 }
 
-                HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
-
+                DrawerSection("SETTINGS")
                 DrawerItem("Settings", Icons.Filled.Tune, currentRoute == Dest.Settings.route) {
                     closeThen { navToTab(nav, Dest.Settings.route, currentRoute) }
                 }
@@ -538,8 +561,7 @@ private fun NavDrawer(
                     closeThen { navToTab(nav, Dest.Plugins.route, currentRoute) }
                 }
 
-                HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
-
+                DrawerSection("TOOLS")
                 DrawerItem("Theme", Icons.Filled.Palette, false, onTheme)
                 DrawerItem("Update check", Icons.Filled.SystemUpdate) {
                     closeThen {
@@ -626,6 +648,16 @@ private fun DrawerHeader() {
         Spacer(Modifier.width(12.dp))
         Text("Nexora", style = MaterialTheme.typography.titleMedium)
     }
+}
+
+@Composable
+private fun DrawerSection(title: String) {
+    Text(
+        text = title,
+        style = MaterialTheme.typography.labelSmall,
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+        modifier = Modifier.padding(start = 28.dp, top = 12.dp, bottom = 4.dp),
+    )
 }
 
 @Composable

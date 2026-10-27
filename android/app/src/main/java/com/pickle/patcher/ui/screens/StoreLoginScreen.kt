@@ -69,7 +69,8 @@ fun StoreLoginScreen(
                             val t = json.optString("token")
                             api.token = t
                             val uname = json.optString("username")
-                            com.pickle.patcher.data.StoreSession.save(context, t, uname)
+                            val role = json.optString("role", "user")
+                            com.pickle.patcher.data.StoreSession.save(context, t, uname, role)
                             loading = false
                             onLoginSuccess()
                         },

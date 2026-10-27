@@ -179,6 +179,31 @@ class StoreApi(private val baseUrl: String, private val context: android.content
     suspend fun getUserProfile(username: String): Result<JSONObject> =
         get("/api/users/$username", null)
 
+    // ---- admin ----
+
+    suspend fun adminListItems(token: String, status: String? = null): Result<JSONObject> {
+        val path = if (status != null) "/api/admin/items?status=$status" else "/api/admin/items"
+        return get(path, token)
+    }
+
+    suspend fun adminPatchItem(token: String, id: String, status: String): Result<JSONObject> =
+        patch("/api/admin/items/$id", JSONObject().put("status", status).toString(), token)
+
+    suspend fun adminDeleteItem(token: String, id: String): Result<JSONObject> =
+        delete("/api/admin/items/$id", token)
+
+    suspend fun adminListUsers(token: String): Result<JSONObject> =
+        get("/api/admin/users", token)
+
+    suspend fun adminPatchUser(token: String, id: String, role: String? = null, displayName: String? = null): Result<JSONObject> =
+        patch("/api/admin/users/$id", JSONObject().apply {
+            if (role != null) put("role", role)
+            if (displayName != null) put("displayName", displayName)
+        }.toString(), token)
+
+    suspend fun adminDeleteUser(token: String, id: String): Result<JSONObject> =
+        delete("/api/admin/users/$id", token)
+
     // ---- helpers ----
 
     private suspend fun get(path: String, token: String?): Result<JSONObject> = withContext(Dispatchers.IO) {
