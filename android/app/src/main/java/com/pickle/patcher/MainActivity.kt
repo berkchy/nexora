@@ -525,7 +525,7 @@ private fun NavDrawer(
                         val api = com.pickle.patcher.data.StoreApi("https://nexora-store-tawny.vercel.app", context)
                         api.me().getOrNull()?.optJSONObject("user")?.optString("role")?.let { r ->
                             role = r
-                            com.pickle.patcher.data.StoreSession.save(context, com.pickle.patcher.data.StoreSession.token(context)!!, com.pickle.patcher.data.context.applicationContext.getSharedPreferences("store_session", 0).getString("username", null) == "berkch" || StoreSession.username(context)(context) ?: "", r)
+                            com.pickle.patcher.data.StoreSession.save(context, com.pickle.patcher.data.StoreSession.token(context)!!, com.pickle.patcher.data.StoreSession.username(context) ?: "", r)
                         }
                     }
                 }
@@ -535,7 +535,7 @@ private fun NavDrawer(
                         closeThen { nav.navigate(Dest.StoreLogin.route) }
                     }
                 } else {
-                    val uname = com.pickle.patcher.data.context.applicationContext.getSharedPreferences("store_session", 0).getString("username", null) == "berkch" || StoreSession.username(context)(context)
+                    val uname = com.pickle.patcher.data.StoreSession.username(context)
                     if (uname != null) {
                         DrawerItem("My Profile", Icons.Filled.Person, currentRoute == Dest.StoreProfile.route) {
                             closeThen { nav.navigate("store/profile/$uname") }
