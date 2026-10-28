@@ -45,6 +45,49 @@ jobs:
           echo "APP_VERSION_NAME=$V" >> "$GITHUB_ENV"
           echo "APP_VERSION_CODE=$(date -u +%s)" >> "$GITHUB_ENV"
 
+      - name: Restore on-device compilers from libs release
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          mkdir -p /tmp/prevpc             "$GITHUB_WORKSPACE/build-out/compiler/arm64-v8a"             "$GITHUB_WORKSPACE/build-out/compiler/armeabi-v7a"
+          cd /tmp/prevpc
+          gh release download libs --repo "$GITHUB_REPOSITORY"             --pattern 'compiler-*' --clobber 2>/dev/null || true
+          shopt -s nullglob
+          for f in *; do
+            case "$f" in
+              compiler-arm64-v8a__*) cp "$f" "$GITHUB_WORKSPACE/build-out/compiler/arm64-v8a/${f#compiler-arm64-v8a__}" ;;
+              compiler-armeabi-v7a__*) cp "$f" "$GITHUB_WORKSPACE/build-out/compiler/armeabi-v7a/${f#compiler-armeabi-v7a__}" ;;
+            esac
+          done
+          ls -l "$GITHUB_WORKSPACE/build-out/compiler/arm64-v8a" || true
+
+      - name: Bundle debug signing keystore into app assets
+        shell: bash
+        run: |
+          mkdir -p android/app/src/main/assets/keystore
+          cp android/debug/patcher-release.p12 android/app/src/main/assets/keystore/debug.p12
+          cp android/debug/debug_key.pem android/app/src/main/assets/keystore/debug_key.pem
+          cp android/debug/debug_cert.pem android/app/src/main/assets/keystore/debug_cert.pem
+
+      - name: Embed amxxpc compiler as native libs
+        shell: bash
+        run: |
+          mkdir -p android/app/src/main/jniLibs/arm64-v8a
+          if [ -f "$GITHUB_WORKSPACE/build-out/compiler/arm64-v8a/amxxpc" ]; then
+            cp "$GITHUB_WORKSPACE/build-out/compiler/arm64-v8a/amxxpc" android/app/src/main/jniLibs/arm64-v8a/libamxxpc.so
+            cp "$GITHUB_WORKSPACE/build-out/compiler/arm64-v8a/amxxpc32.so" android/app/src/main/jniLibs/arm64-v8a/libamxxpc32.so
+            chmod +x android/app/src/main/jniLibs/arm64-v8a/libamxxpc.so
+          fi
+          if [ -f "$GITHUB_WORKSPACE/build-out/compiler/armeabi-v7a/amxxpc" ]; then
+            mkdir -p android/app/src/main/jniLibs/armeabi-v7a
+            cp "$GITHUB_WORKSPACE/build-out/compiler/armeabi-v7a/amxxpc" android/app/src/main/jniLibs/armeabi-v7a/libamxxpc.so
+            cp "$GITHUB_WORKSPACE/build-out/compiler/armeabi-v7a/amxxpc32.so" android/app/src/main/jniLibs/armeabi-v7a/libamxxpc32.so
+            chmod +x android/app/src/main/jniLibs/armeabi-v7a/libamxxpc.so
+          fi
+          ls -lh android/app/src/main/jniLibs/arm64-v8a/ 2>/dev/null || true
+
       - name: Build the patcher APK
         working-directory: android
         env:
