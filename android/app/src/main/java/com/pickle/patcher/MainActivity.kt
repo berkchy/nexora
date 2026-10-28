@@ -517,16 +517,21 @@ private fun NavDrawer(
                 // Only show account actions when there is a session. Upload and
                 // Manage are useless (and confusing) to an anonymous user.
                 val loggedIn = com.pickle.patcher.data.StoreSession.token(context) != null
-                // Resolve role: use cached value, fall back to a me() fetch so
-                // users who logged in before role was persisted still get admin.
+                // Resolve role: always refresh from /api/auth/me when logged in
                 var role by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf(com.pickle.patcher.data.StoreSession.role(context)) }
                 androidx.compose.runtime.LaunchedEffect(loggedIn) {
-                    if (loggedIn && role == null) {
+                    if (loggedIn) {
                         val api = com.pickle.patcher.data.StoreApi("https://nexora-store-tawny.vercel.app", context)
                         api.me().getOrNull()?.optJSONObject("user")?.optString("role")?.let { r ->
                             role = r
-                            com.pickle.patcher.data.StoreSession.save(context, com.pickle.patcher.data.StoreSession.token(context)!!, com.pickle.patcher.data.StoreSession.username(context) ?: "", r)
+                            val t = com.pickle.patcher.data.StoreSession.token(context)
+                            val u = com.pickle.patcher.data.StoreSession.username(context) ?: ""
+                            if (t != null) {
+                                com.pickle.patcher.data.StoreSession.save(context, t, u, r)
+                            }
                         }
+                    } else {
+                        role = null
                     }
                 }
                 val isAdmin = role == "admin"

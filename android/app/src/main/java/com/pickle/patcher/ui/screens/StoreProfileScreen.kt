@@ -31,6 +31,7 @@ import com.pickle.patcher.ui.MarkdownText
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Download
+import androidx.compose.material.icons.filled.Logout
 import kotlinx.coroutines.launch
 import org.json.JSONArray
 import org.json.JSONObject
@@ -84,6 +85,13 @@ fun StoreProfileScreen(
             val isOwn = profile?.optBoolean("isOwn", false) == true
             if (isOwn) {
                 TextButton(onClick = { showEdit = true }) { Text("Edit", color = Accent) }
+                TextButton(onClick = {
+                    StoreSession.clear(context)
+                    val api2 = StoreApi("https://nexora-store-tawny.vercel.app", context)
+                    scope.launch { api2.logout() }
+                    android.widget.Toast.makeText(context, "Logged out", android.widget.Toast.LENGTH_SHORT).show()
+                    onBack()
+                }) { Icon(Icons.Filled.Logout, contentDescription = null, tint = Gray40, modifier = Modifier.size(18.dp)) }
             } else {
                 Spacer(Modifier.width(60.dp))
             }
