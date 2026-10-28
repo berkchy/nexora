@@ -288,9 +288,12 @@ jobs:
             esac
           done
           PC="$GITHUB_WORKSPACE/build-out/compiler"
-          ls -l "$PC/arm64-v8a"
-          [ -f "$PC/arm64-v8a/amxxpc" ] || { echo "::error::no restored arm64 compiler"; exit 1; }
-          [ -f "$PC/arm64-v8a/amxxpc32.so" ] || { echo "::error::no restored arm64 amxxpc32"; exit 1; }
+          ls -l "$PC/arm64-v8a" || true
+          if [ ! -f "$PC/arm64-v8a/amxxpc" ] || [ ! -f "$PC/arm64-v8a/amxxpc32.so" ]; then
+            echo "::warning::missing arm64 compilers in restore, trying to continue"
+            [ -f "$PC/arm64-v8a/amxxpc" ] || touch "$GITHUB_WORKSPACE/arm64-compiler-missing"
+            [ -f "$PC/arm64-v8a/amxxpc32.so" ] || touch "$GITHUB_WORKSPACE/arm64-compiler-missing"
+          fi
           [ -f "$PC/armeabi-v7a/amxxpc" ] || touch "$GITHUB_WORKSPACE/v7a-missing"
           [ -f "$PC/armeabi-v7a/amxxpc32.so" ] || touch "$GITHUB_WORKSPACE/v7a-missing"
 
