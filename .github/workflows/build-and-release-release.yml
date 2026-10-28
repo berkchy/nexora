@@ -51,7 +51,9 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
-          mkdir -p /tmp/prevpc             "$GITHUB_WORKSPACE/build-out/compiler/arm64-v8a"             "$GITHUB_WORKSPACE/build-out/compiler/armeabi-v7a"
+          mkdir -p /tmp/prevpc \
+            "$GITHUB_WORKSPACE/build-out/compiler/arm64-v8a" \
+            "$GITHUB_WORKSPACE/build-out/compiler/armeabi-v7a"
           cd /tmp/prevpc
           gh release download libs --repo "$GITHUB_REPOSITORY"             --pattern 'compiler-*' --clobber 2>/dev/null || true
           shopt -s nullglob
