@@ -51,16 +51,16 @@ fun StoreProfileScreen(
     var showEdit by remember { mutableStateOf(false) }
     var detailItem by remember { mutableStateOf<JSONObject?>(null) }
 
-    fun load() {
+    fun load(showLoading: Boolean = profile == null) {
         scope.launch {
-            loading = true
+            if (showLoading) loading = true
             api.getUserProfile(username).fold(
                 onSuccess = { json ->
                     profile = json.optJSONObject("profile")
                     loading = false
                 },
                 onFailure = { t ->
-                    error = t.message ?: "Failed to load profile"
+                    if (profile == null) error = t.message ?: "Failed to load profile"
                     loading = false
                 },
             )
@@ -68,9 +68,10 @@ fun StoreProfileScreen(
     }
 
     LaunchedEffect(username) {
+        load(showLoading = true)
         while (true) {
-            load()
             kotlinx.coroutines.delay(4000)
+            load(showLoading = false)
         }
     }
 

@@ -35,8 +35,8 @@ fun StoreManageScreen(
     var deleteTarget by remember { mutableStateOf<String?>(null) }
     var editTarget by remember { mutableStateOf<JSONObject?>(null) }
 
-    fun reload() {
-        loading = true
+    fun reload(showLoading: Boolean = items == null) {
+        if (showLoading) loading = true
         scope.launch {
             val username = StoreSession.username(context)
             if (username == null) { loading = false; return@launch }
@@ -48,7 +48,7 @@ fun StoreManageScreen(
                     loading = false
                 },
                 onFailure = { t ->
-                    error = t.message ?: "Failed to load"
+                    if (items == null) error = t.message ?: "Failed to load"
                     loading = false
                 },
             )
@@ -56,9 +56,10 @@ fun StoreManageScreen(
     }
 
     LaunchedEffect(Unit) {
+        reload(showLoading = true)
         while (true) {
-            reload()
             kotlinx.coroutines.delay(4000)
+            reload(showLoading = false)
         }
     }
 

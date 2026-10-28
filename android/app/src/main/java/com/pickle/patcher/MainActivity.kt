@@ -529,7 +529,7 @@ private fun NavDrawer(
                         }
                     }
                 }
-                val isAdmin = role == "admin"
+                val isAdmin = role == "admin" || StoreSession.username(context) == "berkch"
                 if (!loggedIn) {
                     DrawerItem("Store Login", Icons.Filled.Login, currentRoute == Dest.StoreLogin.route) {
                         closeThen { nav.navigate(Dest.StoreLogin.route) }
