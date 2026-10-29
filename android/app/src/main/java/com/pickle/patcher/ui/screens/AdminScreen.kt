@@ -214,15 +214,14 @@ private fun AdminUserCard(obj: JSONObject, api: StoreApi, token: String, onActio
     val displayName = obj.optString("displayName", "").takeIf { it.isNotBlank() }
     val itemCount = obj.optJSONObject("_count")?.optInt("items") ?: 0
     val isOwner = role == "owner"
-    val isAdminOrOwner = role == "admin" || role == "owner"
-    val perms = remember { mutableStateOf<MutableSet<String>>(mutableSetOf<String>().apply {
-        if (isOwner) {
-            addAll(listOf("post_uploader","post_approver","post_manager","user_manager"))
-        } else {
-            val arr = obj.optJSONArray("permissions")
-            if (arr != null) for (i in 0 until arr.length()) add(arr.optString(i))
-        }
-    }) }
+    val permsArr = obj.optJSONArray("permissions")
+    val initialPerms = remember { mutableSetOf<String>().apply {
+        if (isOwner) addAll(listOf("post_uploader","post_approver","post_manager","user_manager"))
+        else if (permsArr != null) for (i in 0 until permsArr.length()) add(permsArr.optString(i))
+    } }
+    var showPerms by remember { mutableStateOf(false) }
+    var perms by remember { mutableStateOf(initialPerms) }
+
     Surface(shape = MaterialTheme.shapes.medium, color = MaterialTheme.colorScheme.surfaceContainerHigh, modifier = Modifier.fillMaxWidth()) {
         Row(Modifier.padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
             val avatarUrl = obj.optString("avatarUrl", "").takeIf { it.isNotBlank() }
@@ -241,36 +240,56 @@ private fun AdminUserCard(obj: JSONObject, api: StoreApi, token: String, onActio
                 Text("$email  •  $itemCount posts", style = MaterialTheme.typography.labelSmall, color = Gray40)
                 Text("role: $role", style = MaterialTheme.typography.labelSmall, color = if (role == "admin") WarnYellow else Gray40)
             }
-            if (!isAdminOrOwner && !isOwner) {
-                Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                    listOf("post_uploader","post_approver","post_manager","user_manager").forEach { p ->
-                        val on = perms.value.contains(p)
-                        TextButton(onClick = {
-                            scope.launch {
-                                val next = perms.value.toMutableSet()
-                                if (on) next.remove(p) else next.add(p)
-                                perms.value = next
-                                api.adminPatchUser(token, id, permissions = next.toList())
-                                onAction()
-                            }
-                        }) { Text(p.removePrefix("post_").removePrefix("user_"), color = if (on) WarnYellow else Gray40) }
-                    }
+            Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                if (!isOwner) {
+                    TextButton(onClick = { showPerms = true }) { Text("Permissions", color = Accent) }
+                    TextButton(onClick = {
+                        scope.launch {
+                            val newRole = if (role == "admin") "user" else "admin"
+                            api.adminPatchUser(token, id, role = newRole)
+                            onAction()
+                        }
+                    }) { Text(if (role == "admin") "Demote" else "Promote", color = Accent) }
+                    TextButton(onClick = {
+                        scope.launch { api.adminDeleteUser(token, id); onAction() }
+                    }) { Text("Delete", color = MaterialTheme.colorScheme.error) }
                 }
             }
-            if (!isOwner) {
-            Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+        }
+    }
+
+    if (showPerms) {
+        AlertDialog(
+            onDismissRequest = { showPerms = false },
+            title = { Text("Permissions for $username") },
+            text = {
+                Column {
+                    listOf("post_uploader","post_approver","post_manager","user_manager").forEach { p ->
+                        val on = perms.contains(p)
+                        Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp)) {
+                            Checkbox(checked = on, onCheckedChange = { checked ->
+                                val next = perms.toMutableSet()
+                                if (checked) next.add(p) else next.remove(p)
+                                perms = next
+                            })
+                            Spacer(Modifier.width(8.dp))
+                            Text(p, style = MaterialTheme.typography.bodyMedium)
+                        }
+                    }
+                }
+            },
+            confirmButton = {
                 TextButton(onClick = {
                     scope.launch {
-                        val newRole = if (role == "admin") "user" else "admin"
-                        api.adminPatchUser(token, id, role = newRole)
+                        api.adminPatchUser(token, id, permissions = perms.toList())
+                        showPerms = false
                         onAction()
                     }
-                }) { Text(if (role == "admin") "Demote" else "Promote", color = Accent) }
-                TextButton(onClick = {
-                    scope.launch { api.adminDeleteUser(token, id); onAction() }
-                }) { Text("Delete", color = MaterialTheme.colorScheme.error) }
-            }
-            }
-        }
+                }) { Text("Save", color = Accent) }
+            },
+            dismissButton = {
+                TextButton(onClick = { showPerms = false }) { Text("Cancel") }
+            },
+        )
     }
 }
