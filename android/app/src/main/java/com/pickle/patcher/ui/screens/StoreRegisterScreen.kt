@@ -60,7 +60,7 @@ fun StoreRegisterScreen(
                             api.token = t
                             val uname = json.optString("username")
                             val role = json.optString("role", "user")
-                            com.pickle.patcher.data.StoreSession.save(context, t, uname, role)
+                            com.pickle.patcher.data.StoreSession.save(context, t, uname, role, false)
                             loading = false
                             onRegisterSuccess()
                         },

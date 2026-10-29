@@ -23,6 +23,7 @@ fun StoreLoginScreen(
     onBack: () -> Unit,
     onLoginSuccess: () -> Unit,
     onRegister: () -> Unit,
+    onNeedsVerification: () -> Unit = {},
 ) {
     val scope = rememberCoroutineScope()
     val context = LocalContext.current
@@ -70,9 +71,10 @@ fun StoreLoginScreen(
                             api.token = t
                             val uname = json.optString("username")
                             val role = json.optString("role", "user")
-                            com.pickle.patcher.data.StoreSession.save(context, t, uname, role)
+                            val ev = json.optBoolean("emailVerified", false)
+                            com.pickle.patcher.data.StoreSession.save(context, t, uname, role, ev)
                             loading = false
-                            onLoginSuccess()
+                            if (ev) onLoginSuccess() else onNeedsVerification()
                         },
                         onFailure = { t ->
                             error = t.message ?: "Login failed"

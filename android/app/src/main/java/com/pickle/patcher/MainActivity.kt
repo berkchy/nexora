@@ -88,6 +88,7 @@ import com.pickle.patcher.ui.screens.SettingsScreen
 import com.pickle.patcher.ui.screens.StoreScreen
 import com.pickle.patcher.ui.screens.StoreLoginScreen
 import com.pickle.patcher.ui.screens.StoreRegisterScreen
+import com.pickle.patcher.ui.screens.StoreVerifyEmailScreen
 import com.pickle.patcher.ui.screens.StoreUploadScreen
 import com.pickle.patcher.ui.screens.StoreProfileScreen
 import com.pickle.patcher.ui.screens.StoreManageScreen
@@ -134,6 +135,7 @@ private enum class Dest(val route: String) {
     Store("store"),
     StoreLogin("store/login"),
     StoreRegister("store/register"),
+    StoreVerifyEmail("store/verify-email"),
     StoreUpload("store/upload"),
     StoreProfile("store/profile/{username}"),
     StoreManage("store/manage"),
@@ -301,11 +303,15 @@ fun PatcherApp(vm: PatcherViewModel, drawerWidthController: DrawerWidthControlle
             }
             composable(Dest.StoreLogin.route) {
                 val api = StoreApi("https://nexora-store-tawny.vercel.app", context)
-                StoreLoginScreen(api, onBack = { nav.popBackStack() }, onLoginSuccess = { nav.popBackStack() }, onRegister = { nav.navigate(Dest.StoreRegister.route) })
+                StoreLoginScreen(api, onBack = { nav.popBackStack() }, onLoginSuccess = { nav.popBackStack() }, onRegister = { nav.navigate(Dest.StoreRegister.route) }, onNeedsVerification = { nav.navigate(Dest.StoreVerifyEmail.route) })
             }
             composable(Dest.StoreRegister.route) {
                 val api = StoreApi("https://nexora-store-tawny.vercel.app", context)
-                StoreRegisterScreen(api, onBack = { nav.popBackStack() }, onRegisterSuccess = { nav.popBackStack() })
+                StoreRegisterScreen(api, onBack = { nav.popBackStack() }, onRegisterSuccess = { nav.navigate(Dest.StoreVerifyEmail.route) })
+            }
+            composable(Dest.StoreVerifyEmail.route) {
+                val api = StoreApi("https://nexora-store-tawny.vercel.app", context)
+                StoreVerifyEmailScreen(api, onBack = { nav.popBackStack() }, onVerified = { nav.popBackStack() })
             }
             composable(Dest.StoreUpload.route) {
                 val api = StoreApi("https://nexora-store-tawny.vercel.app", context)
@@ -523,12 +529,14 @@ private fun NavDrawer(
                     if (loggedIn) {
                         while (true) {
                             val api = com.pickle.patcher.data.StoreApi("https://nexora-store-tawny.vercel.app", context)
-                            api.me().getOrNull()?.optJSONObject("user")?.optString("role")?.let { r ->
+                            api.me().getOrNull()?.optJSONObject("user")?.let { uj ->
+                                val r = uj.optString("role")
                                 role = r
+                                val ev = uj.optBoolean("emailVerified", false)
                                 val t = com.pickle.patcher.data.StoreSession.token(context)
                                 val u = com.pickle.patcher.data.StoreSession.username(context) ?: ""
                                 if (t != null) {
-                                    com.pickle.patcher.data.StoreSession.save(context, t, u, r)
+                                    com.pickle.patcher.data.StoreSession.save(context, t, u, r, ev)
                                 }
                             }
                             kotlinx.coroutines.delay(3000)

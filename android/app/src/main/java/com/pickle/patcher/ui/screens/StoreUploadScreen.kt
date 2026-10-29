@@ -137,6 +137,7 @@ fun StoreUploadScreen(
             onClick = {
                 val token = StoreSession.token(context) ?: api.token
                 if (token == null) { error = "Not logged in"; return@Button }
+                if (!StoreSession.emailVerified(context)) { error = "Verify your email to upload"; return@Button }
                 loading = true; error = null; cooldown = null
                 scope.launch {
                     // Preflight cooldown check to avoid uploading large files first.

@@ -55,6 +55,13 @@ class StoreApi(private val baseUrl: String, private val context: android.content
 
     suspend fun logout(): Result<JSONObject> = post("/api/auth/logout", "{}")
 
+    suspend fun verifyEmail(email: String, code: String): Result<JSONObject> =
+        post("/api/auth/verify-email", JSONObject().apply {
+            put("email", email); put("code", code)
+        }.toString())
+
+    suspend fun resendVerification(): Result<JSONObject> = post("/api/auth/resend-verification", "{}")
+
     suspend fun me(): Result<JSONObject> = get("/api/auth/me", null)
 
     suspend fun updateProfile(token: String, displayName: String?, username: String?): Result<JSONObject> =

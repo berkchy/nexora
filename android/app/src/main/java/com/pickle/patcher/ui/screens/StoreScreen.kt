@@ -146,7 +146,13 @@ fun StoreScreen(
                                     Text(l.optString("name"), style = MaterialTheme.typography.bodySmall, color = White, maxLines = 1, overflow = TextOverflow.Ellipsis)
                                     Text("${l.optInt("size", 0)} B", style = MaterialTheme.typography.labelSmall, color = Gray40)
                                 }
-                                TextButton(onClick = { downloadLib(context, l.optString("url"), l.optString("name")) }) {
+                                TextButton(onClick = {
+                                    if (com.pickle.patcher.data.StoreSession.emailVerified(context)) {
+                                        downloadLib(context, l.optString("url"), l.optString("name"))
+                                    } else {
+                                        android.widget.Toast.makeText(context, "Verify your email to download", android.widget.Toast.LENGTH_SHORT).show()
+                                    }
+                                }) {
                                     Icon(Icons.Filled.Download, contentDescription = null, modifier = Modifier.size(14.dp), tint = Accent)
                                     Spacer(Modifier.width(4.dp))
                                     Text("Download", color = Accent)
