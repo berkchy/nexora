@@ -214,9 +214,14 @@ private fun AdminUserCard(obj: JSONObject, api: StoreApi, token: String, onActio
     val displayName = obj.optString("displayName", "").takeIf { it.isNotBlank() }
     val itemCount = obj.optJSONObject("_count")?.optInt("items") ?: 0
     val perms = remember { mutableStateOf<MutableSet<String>>(mutableSetOf<String>().apply {
-        val arr = obj.optJSONArray("permissions")
-        if (arr != null) for (i in 0 until arr.length()) add(arr.optString(i))
+        if (isOwner) {
+            addAll(listOf("post_uploader","post_approver","post_manager","user_manager"))
+        } else {
+            val arr = obj.optJSONArray("permissions")
+            if (arr != null) for (i in 0 until arr.length()) add(arr.optString(i))
+        }
     }) }
+    val isOwner = role == "owner"
     val isAdminOrOwner = role == "admin" || role == "owner"
     Surface(shape = MaterialTheme.shapes.medium, color = MaterialTheme.colorScheme.surfaceContainerHigh, modifier = Modifier.fillMaxWidth()) {
         Row(Modifier.padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
@@ -236,7 +241,7 @@ private fun AdminUserCard(obj: JSONObject, api: StoreApi, token: String, onActio
                 Text("$email  •  $itemCount posts", style = MaterialTheme.typography.labelSmall, color = Gray40)
                 Text("role: $role", style = MaterialTheme.typography.labelSmall, color = if (role == "admin") WarnYellow else Gray40)
             }
-            if (!isAdminOrOwner) {
+            if (!isAdminOrOwner && !isOwner) {
                 Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
                     listOf("post_uploader","post_approver","post_manager","user_manager").forEach { p ->
                         val on = perms.value.contains(p)
@@ -252,6 +257,7 @@ private fun AdminUserCard(obj: JSONObject, api: StoreApi, token: String, onActio
                     }
                 }
             }
+            if (!isOwner) {
             Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
                 TextButton(onClick = {
                     scope.launch {
@@ -263,6 +269,7 @@ private fun AdminUserCard(obj: JSONObject, api: StoreApi, token: String, onActio
                 TextButton(onClick = {
                     scope.launch { api.adminDeleteUser(token, id); onAction() }
                 }) { Text("Delete", color = MaterialTheme.colorScheme.error) }
+            }
             }
         }
     }
