@@ -125,5 +125,3 @@ fun StoreVerifyEmailScreen(
         TextButton(onClick = onBack) { Text("Back", color = Gray40) }
     }
 }
-EOF
-echo done
