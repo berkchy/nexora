@@ -534,7 +534,7 @@ private fun NavDrawer(
                         role = null
                     }
                 }
-                val isAdmin = role == "admin"
+                val isAdmin = role == "admin" || role == "owner"
                 if (!loggedIn) {
                     DrawerItem("Store Login", Icons.Filled.Login, currentRoute == Dest.StoreLogin.route) {
                         closeThen { nav.navigate(Dest.StoreLogin.route) }
