@@ -519,7 +519,8 @@ private fun NavDrawer(
                 val loggedIn = com.pickle.patcher.data.StoreSession.token(context) != null
                 // Resolve role: always refresh from /api/auth/me when logged in
                 var role by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf(com.pickle.patcher.data.StoreSession.role(context)) }
-                androidx.compose.runtime.LaunchedEffect(loggedIn) {
+                val _tokenKey = com.pickle.patcher.data.StoreSession.token(context)
+                androidx.compose.runtime.LaunchedEffect(loggedIn, _tokenKey) {
                     if (loggedIn) {
                         val api = com.pickle.patcher.data.StoreApi("https://nexora-store-tawny.vercel.app", context)
                         api.me().getOrNull()?.optJSONObject("user")?.optString("role")?.let { r ->

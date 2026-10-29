@@ -195,10 +195,15 @@ class StoreApi(private val baseUrl: String, private val context: android.content
     suspend fun adminListUsers(token: String): Result<JSONObject> =
         get("/api/admin/users", token)
 
-    suspend fun adminPatchUser(token: String, id: String, role: String? = null, displayName: String? = null): Result<JSONObject> =
+    suspend fun adminPatchUser(token: String, id: String, role: String? = null, displayName: String? = null, permissions: List<String>? = null): Result<JSONObject> =
         patch("/api/admin/users/$id", JSONObject().apply {
             if (role != null) put("role", role)
             if (displayName != null) put("displayName", displayName)
+            if (permissions != null) {
+                val arr = org.json.JSONArray()
+                permissions.forEach { arr.put(it) }
+                put("permissions", arr)
+            }
         }.toString(), token)
 
     suspend fun adminDeleteUser(token: String, id: String): Result<JSONObject> =

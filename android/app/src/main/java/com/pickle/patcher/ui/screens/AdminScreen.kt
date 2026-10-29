@@ -213,6 +213,11 @@ private fun AdminUserCard(obj: JSONObject, api: StoreApi, token: String, onActio
     val email = obj.optString("email")
     val displayName = obj.optString("displayName", "").takeIf { it.isNotBlank() }
     val itemCount = obj.optJSONObject("_count")?.optInt("items") ?: 0
+    val perms = remember { mutableStateOf<MutableSet<String>>(mutableSetOf<String>().apply {
+        val arr = obj.optJSONArray("permissions")
+        if (arr != null) for (i in 0 until arr.length()) add(arr.optString(i))
+    }) }
+    val isAdminOrOwner = role == "admin" || role == "owner"
     Surface(shape = MaterialTheme.shapes.medium, color = MaterialTheme.colorScheme.surfaceContainerHigh, modifier = Modifier.fillMaxWidth()) {
         Row(Modifier.padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
             val avatarUrl = obj.optString("avatarUrl", "").takeIf { it.isNotBlank() }
@@ -230,6 +235,22 @@ private fun AdminUserCard(obj: JSONObject, api: StoreApi, token: String, onActio
                 Text(displayName ?: username, style = MaterialTheme.typography.titleSmall, color = White)
                 Text("$email  •  $itemCount posts", style = MaterialTheme.typography.labelSmall, color = Gray40)
                 Text("role: $role", style = MaterialTheme.typography.labelSmall, color = if (role == "admin") WarnYellow else Gray40)
+            }
+            if (!isAdminOrOwner) {
+                Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                    listOf("post_approver","post_manager","user_manager").forEach { p ->
+                        val on = perms.value.contains(p)
+                        TextButton(onClick = {
+                            scope.launch {
+                                val next = perms.value.toMutableSet()
+                                if (on) next.remove(p) else next.add(p)
+                                perms.value = next
+                                api.adminPatchUser(token, id, permissions = next.toList())
+                                onAction()
+                            }
+                        }) { Text(p.removePrefix("post_").removePrefix("user_"), color = if (on) WarnYellow else Gray40) }
+                    }
+                }
             }
             Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
                 TextButton(onClick = {
