@@ -213,6 +213,8 @@ private fun AdminUserCard(obj: JSONObject, api: StoreApi, token: String, onActio
     val email = obj.optString("email")
     val displayName = obj.optString("displayName", "").takeIf { it.isNotBlank() }
     val itemCount = obj.optJSONObject("_count")?.optInt("items") ?: 0
+    val isOwner = role == "owner"
+    val isAdminOrOwner = role == "admin" || role == "owner"
     val perms = remember { mutableStateOf<MutableSet<String>>(mutableSetOf<String>().apply {
         if (isOwner) {
             addAll(listOf("post_uploader","post_approver","post_manager","user_manager"))
@@ -221,8 +223,6 @@ private fun AdminUserCard(obj: JSONObject, api: StoreApi, token: String, onActio
             if (arr != null) for (i in 0 until arr.length()) add(arr.optString(i))
         }
     }) }
-    val isOwner = role == "owner"
-    val isAdminOrOwner = role == "admin" || role == "owner"
     Surface(shape = MaterialTheme.shapes.medium, color = MaterialTheme.colorScheme.surfaceContainerHigh, modifier = Modifier.fillMaxWidth()) {
         Row(Modifier.padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
             val avatarUrl = obj.optString("avatarUrl", "").takeIf { it.isNotBlank() }
