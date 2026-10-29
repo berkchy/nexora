@@ -223,25 +223,27 @@ private fun AdminUserCard(obj: JSONObject, api: StoreApi, token: String, onActio
     var perms by remember { mutableStateOf(initialPerms) }
 
     Surface(shape = MaterialTheme.shapes.medium, color = MaterialTheme.colorScheme.surfaceContainerHigh, modifier = Modifier.fillMaxWidth()) {
-        Row(Modifier.padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
-            val avatarUrl = obj.optString("avatarUrl", "").takeIf { it.isNotBlank() }
-            if (avatarUrl != null) {
-                AsyncImage(model = avatarUrl, contentDescription = null, modifier = Modifier.size(40.dp).padding(4.dp))
-            } else {
-                Surface(shape = MaterialTheme.shapes.small, color = Accent.copy(alpha = 0.2f), modifier = Modifier.size(40.dp)) {
-                    Box(contentAlignment = Alignment.Center, modifier = Modifier.fillMaxSize()) {
-                        Text(username.take(1).uppercase(), color = Accent)
+        Column(Modifier.padding(12.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                val avatarUrl = obj.optString("avatarUrl", "").takeIf { it.isNotBlank() }
+                if (avatarUrl != null) {
+                    AsyncImage(model = avatarUrl, contentDescription = null, modifier = Modifier.size(40.dp).padding(4.dp))
+                } else {
+                    Surface(shape = MaterialTheme.shapes.small, color = Accent.copy(alpha = 0.2f), modifier = Modifier.size(40.dp)) {
+                        Box(contentAlignment = Alignment.Center, modifier = Modifier.fillMaxSize()) {
+                            Icon(Icons.Filled.Person, contentDescription = null, tint = Accent, modifier = Modifier.size(24.dp))
+                        }
                     }
                 }
+                Spacer(Modifier.width(8.dp))
+                Column(Modifier.weight(1f)) {
+                    Text(displayName ?: username, style = MaterialTheme.typography.titleSmall, color = White)
+                    Text("$email  •  $itemCount posts", style = MaterialTheme.typography.labelSmall, color = Gray40)
+                    Text("role: $role", style = MaterialTheme.typography.labelSmall, color = if (role == "admin") WarnYellow else Gray40)
+                }
             }
-            Spacer(Modifier.width(8.dp))
-            Column(Modifier.weight(1f)) {
-                Text(displayName ?: username, style = MaterialTheme.typography.titleSmall, color = White)
-                Text("$email  •  $itemCount posts", style = MaterialTheme.typography.labelSmall, color = Gray40)
-                Text("role: $role", style = MaterialTheme.typography.labelSmall, color = if (role == "admin") WarnYellow else Gray40)
-            }
-            Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                if (!isOwner) {
+            if (!isOwner) {
+                Row(horizontalArrangement = Arrangement.spacedBy(4.dp), modifier = Modifier.padding(top = 8.dp)) {
                     TextButton(onClick = { showPerms = true }) { Text("Permissions", color = Accent) }
                     TextButton(onClick = {
                         scope.launch {
