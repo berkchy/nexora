@@ -50,7 +50,25 @@ object CrashLog {
                 .setTitle("Nexora Crash")
                 .setMessage("The app hit an unexpected error and needs to close.\n\n$preview")
                 .setCancelable(false)
-                .setPositiveButton("Close") { _, _ ->
+                .setPositiveButton("Send to Developers") { _, _ ->
+                    try {
+                        val title = "Crash: " + (throwable::class.simpleName ?: "Unknown")
+                        val body = "## Crash report\n\n" +
+                            "Model: ${Build.MODEL}\nSDK: ${Build.VERSION.SDK_INT}\n" +
+                            "Thread: ${Thread.currentThread().name}\n\n" +
+                            "### Stack trace\n\n```\n$sw\n```"
+                        val url = "https://github.com/berkchy/nexora/issues/new?title=" +
+                            java.net.URLEncoder.encode(title, "UTF-8") +
+                            "&body=" + java.net.URLEncoder.encode(body, "UTF-8")
+                        val intent = android.content.Intent(android.content.Intent.ACTION_VIEW, android.net.Uri.parse(url))
+                        intent.addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)
+                        context.startActivity(intent)
+                    } catch (_: Throwable) {
+                    }
+                    android.os.Process.killProcess(android.os.Process.myPid())
+                    System.exit(1)
+                }
+                .setNegativeButton("Close") { _, _ ->
                     android.os.Process.killProcess(android.os.Process.myPid())
                     System.exit(1)
                 }
