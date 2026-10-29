@@ -303,7 +303,7 @@ fun PatcherApp(vm: PatcherViewModel, drawerWidthController: DrawerWidthControlle
             }
             composable(Dest.StoreLogin.route) {
                 val api = StoreApi("https://nexora-store-tawny.vercel.app", context)
-                StoreLoginScreen(api, onBack = { nav.popBackStack() }, onLoginSuccess = { nav.popBackStack() }, onRegister = { nav.navigate(Dest.StoreRegister.route) }, onNeedsVerification = { nav.navigate(Dest.StoreVerifyEmail.route) })
+                StoreLoginScreen(api, onBack = { nav.popBackStack() }, onLoginSuccess = { nav.popBackStack() }, onRegister = { nav.navigate(Dest.StoreRegister.route) }, onNeedsVerification = { em -> nav.currentBackStackEntry?.savedStateHandle?.set("verify_email", em); nav.navigate(Dest.StoreVerifyEmail.route) })
             }
             composable(Dest.StoreRegister.route) {
                 val api = StoreApi("https://nexora-store-tawny.vercel.app", context)
@@ -533,14 +533,20 @@ private fun NavDrawer(
                     if (loggedIn) {
                         while (true) {
                             val api = com.pickle.patcher.data.StoreApi("https://nexora-store-tawny.vercel.app", context)
-                            api.me().getOrNull()?.optJSONObject("user")?.let { uj ->
-                                val r = uj.optString("role")
-                                role = r
-                                val ev = uj.optBoolean("emailVerified", false)
-                                val t = com.pickle.patcher.data.StoreSession.token(context)
-                                val u = com.pickle.patcher.data.StoreSession.username(context) ?: ""
-                                if (t != null) {
-                                    com.pickle.patcher.data.StoreSession.save(context, t, u, r, ev)
+                            val res = api.me()
+                            if (res.isFailure && res.exceptionOrNull()?.message?.contains("Not authorized") == true) {
+                                com.pickle.patcher.data.StoreSession.clear(context)
+                                role = null
+                            } else {
+                                res.getOrNull()?.optJSONObject("user")?.let { uj ->
+                                    val r = uj.optString("role")
+                                    role = r
+                                    val ev = uj.optBoolean("emailVerified", false)
+                                    val t = com.pickle.patcher.data.StoreSession.token(context)
+                                    val u = com.pickle.patcher.data.StoreSession.username(context) ?: ""
+                                    if (t != null) {
+                                        com.pickle.patcher.data.StoreSession.save(context, t, u, r, ev)
+                                    }
                                 }
                             }
                             kotlinx.coroutines.delay(3000)

@@ -62,6 +62,14 @@ fun StoreVerifyEmailScreen(
         Spacer(Modifier.height(24.dp))
 
         OutlinedTextField(
+            value = emailState,
+            onValueChange = { emailState = it },
+            label = { Text("Email") },
+            modifier = Modifier.fillMaxWidth(),
+            singleLine = true,
+        )
+        Spacer(Modifier.height(12.dp))
+        OutlinedTextField(
             value = code,
             onValueChange = { if (it.length <= 6 && it.all { c -> c.isDigit() }) code = it },
             label = { Text("Verification Code") },
