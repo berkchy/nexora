@@ -20,7 +20,7 @@ import kotlinx.coroutines.launch
 fun StoreRegisterScreen(
     api: StoreApi,
     onBack: () -> Unit,
-    onRegisterSuccess: () -> Unit,
+    onRegisterSuccess: (String) -> Unit,
 ) {
     val scope = rememberCoroutineScope()
     val context = LocalContext.current
@@ -56,13 +56,10 @@ fun StoreRegisterScreen(
                 scope.launch {
                     api.register(email, password, username).fold(
                         onSuccess = { json ->
-                            val t = json.optString("token")
-                            api.token = t
                             val uname = json.optString("username")
-                            val role = json.optString("role", "user")
-                            com.pickle.patcher.data.StoreSession.save(context, t, uname, role, false)
+                            val email = json.optString("email")
                             loading = false
-                            onRegisterSuccess()
+                            onRegisterSuccess(email)
                         },
                         onFailure = { t ->
                             error = t.message ?: "Register failed"

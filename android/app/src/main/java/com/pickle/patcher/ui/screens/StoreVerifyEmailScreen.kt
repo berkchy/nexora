@@ -21,12 +21,13 @@ import java.util.Locale
 @Composable
 fun StoreVerifyEmailScreen(
     api: StoreApi,
+    email: String = "",
     onBack: () -> Unit,
     onVerified: () -> Unit,
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
-    var email by remember { mutableStateOf("") }
+    var emailState by remember { mutableStateOf(email) }
     var code by remember { mutableStateOf("") }
     var loading by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf<String?>(null) }
@@ -35,7 +36,7 @@ fun StoreVerifyEmailScreen(
     var resending by remember { mutableStateOf(false) }
 
     LaunchedEffect(Unit) {
-        api.me().getOrNull()?.optJSONObject("user")?.optString("email")?.let { email = it }
+        if (emailState.isBlank()) api.me().getOrNull()?.optJSONObject("user")?.optString("email")?.let { emailState = it }
     }
 
     LaunchedEffect(resendCooldown) {
@@ -53,7 +54,7 @@ fun StoreVerifyEmailScreen(
         Text("Verify Email", style = MaterialTheme.typography.headlineMedium, color = White)
         Spacer(Modifier.height(8.dp))
         Text(
-            "Enter the 6-digit code sent to ${if (email.isNotBlank()) email else "your email"}",
+            "Enter the 6-digit code sent to ${if (emailState.isNotBlank()) emailState else "your email"}",
             color = Gray40,
             style = MaterialTheme.typography.bodyMedium,
             textAlign = TextAlign.Center,
@@ -78,7 +79,7 @@ fun StoreVerifyEmailScreen(
             onClick = {
                 loading = true; error = null
                 scope.launch {
-                    api.verifyEmail(email, code).fold(
+                    api.verifyEmail(emailState, code).fold(
                         onSuccess = {
                             StoreSession.setEmailVerified(context, true)
                             loading = false
@@ -93,7 +94,7 @@ fun StoreVerifyEmailScreen(
                     )
                 }
             },
-            enabled = !loading && code.length == 6 && email.isNotBlank(),
+            enabled = !loading && code.length == 6 && emailState.isNotBlank(),
             modifier = Modifier.fillMaxWidth(),
         ) {
             if (loading) CircularProgressIndicator(Modifier.size(18.dp), strokeWidth = 2.dp)
@@ -108,7 +109,7 @@ fun StoreVerifyEmailScreen(
                 onClick = {
                     resending = true
                     scope.launch {
-                        api.resendVerification().fold(
+                        api.resendVerification(emailState).fold(
                             onSuccess = { resendCooldown = 30 },
                             onFailure = { t -> error = t.message ?: "Resend failed" },
                         )

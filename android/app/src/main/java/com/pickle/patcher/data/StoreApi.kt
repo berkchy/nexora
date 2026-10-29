@@ -60,7 +60,10 @@ class StoreApi(private val baseUrl: String, private val context: android.content
             put("email", email); put("code", code)
         }.toString())
 
-    suspend fun resendVerification(): Result<JSONObject> = post("/api/auth/resend-verification", "{}")
+    suspend fun resendVerification(email: String): Result<JSONObject> =
+        post("/api/auth/resend-verification", JSONObject().apply {
+            put("email", email)
+        }.toString())
 
     suspend fun me(): Result<JSONObject> = get("/api/auth/me", null)
 
