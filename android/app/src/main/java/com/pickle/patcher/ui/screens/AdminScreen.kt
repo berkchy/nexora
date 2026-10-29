@@ -238,7 +238,7 @@ private fun AdminUserCard(obj: JSONObject, api: StoreApi, token: String, onActio
             }
             if (!isAdminOrOwner) {
                 Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                    listOf("post_approver","post_manager","user_manager").forEach { p ->
+                    listOf("post_uploader","post_approver","post_manager","user_manager").forEach { p ->
                         val on = perms.value.contains(p)
                         TextButton(onClick = {
                             scope.launch {
