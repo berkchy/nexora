@@ -223,7 +223,7 @@ fun PatcherApp(vm: PatcherViewModel, drawerWidthController: DrawerWidthControlle
                 title = {
                     Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
                         androidx.compose.foundation.Image(
-                            painter = painterResource(id = R.mipmap.ic_launcher),
+                            painter = painterResource(id = R.drawable.nexora_logo),
                             contentDescription = null,
                             modifier = Modifier.height(28.dp).width(28.dp)
                                 .clip(androidx.compose.foundation.shape.RoundedCornerShape(7.dp)),
@@ -647,7 +647,7 @@ private fun DrawerHeader() {
         verticalAlignment = androidx.compose.ui.Alignment.CenterVertically,
     ) {
         androidx.compose.foundation.Image(
-            painter = painterResource(id = R.mipmap.ic_launcher),
+            painter = painterResource(id = R.drawable.nexora_logo),
             contentDescription = null,
             modifier = Modifier
                 .height(36.dp)

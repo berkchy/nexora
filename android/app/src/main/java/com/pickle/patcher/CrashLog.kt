@@ -47,7 +47,7 @@ object CrashLog {
         // were preventing the dialog from ever appearing.
         try {
             AlertDialog.Builder(context)
-                .setTitle("Nexora crashed")
+                .setTitle("Nexora Crash")
                 .setMessage("The app hit an unexpected error and needs to close.\n\n$preview")
                 .setCancelable(false)
                 .setPositiveButton("Close") { _, _ ->
