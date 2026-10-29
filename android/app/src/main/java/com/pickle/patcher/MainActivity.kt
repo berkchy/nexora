@@ -519,17 +519,19 @@ private fun NavDrawer(
                 val loggedIn = com.pickle.patcher.data.StoreSession.token(context) != null
                 // Resolve role: always refresh from /api/auth/me when logged in
                 var role by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf(com.pickle.patcher.data.StoreSession.role(context)) }
-                val _tokenKey = com.pickle.patcher.data.StoreSession.token(context)
-                androidx.compose.runtime.LaunchedEffect(loggedIn, _tokenKey) {
+                androidx.compose.runtime.LaunchedEffect(loggedIn) {
                     if (loggedIn) {
-                        val api = com.pickle.patcher.data.StoreApi("https://nexora-store-tawny.vercel.app", context)
-                        api.me().getOrNull()?.optJSONObject("user")?.optString("role")?.let { r ->
-                            role = r
-                            val t = com.pickle.patcher.data.StoreSession.token(context)
-                            val u = com.pickle.patcher.data.StoreSession.username(context) ?: ""
-                            if (t != null) {
-                                com.pickle.patcher.data.StoreSession.save(context, t, u, r)
+                        while (true) {
+                            val api = com.pickle.patcher.data.StoreApi("https://nexora-store-tawny.vercel.app", context)
+                            api.me().getOrNull()?.optJSONObject("user")?.optString("role")?.let { r ->
+                                role = r
+                                val t = com.pickle.patcher.data.StoreSession.token(context)
+                                val u = com.pickle.patcher.data.StoreSession.username(context) ?: ""
+                                if (t != null) {
+                                    com.pickle.patcher.data.StoreSession.save(context, t, u, r)
+                                }
                             }
+                            kotlinx.coroutines.delay(3000)
                         }
                     } else {
                         role = null
