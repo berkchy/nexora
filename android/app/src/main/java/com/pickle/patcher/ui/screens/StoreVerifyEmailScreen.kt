@@ -27,17 +27,13 @@ fun StoreVerifyEmailScreen(
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
-    var emailState by remember { mutableStateOf(email) }
+    val emailState = email
     var code by remember { mutableStateOf("") }
     var loading by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf<String?>(null) }
     var success by remember { mutableStateOf(false) }
     var resendCooldown by remember { mutableStateOf(0) }
     var resending by remember { mutableStateOf(false) }
-
-    LaunchedEffect(Unit) {
-        if (emailState.isBlank()) api.me().getOrNull()?.optJSONObject("user")?.optString("email")?.let { emailState = it }
-    }
 
     LaunchedEffect(resendCooldown) {
         if (resendCooldown > 0) {
@@ -61,14 +57,6 @@ fun StoreVerifyEmailScreen(
         )
         Spacer(Modifier.height(24.dp))
 
-        OutlinedTextField(
-            value = emailState,
-            onValueChange = { emailState = it },
-            label = { Text("Email") },
-            modifier = Modifier.fillMaxWidth(),
-            singleLine = true,
-        )
-        Spacer(Modifier.height(12.dp))
         OutlinedTextField(
             value = code,
             onValueChange = { if (it.length <= 6 && it.all { c -> c.isDigit() }) code = it },
@@ -102,7 +90,7 @@ fun StoreVerifyEmailScreen(
                     )
                 }
             },
-            enabled = !loading && code.length == 6 && emailState.isNotBlank(),
+            enabled = !loading && code.length == 6 && email.isNotBlank(),
             modifier = Modifier.fillMaxWidth(),
         ) {
             if (loading) CircularProgressIndicator(Modifier.size(18.dp), strokeWidth = 2.dp)
