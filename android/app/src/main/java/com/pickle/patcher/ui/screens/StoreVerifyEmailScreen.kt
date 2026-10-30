@@ -35,7 +35,7 @@ fun StoreVerifyEmailScreen(
     var loading by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf<String?>(null) }
     var success by remember { mutableStateOf(false) }
-    var codeSent by remember { mutableStateOf(false) }
+    var codeSent by remember { mutableStateOf(email.isNotBlank()) }
     var cooldown by remember { mutableStateOf(120) }
     var sending by remember { mutableStateOf(false) }
 
@@ -61,15 +61,19 @@ fun StoreVerifyEmailScreen(
         )
         Spacer(Modifier.height(24.dp))
 
-        OutlinedTextField(
-            value = emailState,
-            onValueChange = { if (!codeSent) emailState = it },
-            label = { Text("Email") },
-            modifier = Modifier.fillMaxWidth(),
-            singleLine = true,
-            enabled = !codeSent && !sending,
-        )
-        Spacer(Modifier.height(12.dp))
+        if (email.isBlank()) {
+            OutlinedTextField(
+                value = emailState,
+                onValueChange = { if (!codeSent) emailState = it },
+                label = { Text("Email") },
+                modifier = Modifier.fillMaxWidth(),
+                singleLine = true,
+                enabled = !codeSent && !sending,
+            )
+            Spacer(Modifier.height(12.dp))
+        } else {
+            Spacer(Modifier.height(4.dp))
+        }
 
         if (codeSent) {
             OutlinedTextField(
