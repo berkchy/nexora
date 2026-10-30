@@ -315,7 +315,7 @@ fun PatcherApp(vm: PatcherViewModel, drawerWidthController: DrawerWidthControlle
             composable(Dest.StoreVerifyEmail.route) {
                 val api = StoreApi("https://nexora-store-tawny.vercel.app", context)
                 val email = nav.currentBackStackEntry?.savedStateHandle?.get<String>("verify_email") ?: ""
-                StoreVerifyEmailScreen(api, email = email, onBack = { nav.popBackStack() }, onVerified = { nav.navigate(Dest.StoreLogin.route) })
+                StoreVerifyEmailScreen(api, email = email, onBack = { nav.popBackStack() }, onVerified = { nav.navigate(Dest.Store.route) { popUpTo(Dest.Store.route) { inclusive = false } } })
             }
             composable(Dest.StoreUpload.route) {
                 val api = StoreApi("https://nexora-store-tawny.vercel.app", context)

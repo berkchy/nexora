@@ -87,7 +87,7 @@ fun StoreVerifyEmailScreen(
         if (success) Text("Email verified!", color = Accent, style = MaterialTheme.typography.bodySmall)
         Spacer(Modifier.height(16.dp))
 
-        if (!codeSent) {
+        if (!codeSent && email.isBlank()) {
             Button(
                 onClick = {
                     if (emailState.isBlank()) { error = "Enter email"; return@Button }
@@ -111,6 +111,17 @@ fun StoreVerifyEmailScreen(
             ) {
                 if (sending) CircularProgressIndicator(Modifier.size(18.dp), strokeWidth = 2.dp)
                 else Text("Send verification code")
+            }
+        } else if (!codeSent && email.isNotBlank()) {
+            LaunchedEffect(Unit) {
+                if (!sending) {
+                    sending = true
+                    api.resendVerification(email).fold(
+                        onSuccess = { codeSent = true; cooldown = 120 },
+                        onFailure = { t -> error = t.message ?: "Failed to send code" }
+                    )
+                    sending = false
+                }
             }
         } else {
             Button(
