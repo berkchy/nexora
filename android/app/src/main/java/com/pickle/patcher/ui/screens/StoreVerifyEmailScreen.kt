@@ -1,6 +1,7 @@
 package com.pickle.patcher.ui.screens
 
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -8,6 +9,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.unit.TextUnit
+import androidx.compose.ui.unit.TextUnitType
 import androidx.compose.ui.unit.dp
 import com.pickle.patcher.data.StoreApi
 import com.pickle.patcher.data.StoreSession
@@ -27,18 +30,19 @@ fun StoreVerifyEmailScreen(
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
-    val emailState = email
+    var emailState by remember { mutableStateOf(email) }
     var code by remember { mutableStateOf("") }
     var loading by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf<String?>(null) }
     var success by remember { mutableStateOf(false) }
-    var resendCooldown by remember { mutableStateOf(0) }
-    var resending by remember { mutableStateOf(false) }
+    var codeSent by remember { mutableStateOf(false) }
+    var cooldown by remember { mutableStateOf(120) }
+    var sending by remember { mutableStateOf(false) }
 
-    LaunchedEffect(resendCooldown) {
-        if (resendCooldown > 0) {
+    LaunchedEffect(cooldown) {
+        if (cooldown > 0) {
             delay(1000)
-            resendCooldown--
+            cooldown--
         }
     }
 
@@ -50,7 +54,7 @@ fun StoreVerifyEmailScreen(
         Text("Verify Email", style = MaterialTheme.typography.headlineMedium, color = White)
         Spacer(Modifier.height(8.dp))
         Text(
-            "Enter the 6-digit code sent to ${if (emailState.isNotBlank()) emailState else "your email"}",
+            if (codeSent) "Enter the 6-digit code sent to ${emailState.ifBlank { "your email" }}" else "Enter your email to receive a verification code",
             color = Gray40,
             style = MaterialTheme.typography.bodyMedium,
             textAlign = TextAlign.Center,
@@ -58,64 +62,102 @@ fun StoreVerifyEmailScreen(
         Spacer(Modifier.height(24.dp))
 
         OutlinedTextField(
-            value = code,
-            onValueChange = { if (it.length <= 6 && it.all { c -> c.isDigit() }) code = it },
-            label = { Text("Verification Code") },
+            value = emailState,
+            onValueChange = { if (!codeSent) emailState = it },
+            label = { Text("Email") },
             modifier = Modifier.fillMaxWidth(),
             singleLine = true,
-            keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(keyboardType = KeyboardType.Number),
-            textStyle = LocalTextStyle.current.copy(textAlign = TextAlign.Center, letterSpacing = androidx.compose.ui.unit.TextUnit(8f, androidx.compose.ui.unit.TextUnitType.Sp)),
+            enabled = !codeSent && !sending,
         )
-        Spacer(Modifier.height(8.dp))
-        error?.let { Text(it, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall) }
-        success?.let { if (it) Text("Email verified!", color = Accent, style = MaterialTheme.typography.bodySmall) }
-        Spacer(Modifier.height(16.dp))
+        Spacer(Modifier.height(12.dp))
 
-        Button(
-            onClick = {
-                loading = true; error = null
-                scope.launch {
-                    api.verifyEmail(emailState, code).fold(
-                        onSuccess = {
-                            StoreSession.setEmailVerified(context, true)
-                            loading = false
-                            success = true
-                            delay(800)
-                            onVerified()
-                        },
-                        onFailure = { t ->
-                            error = t.message ?: "Verification failed"
-                            loading = false
-                        },
-                    )
-                }
-            },
-            enabled = !loading && code.length == 6 && email.isNotBlank(),
-            modifier = Modifier.fillMaxWidth(),
-        ) {
-            if (loading) CircularProgressIndicator(Modifier.size(18.dp), strokeWidth = 2.dp)
-            else Text("Verify")
+        if (codeSent) {
+            OutlinedTextField(
+                value = code,
+                onValueChange = { if (it.length <= 6 && it.all { c -> c.isDigit() }) code = it },
+                label = { Text("Verification Code") },
+                modifier = Modifier.fillMaxWidth(),
+                singleLine = true,
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                textStyle = LocalTextStyle.current.copy(textAlign = TextAlign.Center, letterSpacing = TextUnit(8f, TextUnitType.Sp)),
+            )
         }
+        Spacer(Modifier.height(8.dp))
+        error?.let { Text(it, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall, textAlign = TextAlign.Center) }
+        if (success) Text("Email verified!", color = Accent, style = MaterialTheme.typography.bodySmall)
         Spacer(Modifier.height(16.dp))
 
-        if (resendCooldown > 0) {
-            Text("Didn't receive code? Resend in ${String.format(Locale.US, "%02d:%02d", resendCooldown / 60, resendCooldown % 60)}", color = Gray40, style = MaterialTheme.typography.bodySmall)
-        } else {
-            TextButton(
+        if (!codeSent) {
+            Button(
                 onClick = {
-                    resending = true
+                    if (emailState.isBlank()) { error = "Enter email"; return@Button }
+                    sending = true; error = null
                     scope.launch {
                         api.resendVerification(emailState).fold(
-                            onSuccess = { resendCooldown = 30 },
-                            onFailure = { t -> error = t.message ?: "Resend failed" },
+                            onSuccess = {
+                                codeSent = true
+                                cooldown = 120
+                                sending = false
+                            },
+                            onFailure = { t ->
+                                error = t.message ?: "Failed to send code"
+                                sending = false
+                            },
                         )
-                        resending = false
                     }
                 },
-                enabled = !resending,
+                enabled = !sending && emailState.isNotBlank(),
+                modifier = Modifier.fillMaxWidth(),
             ) {
-                if (resending) CircularProgressIndicator(Modifier.size(16.dp), strokeWidth = 2.dp)
-                else Text("Didn't receive code? Resend", color = Accent)
+                if (sending) CircularProgressIndicator(Modifier.size(18.dp), strokeWidth = 2.dp)
+                else Text("Send verification code")
+            }
+        } else {
+            Button(
+                onClick = {
+                    loading = true; error = null
+                    scope.launch {
+                        api.verifyEmail(emailState, code).fold(
+                            onSuccess = {
+                                StoreSession.setEmailVerified(context, true)
+                                loading = false
+                                success = true
+                                delay(800)
+                                onVerified()
+                            },
+                            onFailure = { t ->
+                                error = t.message ?: "Verification failed"
+                                loading = false
+                            },
+                        )
+                    }
+                },
+                enabled = !loading && code.length == 6,
+                modifier = Modifier.fillMaxWidth(),
+            ) {
+                if (loading) CircularProgressIndicator(Modifier.size(18.dp), strokeWidth = 2.dp)
+                else Text("Verify")
+            }
+            Spacer(Modifier.height(12.dp))
+            if (cooldown > 0) {
+                Text(String.format(Locale.US, "Didn't receive code? Resend in %02d:%02d", cooldown / 60, cooldown % 60), color = Gray40, style = MaterialTheme.typography.bodySmall)
+            } else {
+                TextButton(
+                    onClick = {
+                        sending = true; error = null
+                        scope.launch {
+                            api.resendVerification(emailState).fold(
+                                onSuccess = { cooldown = 120 },
+                                onFailure = { t -> error = t.message ?: "Resend failed" },
+                            )
+                            sending = false
+                        }
+                    },
+                    enabled = !sending,
+                ) {
+                    if (sending) CircularProgressIndicator(Modifier.size(16.dp), strokeWidth = 2.dp)
+                    else Text("Didn't receive code? Resend", color = Accent)
+                }
             }
         }
         Spacer(Modifier.height(12.dp))
