@@ -303,7 +303,7 @@ fun PatcherApp(vm: PatcherViewModel, drawerWidthController: DrawerWidthControlle
             }
             composable(Dest.StoreLogin.route) {
                 val api = StoreApi("https://nexora-store-tawny.vercel.app", context)
-                StoreLoginScreen(api, onBack = { nav.popBackStack() }, onLoginSuccess = { nav.popBackStack() }, onRegister = { nav.navigate(Dest.StoreRegister.route) }, onNeedsVerification = { em -> nav.currentBackStackEntry?.savedStateHandle?.set("verify_email", em); nav.navigate(Dest.StoreVerifyEmail.route) })
+                StoreLoginScreen(api, onBack = { nav.popBackStack() }, onLoginSuccess = { nav.popBackStack() }, onRegister = { nav.navigate(Dest.StoreRegister.route) }, onNeedsVerification = { em -> nav.currentBackStackEntry?.savedStateHandle?.set("verify_email", em); nav.navigate(Dest.StoreVerifyEmail.route) { popUpTo(Dest.StoreLogin.route) { inclusive = true } } })
             }
             composable(Dest.StoreRegister.route) {
                 val api = StoreApi("https://nexora-store-tawny.vercel.app", context)
