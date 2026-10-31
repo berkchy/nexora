@@ -303,18 +303,21 @@ fun PatcherApp(vm: PatcherViewModel, drawerWidthController: DrawerWidthControlle
             }
             composable(Dest.StoreLogin.route) {
                 val api = StoreApi("https://nexora-store-tawny.vercel.app", context)
-                StoreLoginScreen(api, onBack = { nav.popBackStack() }, onLoginSuccess = { nav.popBackStack() }, onRegister = { nav.navigate(Dest.StoreRegister.route) }, onNeedsVerification = { nav.navigate(Dest.StoreVerifyEmail.route) { popUpTo(Dest.StoreLogin.route) { inclusive = true } } })
+                StoreLoginScreen(api, onBack = { nav.popBackStack() }, onLoginSuccess = { nav.popBackStack() }, onRegister = { nav.navigate(Dest.StoreRegister.route) }, onNeedsVerification = { e -> nav.navigate("store/verify-email?email=${java.net.URLEncoder.encode(e, "UTF-8")}") { popUpTo(Dest.StoreLogin.route) { inclusive = true } } })
             }
             composable(Dest.StoreRegister.route) {
                 val api = StoreApi("https://nexora-store-tawny.vercel.app", context)
                 StoreRegisterScreen(api, onBack = { nav.popBackStack() }, onRegisterSuccess = { email ->
-                    nav.currentBackStackEntry?.savedStateHandle?.set("verify_email", email)
-                    nav.navigate(Dest.StoreVerifyEmail.route)
+                    nav.navigate("store/verify-email?email=${java.net.URLEncoder.encode(email, "UTF-8")}")
                 })
             }
-            composable(Dest.StoreVerifyEmail.route) {
+            composable(
+                route = "store/verify-email?email={email}",
+                arguments = listOf(navArgument("email") { type = NavType.StringType; defaultValue = "" }),
+            ) { backStack ->
                 val api = StoreApi("https://nexora-store-tawny.vercel.app", context)
-                StoreVerifyEmailScreen(api, email = "", onBack = { nav.popBackStack() }, onVerified = { nav.navigate(Dest.Store.route) { popUpTo(Dest.Store.route) { inclusive = false } } })
+                val email = backStack.arguments?.getString("email") ?: ""
+                StoreVerifyEmailScreen(api, email = email, onBack = { nav.popBackStack() }, onVerified = { nav.navigate(Dest.Store.route) { popUpTo(Dest.Store.route) { inclusive = false } } })
             }
             composable(Dest.StoreUpload.route) {
                 val api = StoreApi("https://nexora-store-tawny.vercel.app", context)
