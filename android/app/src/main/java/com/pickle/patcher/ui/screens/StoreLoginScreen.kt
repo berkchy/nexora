@@ -45,7 +45,7 @@ fun StoreLoginScreen(
 
         OutlinedTextField(
             value = email, onValueChange = { email = it },
-            label = { Text("Email") },
+            label = { Text("Email or username") },
             modifier = Modifier.fillMaxWidth(),
             singleLine = true,
         )

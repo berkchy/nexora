@@ -160,14 +160,23 @@ fun StoreVerifyEmailScreen(
                 onClick = {
                     loading = true; error = null
                     scope.launch {
-                        api.verifyEmail(emailState, code).fold(
-                            onSuccess = {
-                                StoreSession.setEmailVerified(context, true)
-                                loading = false
-                                success = true
-                                delay(800)
-                                onVerified()
-                            },
+                         api.verifyEmail(emailState, code).fold(
+                                onSuccess = { json ->
+                                    val t = json.optString("token")
+                                    if (t.isNotBlank()) {
+                                        api.token = t
+                                        val uname = json.optString("username").ifBlank { StoreSession.username(context) ?: "" }
+                                        val role = json.optString("role", "user")
+                                        val ev = json.optBoolean("emailVerified", true)
+                                        StoreSession.save(context, t, uname, role, ev)
+                                    } else {
+                                        StoreSession.setEmailVerified(context, true)
+                                    }
+                                    loading = false
+                                    success = true
+                                    delay(800)
+                                    onVerified()
+                                },
                             onFailure = { t ->
                                 error = t.message ?: "Verification failed"
                                 loading = false
