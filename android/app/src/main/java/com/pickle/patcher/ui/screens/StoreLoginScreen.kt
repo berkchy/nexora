@@ -73,8 +73,8 @@ fun StoreLoginScreen(
                             val role = json.optString("role", "user")
                             val ev = json.optBoolean("emailVerified", false)
                             loading = false
+                            com.pickle.patcher.data.StoreSession.save(context, t, uname, role, ev)
                             if (ev) {
-                                com.pickle.patcher.data.StoreSession.save(context, t, uname, role, ev)
                                 onLoginSuccess()
                             } else {
                                 onNeedsVerification(email)

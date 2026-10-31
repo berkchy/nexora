@@ -35,7 +35,7 @@ fun StoreVerifyEmailScreen(
     var loading by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf<String?>(null) }
     var success by remember { mutableStateOf(false) }
-    var codeSent by remember { mutableStateOf(email.isNotBlank()) }
+    var codeSent by remember { mutableStateOf(false) }
     var cooldown by remember { mutableStateOf(120) }
     var sending by remember { mutableStateOf(false) }
 
@@ -43,6 +43,34 @@ fun StoreVerifyEmailScreen(
         if (cooldown > 0) {
             delay(1000)
             cooldown--
+        }
+    }
+
+    LaunchedEffect(Unit) {
+        // If email not provided, fetch from session via me()
+        if (email.isBlank()) {
+            api.me().getOrNull()?.optJSONObject("user")?.optString("email")?.let { em ->
+                if (em.isNotBlank()) {
+                    emailState = em
+                    sending = true
+                    api.resendVerification(em).fold(
+                        onSuccess = { codeSent = true; cooldown = 120 },
+                        onFailure = { t -> error = t.message ?: "Failed to send code" }
+                    )
+                    sending = false
+                }
+            }
+        }
+    }
+
+    LaunchedEffect(email) {
+        if (email.isNotBlank() && !codeSent) {
+            sending = true
+            api.resendVerification(email).fold(
+                onSuccess = { codeSent = true; cooldown = 120 },
+                onFailure = { t -> error = t.message ?: "Failed to send code" }
+            )
+            sending = false
         }
     }
 
