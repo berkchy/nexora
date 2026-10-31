@@ -303,7 +303,7 @@ fun PatcherApp(vm: PatcherViewModel, drawerWidthController: DrawerWidthControlle
             }
             composable(Dest.StoreLogin.route) {
                 val api = StoreApi("https://nexora-store-tawny.vercel.app", context)
-                StoreLoginScreen(api, onBack = { nav.popBackStack() }, onLoginSuccess = { nav.popBackStack() }, onRegister = { nav.navigate(Dest.StoreRegister.route) }, onNeedsVerification = { em -> nav.currentBackStackEntry?.savedStateHandle?.set("verify_email", em); nav.navigate(Dest.StoreVerifyEmail.route) { popUpTo(Dest.StoreLogin.route) { inclusive = true } } })
+                StoreLoginScreen(api, onBack = { nav.popBackStack() }, onLoginSuccess = { nav.popBackStack() }, onRegister = { nav.navigate(Dest.StoreRegister.route) }, onNeedsVerification = { nav.navigate(Dest.StoreVerifyEmail.route) { popUpTo(Dest.StoreLogin.route) { inclusive = true } } })
             }
             composable(Dest.StoreRegister.route) {
                 val api = StoreApi("https://nexora-store-tawny.vercel.app", context)
@@ -314,8 +314,7 @@ fun PatcherApp(vm: PatcherViewModel, drawerWidthController: DrawerWidthControlle
             }
             composable(Dest.StoreVerifyEmail.route) {
                 val api = StoreApi("https://nexora-store-tawny.vercel.app", context)
-                val email = nav.currentBackStackEntry?.savedStateHandle?.get<String>("verify_email") ?: ""
-                StoreVerifyEmailScreen(api, email = email, onBack = { nav.popBackStack() }, onVerified = { nav.navigate(Dest.Store.route) { popUpTo(Dest.Store.route) { inclusive = false } } })
+                StoreVerifyEmailScreen(api, email = "", onBack = { nav.popBackStack() }, onVerified = { nav.navigate(Dest.Store.route) { popUpTo(Dest.Store.route) { inclusive = false } } })
             }
             composable(Dest.StoreUpload.route) {
                 val api = StoreApi("https://nexora-store-tawny.vercel.app", context)
