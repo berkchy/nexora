@@ -1853,22 +1853,28 @@ private fun externalRoot(app: Application): File {
     }
 
     fun requestInstall() {
-        val installed = installedClientPackages()
-        val target = installed.firstOrNull { it == "su.xash.cs16client.nexora" }
-        if (target != null) {
+        val targetInstalled = try {
+            app.packageManager.getPackageInfo("su.xash.cs16client.nexora", 0)
+            true
+        } catch (_: Exception) { false }
+        if (targetInstalled) {
+            val target = "su.xash.cs16client.nexora"
             runCatching {
                 app.startActivity(
                     Intent(Intent.ACTION_DELETE, android.net.Uri.parse("package:$target"))
                         .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
                 )
             }
-            val out = outputApk()
-            if (out != null && out.exists() && lastReport != null) {
-                _pendingInstall.value = installIntentFor(out)
-                return
+            viewModelScope.launch(kotlinx.coroutines.Dispatchers.Main) {
+                kotlinx.coroutines.delay(1000)
+                val out = outputApk()
+                if (out != null && out.exists() && lastReport != null) {
+                    _pendingInstall.value = installIntentFor(out)
+                } else {
+                    installAfterPatch = true
+                    startPatch()
+                }
             }
-            installAfterPatch = true
-            startPatch()
             return
         }
         _pendingInstall.value = installIntent()
