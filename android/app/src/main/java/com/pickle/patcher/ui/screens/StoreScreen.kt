@@ -171,34 +171,40 @@ fun StoreScreen(
 
 @Composable
 private fun StoreItemCard(obj: JSONObject, onUserClick: (String) -> Unit, onOpenDetail: () -> Unit) {
-    Surface(
-        shape = MaterialTheme.shapes.medium,
-        color = MaterialTheme.colorScheme.surfaceContainerHigh,
+    Card(
+        shape = MaterialTheme.shapes.large,
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerLow),
+        elevation = CardDefaults.cardElevation(defaultElevation = 1.dp, pressedElevation = 4.dp),
         modifier = Modifier.fillMaxWidth().clickable { onOpenDetail() },
     ) {
         Row(Modifier.padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
-            Surface(
-                shape = MaterialTheme.shapes.small,
-                color = MaterialTheme.colorScheme.surfaceContainerHighest,
-                modifier = Modifier.size(48.dp),
+            Card(
+                shape = MaterialTheme.shapes.medium,
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerHighest),
+                modifier = Modifier.size(64.dp),
             ) {
                 Box(contentAlignment = Alignment.Center, modifier = Modifier.fillMaxSize()) {
                     val logoUrl = obj.optString("logoUrl", "").takeIf { it.isNotBlank() }
                     if (logoUrl != null) {
-                        AsyncImage(model = logoUrl, contentDescription = null, modifier = Modifier.fillMaxSize())
+                        AsyncImage(
+                            model = logoUrl,
+                            contentDescription = null,
+                            contentScale = androidx.compose.ui.layout.ContentScale.Crop,
+                            modifier = Modifier.fillMaxSize(),
+                        )
                     } else {
-                        Text(obj.optString("title", "?").take(1).uppercase(), style = MaterialTheme.typography.titleMedium, color = Accent)
+                        Text(obj.optString("title", "?").take(1).uppercase(), style = MaterialTheme.typography.titleLarge, color = Accent)
                     }
                 }
             }
             Spacer(Modifier.width(12.dp))
             Column(Modifier.weight(1f)) {
-                Text(obj.optString("title", "Untitled"), style = MaterialTheme.typography.titleSmall, color = White, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                Text(obj.optString("title", "Untitled"), style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.onSurface, maxLines = 1, overflow = TextOverflow.Ellipsis)
                 val desc = obj.optString("description", "")
                 if (desc.isNotBlank()) {
-                    MarkdownText(desc, color = Gray40, modifier = Modifier.fillMaxWidth())
+                    MarkdownText(desc, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.fillMaxWidth())
                 }
-                Spacer(Modifier.height(4.dp))
+                Spacer(Modifier.height(6.dp))
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     val user = obj.optJSONObject("user")
                     val username = user?.optString("username") ?: "?"
@@ -207,10 +213,10 @@ private fun StoreItemCard(obj: JSONObject, onUserClick: (String) -> Unit, onOpen
                         AsyncImage(
                             model = avatarUrl,
                             contentDescription = null,
-                            modifier = Modifier.size(16.dp).clip(CircleShape),
+                            modifier = Modifier.size(18.dp).clip(CircleShape),
                         )
                     } else {
-                        Surface(shape = MaterialTheme.shapes.extraSmall, color = Accent.copy(alpha = 0.2f), modifier = Modifier.size(16.dp)) {
+                        Surface(shape = MaterialTheme.shapes.extraSmall, color = Accent.copy(alpha = 0.2f), modifier = Modifier.size(18.dp)) {
                             Box(contentAlignment = Alignment.Center, modifier = Modifier.fillMaxSize()) {
                                 Text(username.take(1).uppercase(), style = MaterialTheme.typography.labelSmall, color = Accent)
                             }
@@ -221,14 +227,13 @@ private fun StoreItemCard(obj: JSONObject, onUserClick: (String) -> Unit, onOpen
                         Text("by $username", style = MaterialTheme.typography.labelSmall, color = Accent)
                     }
                     Spacer(Modifier.weight(1f))
-                    Text("v${obj.optString("version", "1.0.0")}", style = MaterialTheme.typography.labelSmall, color = Gray40)
+                    AssistChip(onClick = {}, label = { Text("v${obj.optString("version", "1.0.0")}", style = MaterialTheme.typography.labelSmall) }, enabled = false)
                     val st = obj.optString("status", "approved")
                     if (st != "approved") {
                         Spacer(Modifier.width(6.dp))
-                        Text("• $st", style = MaterialTheme.typography.labelSmall, color = WarnYellow)
+                        AssistChip(onClick = {}, label = { Text(st, style = MaterialTheme.typography.labelSmall) }, colors = AssistChipDefaults.assistChipColors(labelColor = WarnYellow))
                     }
                 }
-
             }
         }
     }

@@ -133,40 +133,200 @@ fun StoreManageScreen(
 
     // Edit dialog
     editTarget?.let { obj ->
-        var title by remember { mutableStateOf(obj.optString("title")) }
-        var description by remember { mutableStateOf(obj.optString("description")) }
-        var version by remember { mutableStateOf(obj.optString("version")) }
-        var saving by remember { mutableStateOf(false) }
+        key(obj.optString("id")) {
+            var title by remember { mutableStateOf(obj.optString("title")) }
+            var description by remember { mutableStateOf(obj.optString("description")) }
+            var version by remember { mutableStateOf(obj.optString("version")) }
+            var logoUri by remember { mutableStateOf<android.net.Uri?>(null) }
+            val existingLogo = obj.optString("logoUrl", "").takeIf { it.isNotBlank() }
+            var removedLibs by remember { mutableStateOf(setOf<String>()) }
+            var newLibs by remember { mutableStateOf<List<Triple<android.net.Uri, String, String>>>(emptyList()) }
+            var saving by remember { mutableStateOf(false) }
+            var progressLabel by remember { mutableStateOf("") }
 
-        AlertDialog(
-            onDismissRequest = { editTarget = null },
-            title = { Text("Edit item", color = White) },
-            text = {
-                Column {
-                    OutlinedTextField(value = title, onValueChange = { title = it }, label = { Text("Title") }, modifier = Modifier.fillMaxWidth(), singleLine = true)
-                    Spacer(Modifier.height(8.dp))
-                    OutlinedTextField(value = description, onValueChange = { description = it }, label = { Text("Description") }, modifier = Modifier.fillMaxWidth(), minLines = 2)
-                    Spacer(Modifier.height(8.dp))
-                    OutlinedTextField(value = version, onValueChange = { version = it }, label = { Text("Version") }, modifier = Modifier.fillMaxWidth(), singleLine = true)
-                }
-            },
-            confirmButton = {
-                TextButton(
-                    onClick = {
-                        saving = true
-                        scope.launch {
-                            api.updateItem(api.token ?: "", obj.optString("id"), title, description, version).fold(
-                                onSuccess = { saving = false; editTarget = null; reload() },
-                                onFailure = { t -> error = t.message; saving = false },
-                            )
+            val logoPicker = rememberLauncherForActivityResult(androidx.activity.result.contract.ActivityResultContracts.OpenDocument()) { uri ->
+                if (uri != null) logoUri = uri
+            }
+            val libPicker = rememberLauncherForActivityResult(androidx.activity.result.contract.ActivityResultContracts.OpenMultipleDocuments()) { uris ->
+                if (uris.isNotEmpty()) {
+                    scope.launch {
+                        val existing = newLibs.map { it.second }.toMutableSet()
+                        val added = mutableListOf<Triple<android.net.Uri, String, String>>()
+                        for (u in uris) {
+                            val h = hashUri(context, u) ?: continue
+                            if (h in existing) continue
+                            existing.add(h)
+                            added.add(Triple(u, h, displayName(context, u)))
                         }
-                    },
-                    enabled = !saving,
-                ) { Text("Save", color = Accent) }
-            },
-            dismissButton = {
-                TextButton(onClick = { editTarget = null }) { Text("Cancel", color = Gray40) }
-            },
-        )
+                        if (added.isNotEmpty()) newLibs = newLibs + added
+                    }
+                }
+            }
+
+            val initialLibs = remember {
+                val arr = obj.optJSONArray("libs")
+                (0 until (arr?.length() ?: 0)).map { arr!!.getJSONObject(it) }
+            }
+
+            AlertDialog(
+                onDismissRequest = { editTarget = null },
+                title = { Text("Edit item", color = White) },
+                text = {
+                    Column(Modifier.verticalScroll(androidx.compose.foundation.rememberScrollState())) {
+                        OutlinedTextField(value = title, onValueChange = { title = it }, label = { Text("Title") }, modifier = Modifier.fillMaxWidth(), singleLine = true)
+                        Spacer(Modifier.height(8.dp))
+                        OutlinedTextField(value = description, onValueChange = { description = it }, label = { Text("Description") }, modifier = Modifier.fillMaxWidth(), minLines = 2)
+                        Spacer(Modifier.height(8.dp))
+                        OutlinedTextField(value = version, onValueChange = { version = it }, label = { Text("Version") }, modifier = Modifier.fillMaxWidth(), singleLine = true)
+                        Spacer(Modifier.height(12.dp))
+
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Button(onClick = { logoPicker.launch(arrayOf("image/*")) }) { Text("Pick Logo") }
+                            Spacer(Modifier.width(8.dp))
+                            Text(
+                                when {
+                                    logoUri != null -> logoUri!!.lastPathSegment ?: "new logo"
+                                    existingLogo != null -> "current logo"
+                                    else -> "No logo"
+                                },
+                                color = Gray40, style = MaterialTheme.typography.bodySmall,
+                            )
+                            if (logoUri != null || existingLogo != null) {
+                                Spacer(Modifier.width(8.dp))
+                                TextButton(onClick = { logoUri = null; /* keep existing? */ }) { Text("Clear", color = Gray40) }
+                            }
+                        }
+                        Spacer(Modifier.height(12.dp))
+
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Button(onClick = { libPicker.launch(arrayOf("*/*")) }) { Text("Add Libs") }
+                            Spacer(Modifier.width(8.dp))
+                            Text("${initialLibs.count { it.optString("url") !in removedLibs } + newLibs.size} lib(s)", color = Gray40, style = MaterialTheme.typography.bodySmall)
+                        }
+                        initialLibs.forEach { l ->
+                            val url = l.optString("url")
+                            if (url in removedLibs) return@forEach
+                            Row(Modifier.fillMaxWidth().padding(vertical = 2.dp), verticalAlignment = Alignment.CenterVertically) {
+                                Text("  • ${l.optString("name")}", color = Gray40, style = MaterialTheme.typography.labelSmall, modifier = Modifier.weight(1f))
+                                IconButton(onClick = { removedLibs = removedLibs + url }, modifier = Modifier.size(20.dp)) {
+                                    Icon(Icons.Filled.Close, contentDescription = "Remove", tint = Gray40, modifier = Modifier.size(14.dp))
+                                }
+                            }
+                        }
+                        newLibs.forEach { (uri, _, name) ->
+                            Row(Modifier.fillMaxWidth().padding(vertical = 2.dp), verticalAlignment = Alignment.CenterVertically) {
+                                Text("  • $name (new)", color = Accent, style = MaterialTheme.typography.labelSmall, modifier = Modifier.weight(1f))
+                                IconButton(onClick = { newLibs = newLibs.filter { it.first != uri } }, modifier = Modifier.size(20.dp)) {
+                                    Icon(Icons.Filled.Close, contentDescription = "Remove", tint = Gray40, modifier = Modifier.size(14.dp))
+                                }
+                            }
+                        }
+                        if (progressLabel.isNotBlank()) Text(progressLabel, color = Gray40, style = MaterialTheme.typography.bodySmall)
+                    }
+                },
+                confirmButton = {
+                    TextButton(
+                        onClick = {
+                            saving = true
+                            scope.launch {
+                                val token = api.token ?: ""
+                                // Upload logo only if newly picked.
+                                var logoUrl: String? = existingLogo
+                                var hasLogo = existingLogo != null
+                                if (logoUri != null) {
+                                    val f = uriToFile(context, logoUri!!, "logo")
+                                    if (f != null) {
+                                        progressLabel = "Uploading logo..."
+                                        val r = api.uploadFile(f) { _, _ -> }
+                                        if (r.isFailure) { error = r.exceptionOrNull()?.message ?: "Logo upload failed"; saving = false; return@launch }
+                                        logoUrl = r.getOrNull()?.url
+                                        hasLogo = true
+                                    }
+                                }
+                                // Upload only new libs.
+                                val uploadedNew = mutableListOf<com.pickle.patcher.data.StoreApi.LibUpload>()
+                                val total = newLibs.size
+                                newLibs.forEachIndexed { idx, (uri, _, name) ->
+                                    val f = uriToFile(context, uri, "lib", name)
+                                    if (f != null) {
+                                        progressLabel = "Uploading lib ${idx + 1}/$total: ${f.name}"
+                                        val r = api.uploadFile(f) { _, _ -> }
+                                        if (r.isFailure) { error = r.exceptionOrNull()?.message ?: "Lib upload failed"; saving = false; return@launch }
+                                        val u = r.getOrNull()!!
+                                        uploadedNew.add(com.pickle.patcher.data.StoreApi.LibUpload(f.name, u.url, u.bytes))
+                                    }
+                                }
+                                // Final libs list: unchanged existing + uploaded new.
+                                val finalLibs = mutableListOf<com.pickle.patcher.data.StoreApi.LibUpload>()
+                                initialLibs.forEach { l ->
+                                    val url = l.optString("url")
+                                    if (url !in removedLibs) {
+                                        finalLibs.add(com.pickle.patcher.data.StoreApi.LibUpload(l.optString("name"), url, l.optLong("size", 0)))
+                                    }
+                                }
+                                finalLibs.addAll(uploadedNew)
+
+                                api.updateItem(
+                                    token,
+                                    obj.optString("id"),
+                                    title,
+                                    description,
+                                    version,
+                                    logoUrl,
+                                    hasLogo,
+                                    finalLibs,
+                                ).fold(
+                                    onSuccess = { saving = false; editTarget = null; reload() },
+                                    onFailure = { t -> error = t.message; saving = false },
+                                )
+                                progressLabel = ""
+                            }
+                        },
+                        enabled = !saving,
+                    ) { Text("Save", color = Accent) }
+                },
+                dismissButton = {
+                    TextButton(onClick = { editTarget = null }) { Text("Cancel", color = Gray40) }
+                },
+            )
+        }
     }
+}
+
+private fun uriToFile(context: android.content.Context, uri: android.net.Uri, prefix: String, nameOverride: String? = null): java.io.File? {
+    return try {
+        val input = context.contentResolver.openInputStream(uri) ?: return null
+        val name = nameOverride ?: (uri.lastPathSegment?.substringAfterLast('/') ?: "$prefix.bin")
+        val file = java.io.File(context.cacheDir, name)
+        input.use { ins -> file.outputStream().use { outs -> ins.copyTo(outs) } }
+        file
+    } catch (_: Exception) { null }
+}
+
+private fun displayName(context: android.content.Context, uri: android.net.Uri): String {
+    val fromColumn = try {
+        context.contentResolver.query(uri, arrayOf(android.provider.OpenableColumns.DISPLAY_NAME), null, null, null)?.use { c ->
+            if (c.moveToFirst()) {
+                val idx = c.getColumnIndex(android.provider.OpenableColumns.DISPLAY_NAME)
+                if (idx >= 0) c.getString(idx) else null
+            } else null
+        }
+    } catch (_: Exception) { null }
+    val fromPath = uri.lastPathSegment?.substringAfterLast('/')
+    val candidates = listOfNotNull(fromColumn, fromPath)
+    val withExt = candidates.firstOrNull { it.contains('.') }
+    return (withExt ?: candidates.firstOrNull() ?: "file.bin")
+}
+
+private suspend fun hashUri(context: android.content.Context, uri: android.net.Uri): String? = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+    try {
+        val input = context.contentResolver.openInputStream(uri) ?: return@withContext null
+        val md = java.security.MessageDigest.getInstance("SHA-256")
+        input.use { ins ->
+            val buf = ByteArray(8192)
+            var n: Int
+            while (ins.read(buf).also { n = it } != -1) md.update(buf, 0, n)
+        }
+        md.digest().joinToString("") { "%02x".format(it) }
+    } catch (_: Exception) { null }
 }

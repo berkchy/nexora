@@ -176,11 +176,30 @@ class StoreApi(private val baseUrl: String, private val context: android.content
         return execute(req)
     }
 
-    suspend fun updateItem(token: String, id: String, title: String?, description: String?, version: String?): Result<JSONObject> =
+    suspend fun updateItem(
+        token: String,
+        id: String,
+        title: String? = null,
+        description: String? = null,
+        version: String? = null,
+        logoUrl: String? = null,
+        hasLogo: Boolean = false,
+        libs: List<LibUpload>? = null,
+    ): Result<JSONObject> =
         patch("/api/items/$id", JSONObject().apply {
             if (title != null) put("title", title)
             if (description != null) put("description", description)
             if (version != null) put("version", version)
+            if (hasLogo) put("logoUrl", logoUrl)
+            if (libs != null) {
+                val arr = org.json.JSONArray()
+                libs.forEach { l ->
+                    arr.put(org.json.JSONObject().apply {
+                        put("name", l.name); put("url", l.url); put("size", l.size)
+                    })
+                }
+                put("libs", arr)
+            }
         }.toString(), token)
 
     suspend fun deleteItem(token: String, id: String): Result<JSONObject> =
