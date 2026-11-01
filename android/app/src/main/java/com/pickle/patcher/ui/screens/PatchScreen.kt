@@ -413,7 +413,13 @@ private fun CustomLibsCard(vm: PatcherViewModel) {
                 style = MaterialTheme.typography.titleSmall,
                 color = Gray40,
             )
-            GhostButton(text = "Add", onClick = { picker.launch(arrayOf("*/*")) })
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                GhostButton(text = "Releases", onClick = {
+                    val intent = android.content.Intent(android.content.Intent.ACTION_VIEW, android.net.Uri.parse("https://github.com/berkchy/nexora/releases"))
+                    context.startActivity(intent)
+                })
+                GhostButton(text = "Add", onClick = { picker.launch(arrayOf("*/*")) })
+            }
         }
         Spacer(Modifier.height(4.dp))
         if (customLibs.isEmpty()) {
