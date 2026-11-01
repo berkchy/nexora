@@ -134,6 +134,7 @@ val NexoraPalette = Palette(
 )
 
 val Presets: List<Palette> = listOf(
+    Palette("dynamic", "Material You", Color(0xFF6750A4), Color(0xFF625B71), Color(0xFF7D5260)),
     NexoraPalette,
     Palette("ember", "Ember", Color(0xFFFF8A4C), Color(0xFFFF5E5B), Color(0xFFFFD166)),
     Palette("toxic", "Toxic", Color(0xFF9BE564), Color(0xFF34D399), Color(0xFFD9F99D)),
