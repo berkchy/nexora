@@ -10,7 +10,10 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Comment
 import androidx.compose.material.icons.filled.Download
+import androidx.compose.material.icons.filled.Favorite
+import androidx.compose.material.icons.filled.FavoriteBorder
 import androidx.compose.material.icons.filled.ShoppingCart
 import androidx.compose.material3.*
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -214,7 +217,7 @@ fun StoreScreen(
                                 }
                             }
                         }) {
-                            Text(if (liked) "♥" else "♡", color = if (liked) Accent else Gray40)
+                            Icon(if (liked) Icons.Filled.Favorite else Icons.Filled.FavoriteBorder, contentDescription = null, tint = if (liked) Accent else Gray40)
                         }
                         Text("$likes", style = MaterialTheme.typography.labelSmall, color = Gray40)
                         Spacer(Modifier.width(16.dp))
@@ -226,7 +229,7 @@ fun StoreScreen(
                                 }
                             }
                         }) {
-                            Text("💬 ")
+                            Icon(Icons.Filled.Comment, contentDescription = null, modifier = Modifier.size(14.dp), tint = Accent)
                             Text("Comments (${obj.optInt("commentsCount", 0)})", color = Accent)
                         }
                     }
@@ -371,6 +374,10 @@ private fun StoreItemCard(obj: JSONObject, onUserClick: (String) -> Unit, onOpen
                         Text("by $username", style = MaterialTheme.typography.labelSmall, color = Accent)
                     }
                     Spacer(Modifier.weight(1f))
+                    Icon(Icons.Filled.Favorite, contentDescription = null, modifier = Modifier.size(12.dp), tint = Gray40)
+                    Spacer(Modifier.width(2.dp))
+                    Text("${obj.optInt("likesCount", 0)}", style = MaterialTheme.typography.labelSmall, color = Gray40)
+                    Spacer(Modifier.width(6.dp))
                     AssistChip(onClick = {}, label = { Text("v${obj.optString("version", "1.0.0")}", style = MaterialTheme.typography.labelSmall) }, enabled = false)
                     val st = obj.optString("status", "approved")
                     if (st != "approved") {
