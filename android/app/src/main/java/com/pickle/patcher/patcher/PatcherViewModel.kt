@@ -1239,7 +1239,6 @@ private fun externalRoot(app: Application): File {
      */
     fun customLibEntries(bundle: Bundle, selected: Set<String>): List<Pair<String, File>> =
         _customLibs.value
-            .filter { it.name in selected }
             .map { "lib/${_abi.value}/${it.name}" to it.file }
 
     private fun labelForComponent(key: String): String = when (key) {
@@ -1789,6 +1788,7 @@ private fun externalRoot(app: Application): File {
                 )
                 lastReport = report
                 val finished = _patchLog.value +
+                    customs.map { "custom override: ${it.first}" } +
                     if (report.addedAssetFiles > 0) {
                         listOf("\u2192 inject \u00b7 ${report.addedAssetFiles} game content files written into assets/")
                     } else {
