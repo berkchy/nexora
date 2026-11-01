@@ -1727,12 +1727,8 @@ private fun externalRoot(app: Application): File {
                 return
             }
         val out = workFile("patched.apk")
-        // A previous result is still sitting next to the new one. Ask before
-        // replacing it, then carry on by itself - the user confirmed it.
-        if (out.exists() && out.length() > 0L) {
-            _replacePrompt.value = out
-            return
-        }
+        // No prompt: a stale result is simply overwritten.
+        if (out.exists()) out.delete()
 
         viewModelScope.launch(Dispatchers.IO) {
             JobProgress.begin(app, JOB_PATCH, "Patching", "Analyzing the source APK…")

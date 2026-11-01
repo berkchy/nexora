@@ -346,14 +346,6 @@ fun PatcherApp(vm: PatcherViewModel, drawerWidthController: DrawerWidthControlle
     }
     }
 
-    val replacePrompt by vm.replacePrompt.collectAsState()
-    if (replacePrompt != null) {
-        ReplaceDialog(
-            fileName = replacePrompt!!.name,
-            onConfirm = { vm.confirmReplaceAndPatch() },
-            onDismiss = { vm.dismissReplacePrompt() },
-        )
-    }
 
 
     if (showAbout) {
