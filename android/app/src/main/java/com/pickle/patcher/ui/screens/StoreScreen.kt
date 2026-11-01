@@ -49,6 +49,9 @@ fun StoreScreen(
     var error by remember { mutableStateOf<String?>(null) }
     var page by remember { mutableStateOf(1) }
     var detailItem by remember { mutableStateOf<JSONObject?>(null) }
+    var showComments by remember { mutableStateOf(false) }
+    var comments by remember { mutableStateOf<JSONArray?>(null) }
+    var commentText by remember { mutableStateOf("") }
 
     fun load(isRefresh: Boolean = false) {
         scope.launch {
@@ -117,11 +120,12 @@ fun StoreScreen(
     detailItem?.let { obj ->
         val libs = obj.optJSONArray("libs")
         val libCount = libs?.length() ?: 0
+        val links = obj.optJSONArray("links")
         AlertDialog(
             onDismissRequest = { detailItem = null },
             title = { Text(obj.optString("title", "Untitled")) },
             text = {
-                Column {
+                Column(Modifier.verticalScroll(androidx.compose.foundation.rememberScrollState())) {
                     val logoUrl = obj.optString("logoUrl", "").takeIf { it.isNotBlank() }
                     if (logoUrl != null) {
                         AsyncImage(model = logoUrl, contentDescription = null, modifier = Modifier.fillMaxWidth().height(120.dp))
@@ -134,6 +138,25 @@ fun StoreScreen(
                     }
                     Text("v${obj.optString("version", "1.0.0")}", style = MaterialTheme.typography.labelSmall, color = Gray40)
                     Spacer(Modifier.height(8.dp))
+
+                    // Project links
+                    if (links != null && links.length() > 0) {
+                        Text("Links", style = MaterialTheme.typography.titleSmall, color = Accent)
+                        Spacer(Modifier.height(4.dp))
+                        (0 until links.length()).map { links.getJSONObject(it) }.forEach { lk ->
+                            val url = lk.optString("url")
+                            TextButton(onClick = {
+                                try { context.startActivity(android.content.Intent(android.content.Intent.ACTION_VIEW, android.net.Uri.parse(url))) } catch (_: Exception) {}
+                            }, contentPadding = PaddingValues(0.dp)) {
+                                Icon(androidx.compose.material.icons.Icons.Filled.OpenInNew, contentDescription = null, modifier = Modifier.size(14.dp), tint = Accent)
+                                Spacer(Modifier.width(4.dp))
+                                Text(lk.optString("label", url), color = Accent, style = MaterialTheme.typography.bodySmall)
+                            }
+                        }
+                        Spacer(Modifier.height(8.dp))
+                    }
+
+                    // Libs with download count
                     if (libCount > 0) {
                         Text("Libs", style = MaterialTheme.typography.titleSmall, color = Accent)
                         Spacer(Modifier.height(4.dp))
@@ -144,11 +167,23 @@ fun StoreScreen(
                             ) {
                                 Column(Modifier.weight(1f)) {
                                     Text(l.optString("name"), style = MaterialTheme.typography.bodySmall, color = White, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                                    Text("${l.optInt("size", 0)} B", style = MaterialTheme.typography.labelSmall, color = Gray40)
+                                    Row(verticalAlignment = Alignment.CenterVertically) {
+                                        Text("${l.optInt("size", 0)} B", style = MaterialTheme.typography.labelSmall, color = Gray40)
+                                        Spacer(Modifier.width(8.dp))
+                                        Icon(androidx.compose.material.icons.Icons.Filled.Download, contentDescription = null, modifier = Modifier.size(12.dp), tint = Gray40)
+                                        Spacer(Modifier.width(2.dp))
+                                        Text("${l.optInt("downloads", 0)}", style = MaterialTheme.typography.labelSmall, color = Gray40)
+                                    }
                                 }
                                 TextButton(onClick = {
                                     if (com.pickle.patcher.data.StoreSession.emailVerified(context)) {
                                         downloadLib(context, l.optString("url"), l.optString("name"))
+                                        scope.launch {
+                                            api.incrementLibDownload(obj.optString("id"), l.optString("id")).onSuccess { count ->
+                                                l.put("downloads", count)
+                                                detailItem = detailItem?.let { JSONObject(it.toString()) }
+                                            }
+                                        }
                                     } else {
                                         android.widget.Toast.makeText(context, "Verify your email to download", android.widget.Toast.LENGTH_SHORT).show()
                                     }
@@ -160,10 +195,124 @@ fun StoreScreen(
                             }
                         }
                     }
+
+                    Spacer(Modifier.height(8.dp))
+                    // Like + comments row
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        val liked = obj.optBoolean("liked", false)
+                        val likes = obj.optInt("likesCount", 0)
+                        IconButton(onClick = {
+                            val token = com.pickle.patcher.data.StoreSession.token(context) ?: api.token
+                            if (token == null) {
+                                android.widget.Toast.makeText(context, "Log in to like", android.widget.Toast.LENGTH_SHORT).show()
+                            } else {
+                                scope.launch {
+                                    api.toggleLike(token, obj.optString("id")).onSuccess { (newLiked, newCount) ->
+                                        obj.put("liked", newLiked)
+                                        obj.put("likesCount", newCount)
+                                        detailItem = detailItem?.let { JSONObject(it.toString()) }
+                                    }
+                                }
+                            }
+                        }) {
+                            Icon(
+                                if (liked) androidx.compose.material.icons.Icons.Filled.Favorite else androidx.compose.material.icons.Icons.Outlined.FavoriteBorder,
+                                contentDescription = null,
+                                tint = if (liked) Accent else Gray40,
+                            )
+                        }
+                        Text("$likes", style = MaterialTheme.typography.labelSmall, color = Gray40)
+                        Spacer(Modifier.width(16.dp))
+                        TextButton(onClick = {
+                            showComments = true
+                            scope.launch {
+                                api.getComments(obj.optString("id")).onSuccess { res ->
+                                    comments = res.optJSONArray("data")
+                                }
+                            }
+                        }) {
+                            Icon(androidx.compose.material.icons.Icons.Filled.Comment, contentDescription = null, modifier = Modifier.size(14.dp), tint = Accent)
+                            Spacer(Modifier.width(4.dp))
+                            Text("Comments (${obj.optInt("commentsCount", 0)})", color = Accent)
+                        }
+                    }
                 }
             },
             confirmButton = {
                 TextButton(onClick = { detailItem = null }) { Text("Close", color = Gray40) }
+            },
+        )
+    }
+
+    // Comments popup
+    if (showComments && detailItem != null) {
+        val obj = detailItem!!
+        AlertDialog(
+            onDismissRequest = { showComments = false },
+            title = { Text("Comments") },
+            text = {
+                Column(Modifier.heightIn(max = 300.dp).verticalScroll(androidx.compose.foundation.rememberScrollState())) {
+                    val list = comments
+                    if (list == null) {
+                        Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) { CircularProgressIndicator() }
+                    } else if (list.length() == 0) {
+                        Text("No comments yet", color = Gray40)
+                    } else {
+                        (0 until list.length()).map { list.getJSONObject(it) }.forEach { c ->
+                            Row(Modifier.fillMaxWidth().padding(vertical = 4.dp), verticalAlignment = Alignment.Top) {
+                                val u = c.optJSONObject("user")
+                                val uname = u?.optString("username") ?: "?"
+                                val avatar = u?.optString("avatarUrl")
+                                if (!avatar.isNullOrBlank()) {
+                                    AsyncImage(model = avatar, contentDescription = null, modifier = Modifier.size(24.dp).clip(CircleShape))
+                                } else {
+                                    Surface(shape = CircleShape, color = Accent.copy(alpha = 0.2f), modifier = Modifier.size(24.dp)) {
+                                        Box(contentAlignment = Alignment.Center, modifier = Modifier.fillMaxSize()) {
+                                            Text(uname.take(1).uppercase(), style = MaterialTheme.typography.labelSmall, color = Accent)
+                                        }
+                                    }
+                                }
+                                Spacer(Modifier.width(8.dp))
+                                Column {
+                                    Text(uname, style = MaterialTheme.typography.labelSmall, color = Accent)
+                                    Text(c.optString("content"), style = MaterialTheme.typography.bodySmall, color = White)
+                                }
+                            }
+                        }
+                    }
+                    Spacer(Modifier.height(8.dp))
+                    OutlinedTextField(
+                        value = commentText,
+                        onValueChange = { commentText = it },
+                        label = { Text("Write a comment") },
+                        modifier = Modifier.fillMaxWidth(),
+                        minLines = 2,
+                    )
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = {
+                    val token = com.pickle.patcher.data.StoreSession.token(context) ?: api.token
+                    if (token == null) {
+                        android.widget.Toast.makeText(context, "Log in to comment", android.widget.Toast.LENGTH_SHORT).show()
+                    } else if (!com.pickle.patcher.data.StoreSession.emailVerified(context)) {
+                        android.widget.Toast.makeText(context, "Verify your email to comment", android.widget.Toast.LENGTH_SHORT).show()
+                    } else if (commentText.isNotBlank()) {
+                        scope.launch {
+                            api.postComment(token, obj.optString("id"), commentText.trim()).onSuccess {
+                                commentText = ""
+                                api.getComments(obj.optString("id")).onSuccess { res ->
+                                    comments = res.optJSONArray("data")
+                                }
+                                obj.put("commentsCount", obj.optInt("commentsCount", 0) + 1)
+                                detailItem = detailItem?.let { JSONObject(it.toString()) }
+                            }
+                        }
+                    }
+                }) { Text("Post", color = Accent) }
+            },
+            dismissButton = {
+                TextButton(onClick = { showComments = false }) { Text("Close", color = Gray40) }
             },
         )
     }
@@ -173,7 +322,8 @@ fun StoreScreen(
 private fun StoreItemCard(obj: JSONObject, onUserClick: (String) -> Unit, onOpenDetail: () -> Unit) {
     Card(
         shape = MaterialTheme.shapes.large,
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerLow),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerHigh),
+        border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
         elevation = CardDefaults.cardElevation(defaultElevation = 1.dp, pressedElevation = 4.dp),
         modifier = Modifier.fillMaxWidth().clickable { onOpenDetail() },
     ) {

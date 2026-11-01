@@ -154,6 +154,7 @@ class StoreApi(private val baseUrl: String, private val context: android.content
         version: String,
         logoUrl: String?,
         libs: List<LibUpload>,
+        links: List<Pair<String?, String>> = emptyList(),
     ): Result<JSONObject> {
         val body = JSONObject().apply {
             put("title", title)
@@ -167,6 +168,14 @@ class StoreApi(private val baseUrl: String, private val context: android.content
                 })
             }
             put("libs", arr)
+            val larr = org.json.JSONArray()
+            links.forEach { (label, url) ->
+                larr.put(org.json.JSONObject().apply {
+                    if (!label.isNullOrBlank()) put("label", label)
+                    put("url", url)
+                })
+            }
+            put("links", larr)
         }.toString()
         val req = Request.Builder()
             .url("$baseUrl/api/items")
@@ -185,6 +194,7 @@ class StoreApi(private val baseUrl: String, private val context: android.content
         logoUrl: String? = null,
         hasLogo: Boolean = false,
         libs: List<LibUpload>? = null,
+        links: List<Pair<String?, String>>? = null,
     ): Result<JSONObject> =
         patch("/api/items/$id", JSONObject().apply {
             if (title != null) put("title", title)
@@ -200,10 +210,40 @@ class StoreApi(private val baseUrl: String, private val context: android.content
                 }
                 put("libs", arr)
             }
+            if (links != null) {
+                val arr = org.json.JSONArray()
+                links.forEach { (label, url) ->
+                    arr.put(org.json.JSONObject().apply {
+                        if (!label.isNullOrBlank()) put("label", label)
+                        put("url", url)
+                    })
+                }
+                put("links", arr)
+            }
         }.toString(), token)
 
     suspend fun deleteItem(token: String, id: String): Result<JSONObject> =
         delete("/api/items/$id", token)
+
+    suspend fun incrementLibDownload(itemId: String, libId: String): Result<Int> = withContext(Dispatchers.IO) {
+        val req = Request.Builder()
+            .url("$baseUrl/api/items/$itemId/libs/$libId/download")
+            .post("{}".toRequestBody(json))
+            .build()
+        execute(req).map { it.optInt("downloads") }
+    }
+
+    suspend fun getComments(itemId: String): Result<JSONArray> = withContext(Dispatchers.IO) {
+        get("/api/items/$itemId/comments", null).map { it.optJSONArray("data") ?: org.json.JSONArray() }
+    }
+
+    suspend fun postComment(token: String, itemId: String, content: String): Result<JSONObject> = withContext(Dispatchers.IO) {
+        authPost("/api/items/$itemId/comments", JSONObject().put("content", content).toString(), token)
+    }
+
+    suspend fun toggleLike(token: String, itemId: String): Result<Pair<Boolean, Int>> = withContext(Dispatchers.IO) {
+        authPost("/api/items/$itemId/like", "{}", token).map { Pair(it.optBoolean("liked"), it.optInt("likesCount")) }
+    }
 
     suspend fun getUserProfile(username: String): Result<JSONObject> =
         get("/api/users/$username", null)
@@ -257,6 +297,14 @@ class StoreApi(private val baseUrl: String, private val context: android.content
     private suspend fun patch(path: String, body: String, token: String?): Result<JSONObject> = withContext(Dispatchers.IO) {
         val b = Request.Builder().url("$baseUrl$path")
             .patch(body.toRequestBody(json))
+        val t = token ?: this@StoreApi.token
+        if (t != null) b.header("Authorization", "Bearer $t")
+        execute(b.build())
+    }
+
+    private suspend fun authPost(path: String, body: String, token: String?): Result<JSONObject> = withContext(Dispatchers.IO) {
+        val b = Request.Builder().url("$baseUrl$path")
+            .post(body.toRequestBody(json))
         val t = token ?: this@StoreApi.token
         if (t != null) b.header("Authorization", "Bearer $t")
         execute(b.build())

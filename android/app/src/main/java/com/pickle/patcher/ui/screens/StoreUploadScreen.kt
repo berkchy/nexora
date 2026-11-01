@@ -39,6 +39,8 @@ fun StoreUploadScreen(
     var logoUri by remember { mutableStateOf<Uri?>(null) }
     // libUris paired with their content hash for dedup
     var libEntries by remember { mutableStateOf<List<Triple<Uri, String, String>>>(emptyList()) }
+    var links by remember { mutableStateOf<List<Pair<String?, String>>>(emptyList()) }
+    var linkInput by remember { mutableStateOf("") }
     var loading by remember { mutableStateOf(false) }
     var progress by remember { mutableStateOf(0f) }
     var progressLabel by remember { mutableStateOf("") }
@@ -107,6 +109,29 @@ fun StoreUploadScreen(
             Spacer(Modifier.width(8.dp))
             Text("${libEntries.size} lib(s) selected", color = Gray40, style = MaterialTheme.typography.bodySmall)
         }
+        // Project links
+        Spacer(Modifier.height(8.dp))
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            OutlinedTextField(value = linkInput, onValueChange = { linkInput = it }, label = { Text("Project link URL") }, modifier = Modifier.weight(1f), singleLine = true)
+            Spacer(Modifier.width(8.dp))
+            Button(onClick = {
+                val u = linkInput.trim()
+                if (u.isNotBlank()) { links = links + Pair(null, u); linkInput = "" }
+            }) { Text("Add") }
+        }
+        if (links.isNotEmpty()) {
+            Spacer(Modifier.height(4.dp))
+            links.forEachIndexed { idx, (label, url) ->
+                Row(Modifier.fillMaxWidth().padding(vertical = 2.dp), verticalAlignment = Alignment.CenterVertically) {
+                    Text("  • $url", color = Gray40, style = MaterialTheme.typography.labelSmall, modifier = Modifier.weight(1f))
+                    IconButton(onClick = { links = links.filterIndexed { i, _ -> i != idx } }, modifier = Modifier.size(20.dp)) {
+                        Icon(Icons.Filled.Close, contentDescription = "Remove", tint = Gray40, modifier = Modifier.size(14.dp))
+                    }
+                }
+            }
+        }
+        Spacer(Modifier.height(8.dp))
+
         if (libEntries.isNotEmpty()) {
             Spacer(Modifier.height(4.dp))
             libEntries.forEach { (uri, _) ->
@@ -175,7 +200,7 @@ fun StoreUploadScreen(
                             libUploads.add(StoreApi.LibUpload(f.name, u.url, u.bytes))
                         }
                     }
-                    api.createItem(token, title, description, version, logoUrl, libUploads).fold(
+                    api.createItem(token, title, description, version, logoUrl, libUploads, links).fold(
                         onSuccess = { loading = false; android.widget.Toast.makeText(context, "Submitted for approval", android.widget.Toast.LENGTH_SHORT).show(); onUploadSuccess() },
                         onFailure = { t ->
                             android.util.Log.e("StoreUpload", "upload failed", t)

@@ -143,6 +143,15 @@ fun StoreManageScreen(
             val existingLogo = obj.optString("logoUrl", "").takeIf { it.isNotBlank() }
             var removedLibs by remember { mutableStateOf(setOf<String>()) }
             var newLibs by remember { mutableStateOf<List<Triple<android.net.Uri, String, String>>>(emptyList()) }
+            var links by remember {
+                mutableStateOf(
+                    (0 until (obj.optJSONArray("links")?.length() ?: 0)).map { i ->
+                        val o = obj.optJSONArray("links")!!.getJSONObject(i)
+                        Pair(o.optString("label").takeIf { it.isNotBlank() }, o.optString("url"))
+                    }
+                )
+            }
+            var linkInput by remember { mutableStateOf("") }
             var saving by remember { mutableStateOf(false) }
             var progressLabel by remember { mutableStateOf("") }
 
@@ -223,6 +232,25 @@ fun StoreManageScreen(
                                 }
                             }
                         }
+                        // Project links
+                        Spacer(Modifier.height(8.dp))
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            OutlinedTextField(value = linkInput, onValueChange = { linkInput = it }, label = { Text("Project link URL") }, modifier = Modifier.weight(1f), singleLine = true)
+                            Spacer(Modifier.width(8.dp))
+                            Button(onClick = {
+                                val u = linkInput.trim()
+                                if (u.isNotBlank()) { links = links + Pair(null, u); linkInput = "" }
+                            }) { Text("Add") }
+                        }
+                        links.forEachIndexed { idx, (_, url) ->
+                            Row(Modifier.fillMaxWidth().padding(vertical = 2.dp), verticalAlignment = Alignment.CenterVertically) {
+                                Text("  • $url", color = Gray40, style = MaterialTheme.typography.labelSmall, modifier = Modifier.weight(1f))
+                                IconButton(onClick = { links = links.filterIndexed { i, _ -> i != idx } }, modifier = Modifier.size(20.dp)) {
+                                    Icon(Icons.Filled.Close, contentDescription = "Remove", tint = Gray40, modifier = Modifier.size(14.dp))
+                                }
+                            }
+                        }
+
                         if (progressLabel.isNotBlank()) Text(progressLabel, color = Gray40, style = MaterialTheme.typography.bodySmall)
                     }
                 },
@@ -277,6 +305,7 @@ fun StoreManageScreen(
                                     logoUrl,
                                     hasLogo,
                                     finalLibs,
+                                    links,
                                 ).fold(
                                     onSuccess = { saving = false; editTarget = null; reload() },
                                     onFailure = { t -> error = t.message; saving = false },
