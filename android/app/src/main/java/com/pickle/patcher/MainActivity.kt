@@ -355,14 +355,6 @@ fun PatcherApp(vm: PatcherViewModel, drawerWidthController: DrawerWidthControlle
         )
     }
 
-    val uninstallPrompt by vm.uninstallPrompt.collectAsState()
-    if (uninstallPrompt.isNotEmpty()) {
-        UninstallDialog(
-            packages = uninstallPrompt,
-            onConfirm = { vm.confirmUninstallAndPatch() },
-            onDismiss = { vm.dismissUninstallPrompt() },
-        )
-    }
 
     if (showAbout) {
         AboutDialog(version = appVersion(context), onDismiss = { showAbout = false })

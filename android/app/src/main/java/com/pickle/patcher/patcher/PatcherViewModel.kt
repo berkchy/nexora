@@ -1858,8 +1858,21 @@ private fun externalRoot(app: Application): File {
 
     fun requestInstall() {
         val installed = installedClientPackages()
-        if (installed.isNotEmpty()) {
-            _uninstallPrompt.value = installed
+        val target = installed.firstOrNull { it == "su.xash.cs16client.nexora" }
+        if (target != null) {
+            runCatching {
+                app.startActivity(
+                    Intent(Intent.ACTION_DELETE, android.net.Uri.parse("package:$target"))
+                        .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                )
+            }
+            val out = outputApk()
+            if (out != null && out.exists() && lastReport != null) {
+                _pendingInstall.value = installIntentFor(out)
+                return
+            }
+            installAfterPatch = true
+            startPatch()
             return
         }
         _pendingInstall.value = installIntent()
