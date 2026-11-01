@@ -222,7 +222,7 @@ fun StoreScreen(
                             showComments = true
                             scope.launch {
                                 api.getComments(obj.optString("id")).onSuccess { res ->
-                                    comments = res.optJSONArray("data")
+                                    comments = res
                                 }
                             }
                         }) {
@@ -296,7 +296,7 @@ fun StoreScreen(
                             api.postComment(token, obj.optString("id"), commentText.trim()).onSuccess {
                                 commentText = ""
                                 api.getComments(obj.optString("id")).onSuccess { res ->
-                                    comments = res.optJSONArray("data")
+                                    comments = res
                                 }
                                 obj.put("commentsCount", obj.optInt("commentsCount", 0) + 1)
                                 detailItem = detailItem?.let { JSONObject(it.toString()) }
