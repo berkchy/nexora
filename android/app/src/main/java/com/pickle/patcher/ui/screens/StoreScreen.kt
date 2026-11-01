@@ -212,12 +212,22 @@ fun StoreScreen(
                                     api.toggleLike(token, obj.optString("id")).onSuccess { (newLiked, newCount) ->
                                         obj.put("liked", newLiked)
                                         obj.put("likesCount", newCount)
+                                        items?.let { arr ->
+                                            for (i in 0 until arr.length()) {
+                                                val it = arr.getJSONObject(i)
+                                                if (it.optString("id") == obj.optString("id")) {
+                                                    it.put("liked", newLiked)
+                                                    it.put("likesCount", newCount)
+                                                }
+                                            }
+                                            items = org.json.JSONArray(arr.toString())
+                                        }
                                         detailItem = detailItem?.let { JSONObject(it.toString()) }
                                     }
                                 }
                             }
                         }) {
-                            Icon(if (liked) Icons.Filled.Favorite else Icons.Filled.FavoriteBorder, contentDescription = null, tint = if (liked) Accent else Gray40)
+                            Icon(if (liked) Icons.Filled.Favorite else Icons.Filled.FavoriteBorder, contentDescription = null, modifier = Modifier.size(20.dp), tint = if (liked) Accent else Gray40)
                         }
                         Text("$likes", style = MaterialTheme.typography.labelSmall, color = Gray40)
                         Spacer(Modifier.width(16.dp))
@@ -229,7 +239,8 @@ fun StoreScreen(
                                 }
                             }
                         }) {
-                            Icon(Icons.Filled.Comment, contentDescription = null, modifier = Modifier.size(14.dp), tint = Accent)
+                            Icon(Icons.Filled.Comment, contentDescription = null, modifier = Modifier.size(20.dp), tint = Accent)
+                            Spacer(Modifier.width(4.dp))
                             Text("Comments (${obj.optInt("commentsCount", 0)})", color = Accent)
                         }
                     }
