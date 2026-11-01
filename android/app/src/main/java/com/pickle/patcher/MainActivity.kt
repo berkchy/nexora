@@ -98,7 +98,7 @@ import com.pickle.patcher.ui.screens.toDisplayVersion
 import com.pickle.patcher.ui.theme.NexoraTheme
 import com.pickle.patcher.ui.theme.Gray40
 import com.pickle.patcher.ui.theme.Gray60
-import com.pickle.patcher.ui.theme.White
+import com.pickle.patcher.ui.theme.Gray30
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.pickle.patcher.jobs.JobProgress
 import com.pickle.patcher.ui.JobStrip
@@ -762,7 +762,7 @@ private fun UpdateDialog(vm: PatcherViewModel, state: PatcherViewModel.AppUpdate
                                 Text(
                                     "Changes:",
                                     style = MaterialTheme.typography.titleSmall,
-                                    color = White,
+                                    color = Gray30,
                                 )
                                 Spacer(modifier = Modifier.height(4.dp))
                                 state.commits.forEach { msg ->
@@ -781,7 +781,7 @@ private fun UpdateDialog(vm: PatcherViewModel, state: PatcherViewModel.AppUpdate
                                     Text(
                                         "Release Notes:",
                                         style = MaterialTheme.typography.titleSmall,
-                                        color = White,
+                                        color = Gray30,
                                     )
                                     Spacer(modifier = Modifier.height(4.dp))
                                 }

@@ -17,7 +17,7 @@ import com.pickle.patcher.data.StoreApi
 import com.pickle.patcher.data.StoreSession
 import com.pickle.patcher.ui.theme.Accent
 import com.pickle.patcher.ui.theme.Gray40
-import com.pickle.patcher.ui.theme.White
+import com.pickle.patcher.ui.theme.Gray30
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Upload
 import androidx.compose.material.icons.filled.Close
@@ -86,7 +86,7 @@ fun StoreUploadScreen(
         Row(verticalAlignment = Alignment.CenterVertically) {
             Icon(Icons.Filled.Upload, contentDescription = null, tint = Accent, modifier = Modifier.size(24.dp))
             Spacer(Modifier.width(8.dp))
-            Text("Upload Lib", style = MaterialTheme.typography.titleLarge, color = White)
+            Text("Upload Lib", style = MaterialTheme.typography.titleLarge, color = Gray30)
         }
         Spacer(Modifier.height(16.dp))
 

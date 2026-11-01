@@ -25,7 +25,7 @@ import com.pickle.patcher.data.StoreApi
 import com.pickle.patcher.data.StoreSession
 import com.pickle.patcher.ui.theme.Accent
 import com.pickle.patcher.ui.theme.Gray40
-import com.pickle.patcher.ui.theme.White
+import com.pickle.patcher.ui.theme.Gray30
 import com.pickle.patcher.ui.theme.WarnYellow
 import com.pickle.patcher.ui.MarkdownText
 import androidx.compose.material.icons.Icons
@@ -80,7 +80,7 @@ fun StoreProfileScreen(
         Row(Modifier.fillMaxWidth().padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
             Icon(Icons.Filled.Person, contentDescription = null, tint = Accent, modifier = Modifier.size(24.dp))
             Spacer(Modifier.width(8.dp))
-            Text("Profile", style = MaterialTheme.typography.titleLarge, color = White)
+            Text("Profile", style = MaterialTheme.typography.titleLarge, color = Gray30)
             Spacer(Modifier.weight(1f))
             val isOwn = profile?.optBoolean("isOwn", false) == true
             if (isOwn) {
@@ -117,7 +117,7 @@ fun StoreProfileScreen(
                         }
                         Spacer(Modifier.width(16.dp))
                         Column {
-                            Text(p.optString("displayName", p.optString("username")), style = MaterialTheme.typography.titleMedium, color = White)
+                            Text(p.optString("displayName", p.optString("username")), style = MaterialTheme.typography.titleMedium, color = Gray30)
                             Text("@${p.optString("username")}", style = MaterialTheme.typography.bodySmall, color = Gray40)
                         }
                     }
@@ -145,7 +145,7 @@ fun StoreProfileScreen(
                                         }
                                         Spacer(Modifier.width(8.dp))
                                         Column(Modifier.weight(1f)) {
-                                            Text(item.optString("title"), style = MaterialTheme.typography.bodyMedium, color = White)
+                                            Text(item.optString("title"), style = MaterialTheme.typography.bodyMedium, color = Gray30)
                                             Row {
                                                 Text("v${item.optString("version")}", style = MaterialTheme.typography.labelSmall, color = Gray40)
                                                 if (item.optString("status", "approved") != "approved") {
@@ -192,7 +192,7 @@ fun StoreProfileScreen(
                         (0 until libCount).map { libs!!.getJSONObject(it) }.forEach { l ->
                             Row(Modifier.fillMaxWidth().padding(vertical = 4.dp), verticalAlignment = Alignment.CenterVertically) {
                                 Column(Modifier.weight(1f)) {
-                                    Text(l.optString("name"), style = MaterialTheme.typography.bodySmall, color = White, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                                    Text(l.optString("name"), style = MaterialTheme.typography.bodySmall, color = Gray30, maxLines = 1, overflow = TextOverflow.Ellipsis)
                                     Text("${l.optInt("size", 0)} B", style = MaterialTheme.typography.labelSmall, color = Gray40)
                                 }
                                 TextButton(onClick = {

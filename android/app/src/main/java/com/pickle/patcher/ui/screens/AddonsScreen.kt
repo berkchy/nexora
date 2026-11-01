@@ -49,7 +49,7 @@ import com.pickle.patcher.ui.theme.Gray70
 import com.pickle.patcher.ui.theme.Gray80
 import com.pickle.patcher.ui.theme.Gray90
 import com.pickle.patcher.ui.theme.SuccessGreen
-import com.pickle.patcher.ui.theme.White
+import com.pickle.patcher.ui.theme.Gray30
 
 @Composable
 fun AddonsScreen(vm: PatcherViewModel) {
@@ -274,7 +274,7 @@ fun AddonsScreen(vm: PatcherViewModel) {
                             Text(
                                 file.path.removePrefix("addons/"),
                                 style = MaterialTheme.typography.bodySmall,
-                                color = if (file.installed && !file.outdated) White else Gray40,
+                                color = if (file.installed && !file.outdated) Gray30 else Gray40,
                                 maxLines = 1,
                                 overflow = TextOverflow.Ellipsis,
                             )

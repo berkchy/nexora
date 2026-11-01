@@ -17,7 +17,7 @@ import com.pickle.patcher.data.StoreSession
 import com.pickle.patcher.ui.theme.Accent
 import com.pickle.patcher.ui.theme.Gray40
 import com.pickle.patcher.ui.theme.WarnYellow
-import com.pickle.patcher.ui.theme.White
+import com.pickle.patcher.ui.theme.Gray30
 import kotlinx.coroutines.launch
 import org.json.JSONArray
 import org.json.JSONObject
@@ -33,9 +33,9 @@ fun AdminScreen(api: StoreApi, onBack: () -> Unit) {
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Admin", color = White) },
+                title = { Text("Admin", color = Gray30) },
                 navigationIcon = {
-                    IconButton(onClick = onBack) { Icon(Icons.Filled.ArrowBack, contentDescription = null, tint = White) }
+                    IconButton(onClick = onBack) { Icon(Icons.Filled.ArrowBack, contentDescription = null, tint = Gray30) }
                 },
             )
         },
@@ -136,7 +136,7 @@ private fun AdminPostCard(obj: JSONObject, api: StoreApi, token: String, onActio
                     Spacer(Modifier.width(8.dp))
                 }
                 Column(Modifier.weight(1f)) {
-                    Text(obj.optString("title", "Untitled"), style = MaterialTheme.typography.titleSmall, color = White, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    Text(obj.optString("title", "Untitled"), style = MaterialTheme.typography.titleSmall, color = Gray30, maxLines = 1, overflow = TextOverflow.Ellipsis)
                     Text("by ${obj.optJSONObject("user")?.optString("username") ?: "?"}  •  v${obj.optString("version", "1.0.0")}", style = MaterialTheme.typography.labelSmall, color = Gray40)
                 }
                 Text(status, style = MaterialTheme.typography.labelSmall, color = statusColor)
@@ -237,7 +237,7 @@ private fun AdminUserCard(obj: JSONObject, api: StoreApi, token: String, onActio
                 }
                 Spacer(Modifier.width(8.dp))
                 Column(Modifier.weight(1f)) {
-                    Text(displayName ?: username, style = MaterialTheme.typography.titleSmall, color = White)
+                    Text(displayName ?: username, style = MaterialTheme.typography.titleSmall, color = Gray30)
                     Text("$email  •  $itemCount posts", style = MaterialTheme.typography.labelSmall, color = Gray40)
                     Text("role: $role", style = MaterialTheme.typography.labelSmall, color = if (role == "admin") WarnYellow else Gray40)
                 }

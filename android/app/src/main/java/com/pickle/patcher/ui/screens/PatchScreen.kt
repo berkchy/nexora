@@ -84,7 +84,7 @@ import com.pickle.patcher.ui.theme.Gray80
 import com.pickle.patcher.ui.theme.Gray90
 import com.pickle.patcher.ui.theme.SuccessGreen
 import com.pickle.patcher.ui.theme.WarnYellow
-import com.pickle.patcher.ui.theme.White
+import com.pickle.patcher.ui.theme.Gray30
 import java.text.DecimalFormat
 import java.text.SimpleDateFormat
 import java.util.Date
@@ -280,7 +280,7 @@ private fun BundleCard(vm: PatcherViewModel) {
                 "${displayAbi(target?.abi ?: vm.isDeviceAbi)} · " +
                     if (target?.abi == "arm64-v8a") "64-bit" else "32-bit",
                 style = MaterialTheme.typography.titleSmall,
-                color = White,
+                color = Gray30,
             )
             Spacer(Modifier.height(2.dp))
             Text(
@@ -377,7 +377,7 @@ private fun BundleSummaryLine(
         Icon(icon, null, tint = tint, modifier = Modifier.size(20.dp))
         Spacer(Modifier.width(10.dp))
         Column(modifier = Modifier.weight(1f)) {
-            Text(title, style = MaterialTheme.typography.titleSmall, color = White)
+            Text(title, style = MaterialTheme.typography.titleSmall, color = Gray30)
             Text(
                 detail,
                 style = MaterialTheme.typography.bodySmall,
@@ -442,7 +442,7 @@ private fun CustomLibsCard(vm: PatcherViewModel) {
                             verticalAlignment = Alignment.CenterVertically,
                         ) {
                             Column(Modifier.weight(1f)) {
-                                Text(lib.name, style = MaterialTheme.typography.bodyMedium, color = White, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                                Text(lib.name, style = MaterialTheme.typography.bodyMedium, color = Gray30, maxLines = 1, overflow = TextOverflow.Ellipsis)
                                 Text(
                                     "lib/$abi/${lib.name} · ${lib.machineName}",
                                     style = MaterialTheme.typography.bodySmall,
@@ -823,7 +823,7 @@ private fun PatchComponentsDialog(
                                 Text(
                                     c.label,
                                     style = MaterialTheme.typography.bodyMedium,
-                                    color = if (on) White else Gray40,
+                                    color = if (on) Gray30 else Gray40,
                                 )
                                 Text(
                                     c.description,
@@ -871,7 +871,7 @@ private fun PatchComponentsDialog(
                                 Text(
                                     lib.name,
                                     style = MaterialTheme.typography.bodyMedium,
-                                    color = if (on) White else Gray40,
+                                    color = if (on) Gray30 else Gray40,
                                 )
                                 Text(
                                     "lib/$targetAbi/${lib.name} · ${lib.machineName}",
@@ -988,7 +988,7 @@ private fun PatchHistoryCard(vm: PatcherViewModel) {
                     Text(
                         "${displayAbi(h.abi)} \u00b7 ${h.libs} libs \u00b7 ${h.entries} entries",
                         style = MaterialTheme.typography.bodySmall,
-                        color = White,
+                        color = Gray30,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
                     )
@@ -1062,7 +1062,7 @@ private fun CheckLine(label: String, value: String, ok: Boolean) {
         Text(
             value,
             style = MaterialTheme.typography.bodySmall,
-            color = if (ok) White else AlertRed,
+            color = if (ok) Gray30 else AlertRed,
             maxLines = 1,
             overflow = TextOverflow.Ellipsis,
         )

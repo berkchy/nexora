@@ -16,7 +16,7 @@ import com.pickle.patcher.data.StoreApi
 import com.pickle.patcher.data.StoreSession
 import com.pickle.patcher.ui.theme.Accent
 import com.pickle.patcher.ui.theme.Gray40
-import com.pickle.patcher.ui.theme.White
+import com.pickle.patcher.ui.theme.Gray30
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import java.util.Locale
@@ -79,7 +79,7 @@ fun StoreVerifyEmailScreen(
         verticalArrangement = Arrangement.Center,
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
-        Text("Verify Email", style = MaterialTheme.typography.headlineMedium, color = White)
+        Text("Verify Email", style = MaterialTheme.typography.headlineMedium, color = Gray30)
         Spacer(Modifier.height(8.dp))
         Text(
             if (codeSent) "Enter the 6-digit code sent to ${emailState.ifBlank { "your email" }}" else "Enter your email to receive a verification code",

@@ -15,7 +15,7 @@ import com.pickle.patcher.data.StoreSession
 import com.pickle.patcher.ui.theme.Accent
 import com.pickle.patcher.ui.theme.AlertRed
 import com.pickle.patcher.ui.theme.Gray40
-import com.pickle.patcher.ui.theme.White
+import com.pickle.patcher.ui.theme.Gray30
 import com.pickle.patcher.ui.theme.WarnYellow
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Edit
@@ -69,7 +69,7 @@ fun StoreManageScreen(
         Row(Modifier.fillMaxWidth().padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
             Icon(Icons.Filled.Edit, contentDescription = null, tint = Accent, modifier = Modifier.size(24.dp))
             Spacer(Modifier.width(8.dp))
-            Text("Manage Libs", style = MaterialTheme.typography.titleLarge, color = White)
+            Text("Manage Libs", style = MaterialTheme.typography.titleLarge, color = Gray30)
         }
 
         when {
@@ -89,7 +89,7 @@ fun StoreManageScreen(
                                 modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
                             ) {
                                 Column(Modifier.padding(12.dp)) {
-                                    Text(obj.optString("title"), style = MaterialTheme.typography.bodyMedium, color = White)
+                                    Text(obj.optString("title"), style = MaterialTheme.typography.bodyMedium, color = Gray30)
                                     Row {
                                         Text("v${obj.optString("version")} · ${obj.optJSONArray("libs")?.length() ?: 0} lib(s)", style = MaterialTheme.typography.labelSmall, color = Gray40)
                                         if (obj.optString("status", "approved") != "approved") {
@@ -181,7 +181,7 @@ fun StoreManageScreen(
 
             AlertDialog(
                 onDismissRequest = { editTarget = null },
-                title = { Text("Edit item", color = White) },
+                title = { Text("Edit item", color = Gray30) },
                 text = {
                     Column(Modifier.verticalScroll(androidx.compose.foundation.rememberScrollState())) {
                         OutlinedTextField(value = title, onValueChange = { title = it }, label = { Text("Title") }, modifier = Modifier.fillMaxWidth(), singleLine = true)

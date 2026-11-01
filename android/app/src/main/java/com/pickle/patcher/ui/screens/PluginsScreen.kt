@@ -49,7 +49,7 @@ import com.pickle.patcher.ui.theme.Gray85
 import com.pickle.patcher.ui.theme.Secondary
 import com.pickle.patcher.ui.theme.SuccessGreen
 import com.pickle.patcher.ui.theme.Tertiary
-import com.pickle.patcher.ui.theme.White
+import com.pickle.patcher.ui.theme.Gray30
 import java.io.File
 import androidx.compose.foundation.clickable
 import androidx.compose.ui.text.font.FontStyle
@@ -186,7 +186,7 @@ fun PluginsScreen(vm: PatcherViewModel) {
         comment = Gray60,
         pluginName = Tertiary,
         section = Accent,
-        text = White,
+        text = Gray30,
         operator = Gray70,
         string = SuccessGreen,
         value = Secondary,
@@ -273,7 +273,7 @@ fun PluginsScreen(vm: PatcherViewModel) {
                         BasicTextField(
                             value = text,
                             onValueChange = vm::editIniText,
-                            textStyle = editorStyle.copy(color = White),
+                            textStyle = editorStyle.copy(color = Gray30),
                             cursorBrush = SolidColor(Accent),
                             visualTransformation = IniHighlight(iniColors),
                             modifier = Modifier.widthIn(min = 240.dp),

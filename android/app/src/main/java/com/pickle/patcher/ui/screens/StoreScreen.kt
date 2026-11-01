@@ -30,7 +30,7 @@ import coil.compose.AsyncImage
 import com.pickle.patcher.data.StoreApi
 import com.pickle.patcher.ui.theme.Accent
 import com.pickle.patcher.ui.theme.Gray40
-import com.pickle.patcher.ui.theme.White
+import com.pickle.patcher.ui.theme.Gray30
 import com.pickle.patcher.ui.theme.WarnYellow
 import com.pickle.patcher.ui.MarkdownText
 import kotlinx.coroutines.launch
@@ -85,7 +85,7 @@ fun StoreScreen(
         ) {
             Icon(Icons.Filled.ShoppingCart, contentDescription = null, tint = Accent, modifier = Modifier.size(24.dp))
             Spacer(Modifier.width(8.dp))
-            Text("Store", style = MaterialTheme.typography.titleLarge, color = White)
+            Text("Store", style = MaterialTheme.typography.titleLarge, color = Gray30)
         }
         HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
 
@@ -168,7 +168,7 @@ fun StoreScreen(
                                 verticalAlignment = Alignment.CenterVertically,
                             ) {
                                 Column(Modifier.weight(1f)) {
-                                    Text(l.optString("name"), style = MaterialTheme.typography.bodySmall, color = White, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                                    Text(l.optString("name"), style = MaterialTheme.typography.bodySmall, color = Gray30, maxLines = 1, overflow = TextOverflow.Ellipsis)
                                     Row(verticalAlignment = Alignment.CenterVertically) {
                                         Text("${l.optInt("size", 0)} B", style = MaterialTheme.typography.labelSmall, color = Gray40)
                                         Spacer(Modifier.width(8.dp))
@@ -283,7 +283,7 @@ fun StoreScreen(
                                 Spacer(Modifier.width(8.dp))
                                 Column {
                                     Text(uname, style = MaterialTheme.typography.labelSmall, color = Accent)
-                                    Text(c.optString("content"), style = MaterialTheme.typography.bodySmall, color = White)
+                                    Text(c.optString("content"), style = MaterialTheme.typography.bodySmall, color = Gray30)
                                 }
                             }
                         }

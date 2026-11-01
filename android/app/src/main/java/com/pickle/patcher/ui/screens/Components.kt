@@ -51,7 +51,6 @@ import com.pickle.patcher.ui.theme.Gray60
 import com.pickle.patcher.ui.theme.Gray70
 import com.pickle.patcher.ui.theme.Gray85
 import com.pickle.patcher.ui.theme.Gray99
-import com.pickle.patcher.ui.theme.White
 
 private val CardShape = RoundedCornerShape(16.dp)
 private val ButtonShape = RoundedCornerShape(14.dp)
@@ -282,7 +281,7 @@ fun RingProgress(
         Column(horizontalAlignment = Alignment.CenterHorizontally) {
             Text(
                 text = "${(animated * 100).toInt()}%",
-                color = White,
+                color = Gray30,
                 fontSize = 20.sp,
                 fontWeight = FontWeight.SemiBold,
             )

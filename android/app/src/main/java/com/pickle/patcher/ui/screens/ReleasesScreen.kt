@@ -41,7 +41,7 @@ import com.pickle.patcher.ui.theme.Gray70
 import com.pickle.patcher.ui.theme.Gray80
 import com.pickle.patcher.ui.theme.Gray90
 import com.pickle.patcher.ui.theme.SuccessGreen
-import com.pickle.patcher.ui.theme.White
+import com.pickle.patcher.ui.theme.Gray30
 import java.io.File
 
 @Composable
@@ -224,7 +224,7 @@ private fun GameFoldersCard() {
                 )
                 Spacer(Modifier.width(8.dp))
                 Column(modifier = Modifier.weight(1f)) {
-                    Text(path, style = MaterialTheme.typography.labelSmall, color = White)
+                    Text(path, style = MaterialTheme.typography.labelSmall, color = Gray30)
                     Text(desc, style = MaterialTheme.typography.labelSmall, color = Gray40)
                 }
             }

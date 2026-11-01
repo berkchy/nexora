@@ -42,7 +42,7 @@ import com.pickle.patcher.ui.theme.AlertRed
 import com.pickle.patcher.ui.theme.Gray40
 import com.pickle.patcher.ui.theme.Gray80
 import com.pickle.patcher.ui.theme.SuccessGreen
-import com.pickle.patcher.ui.theme.White
+import com.pickle.patcher.ui.theme.Gray30
 
 @Composable
 fun CrashLogScreen(vm: PatcherViewModel) {
