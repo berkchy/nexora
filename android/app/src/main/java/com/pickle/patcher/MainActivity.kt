@@ -497,18 +497,18 @@ private fun NavDrawer(
 
                 DrawerSection("PATCHER")
                 DrawerItem("Patch", Icons.Filled.RocketLaunch, currentRoute == Dest.Patch.route) {
-                    closeThen { nav.navigate(Dest.Patch.route) { popUpTo(nav.graph.findStartDestination().id) { inclusive = true } launchSingleTop = true } }
+                    closeThen { nav.popBackStack(nav.graph.findStartDestination().id, inclusive = true); nav.navigate(Dest.Patch.route) }
                 }
                 DrawerItem("Compile", Icons.Filled.Code, currentRoute == Dest.Compiler.route) {
-                    closeThen { nav.navigate(Dest.Compiler.route) { popUpTo(nav.graph.findStartDestination().id) { inclusive = true } launchSingleTop = true } }
+                    closeThen { nav.popBackStack(nav.graph.findStartDestination().id, inclusive = true); nav.navigate(Dest.Compiler.route) }
                 }
                 DrawerItem("Addons", Icons.Filled.Extension, currentRoute == Dest.Addons.route) {
-                    closeThen { nav.navigate(Dest.Addons.route) { popUpTo(nav.graph.findStartDestination().id) { inclusive = true } launchSingleTop = true } }
+                    closeThen { nav.popBackStack(nav.graph.findStartDestination().id, inclusive = true); nav.navigate(Dest.Addons.route) }
                 }
 
                 DrawerSection("STORE")
                 DrawerItem("Store", Icons.Filled.ShoppingCart, currentRoute == Dest.Store.route) {
-                    closeThen { nav.navigate(Dest.Store.route) { popUpTo(nav.graph.findStartDestination().id) { inclusive = true } launchSingleTop = true } }
+                    closeThen { nav.popBackStack(nav.graph.findStartDestination().id, inclusive = true); nav.navigate(Dest.Store.route) }
                 }
                 // Only show account actions when there is a session. Upload and
                 // Manage are useless (and confusing) to an anonymous user.
@@ -544,34 +544,34 @@ private fun NavDrawer(
                 val isAdmin = role == "admin" || role == "owner"
                 if (!loggedIn) {
                     DrawerItem("Store Login", Icons.Filled.Login, currentRoute == Dest.StoreLogin.route) {
-                        closeThen { nav.navigate(Dest.StoreLogin.route) { popUpTo(nav.graph.findStartDestination().id) { inclusive = true } launchSingleTop = true } }
+                        closeThen { nav.popBackStack(nav.graph.findStartDestination().id, inclusive = true); nav.navigate(Dest.StoreLogin.route) }
                     }
                 } else {
                     val uname = com.pickle.patcher.data.StoreSession.username(context)
                     if (uname != null) {
                         DrawerItem("My Profile", Icons.Filled.Person, currentRoute == Dest.StoreProfile.route) {
-                            closeThen { nav.navigate("store/profile/$uname") { popUpTo(nav.graph.findStartDestination().id) { inclusive = true } launchSingleTop = true } }
+                            closeThen { nav.popBackStack(nav.graph.findStartDestination().id, inclusive = true); nav.navigate("store/profile/$uname") }
                         }
                     }
                     DrawerItem("Store Upload", Icons.Filled.Upload, currentRoute == Dest.StoreUpload.route) {
-                        closeThen { nav.navigate(Dest.StoreUpload.route) { popUpTo(nav.graph.findStartDestination().id) { inclusive = true } launchSingleTop = true } }
+                        closeThen { nav.popBackStack(nav.graph.findStartDestination().id, inclusive = true); nav.navigate(Dest.StoreUpload.route) }
                     }
                     DrawerItem("Store Manage", Icons.Filled.Edit, currentRoute == Dest.StoreManage.route) {
-                        closeThen { nav.navigate(Dest.StoreManage.route) { popUpTo(nav.graph.findStartDestination().id) { inclusive = true } launchSingleTop = true } }
+                        closeThen { nav.popBackStack(nav.graph.findStartDestination().id, inclusive = true); nav.navigate(Dest.StoreManage.route) }
                     }
                     if (isAdmin) {
                         DrawerItem("Admin", Icons.Filled.Lock, currentRoute == Dest.StoreAdmin.route) {
-                            closeThen { nav.navigate(Dest.StoreAdmin.route) { popUpTo(nav.graph.findStartDestination().id) { inclusive = true } launchSingleTop = true } }
+                            closeThen { nav.popBackStack(nav.graph.findStartDestination().id, inclusive = true); nav.navigate(Dest.StoreAdmin.route) }
                         }
                     }
                 }
 
                 DrawerSection("SETTINGS")
                 DrawerItem("Settings", Icons.Filled.Tune, currentRoute == Dest.Settings.route) {
-                    closeThen { nav.navigate(Dest.Settings.route) { popUpTo(nav.graph.findStartDestination().id) { inclusive = true } launchSingleTop = true } }
+                    closeThen { nav.popBackStack(nav.graph.findStartDestination().id, inclusive = true); nav.navigate(Dest.Settings.route) }
                 }
                 DrawerItem("Plugins", Icons.Filled.Extension, currentRoute == Dest.Plugins.route) {
-                    closeThen { nav.navigate(Dest.Plugins.route) { popUpTo(nav.graph.findStartDestination().id) { inclusive = true } launchSingleTop = true } }
+                    closeThen { nav.popBackStack(nav.graph.findStartDestination().id, inclusive = true); nav.navigate(Dest.Plugins.route) }
                 }
 
                 DrawerSection("TOOLS")
