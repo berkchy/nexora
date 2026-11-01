@@ -497,18 +497,18 @@ private fun NavDrawer(
 
                 DrawerSection("PATCHER")
                 DrawerItem("Patch", Icons.Filled.RocketLaunch, currentRoute == Dest.Patch.route) {
-                    closeThen { navToTab(nav, Dest.Patch.route, currentRoute) }
+                    closeThen { nav.navigate(Dest.Patch.route) { popUpTo(0) { inclusive = true } launchSingleTop = true } }
                 }
                 DrawerItem("Compile", Icons.Filled.Code, currentRoute == Dest.Compiler.route) {
-                    closeThen { navToTab(nav, Dest.Compiler.route, currentRoute) }
+                    closeThen { nav.navigate(Dest.Compiler.route) { popUpTo(0) { inclusive = true } launchSingleTop = true } }
                 }
                 DrawerItem("Addons", Icons.Filled.Extension, currentRoute == Dest.Addons.route) {
-                    closeThen { navToTab(nav, Dest.Addons.route, currentRoute) }
+                    closeThen { nav.navigate(Dest.Addons.route) { popUpTo(0) { inclusive = true } launchSingleTop = true } }
                 }
 
                 DrawerSection("STORE")
                 DrawerItem("Store", Icons.Filled.ShoppingCart, currentRoute == Dest.Store.route) {
-                    closeThen { navToTab(nav, Dest.Store.route, currentRoute) }
+                    closeThen { nav.navigate(Dest.Store.route) { popUpTo(0) { inclusive = true } launchSingleTop = true } }
                 }
                 // Only show account actions when there is a session. Upload and
                 // Manage are useless (and confusing) to an anonymous user.
@@ -544,34 +544,34 @@ private fun NavDrawer(
                 val isAdmin = role == "admin" || role == "owner"
                 if (!loggedIn) {
                     DrawerItem("Store Login", Icons.Filled.Login, currentRoute == Dest.StoreLogin.route) {
-                        closeThen { nav.navigate(Dest.StoreLogin.route) }
+                        closeThen { nav.navigate(Dest.StoreLogin.route) { popUpTo(0) { inclusive = true } launchSingleTop = true } }
                     }
                 } else {
                     val uname = com.pickle.patcher.data.StoreSession.username(context)
                     if (uname != null) {
                         DrawerItem("My Profile", Icons.Filled.Person, currentRoute == Dest.StoreProfile.route) {
-                            closeThen { nav.navigate("store/profile/$uname") }
+                            closeThen { nav.navigate("store/profile/$uname") { popUpTo(0) { inclusive = true } launchSingleTop = true } }
                         }
                     }
                     DrawerItem("Store Upload", Icons.Filled.Upload, currentRoute == Dest.StoreUpload.route) {
-                        closeThen { nav.navigate(Dest.StoreUpload.route) }
+                        closeThen { nav.navigate(Dest.StoreUpload.route) { popUpTo(0) { inclusive = true } launchSingleTop = true } }
                     }
                     DrawerItem("Store Manage", Icons.Filled.Edit, currentRoute == Dest.StoreManage.route) {
-                        closeThen { nav.navigate(Dest.StoreManage.route) }
+                        closeThen { nav.navigate(Dest.StoreManage.route) { popUpTo(0) { inclusive = true } launchSingleTop = true } }
                     }
                     if (isAdmin) {
                         DrawerItem("Admin", Icons.Filled.Lock, currentRoute == Dest.StoreAdmin.route) {
-                            closeThen { nav.navigate(Dest.StoreAdmin.route) }
+                            closeThen { nav.navigate(Dest.StoreAdmin.route) { popUpTo(0) { inclusive = true } launchSingleTop = true } }
                         }
                     }
                 }
 
                 DrawerSection("SETTINGS")
                 DrawerItem("Settings", Icons.Filled.Tune, currentRoute == Dest.Settings.route) {
-                    closeThen { navToTab(nav, Dest.Settings.route, currentRoute) }
+                    closeThen { nav.navigate(Dest.Settings.route) { popUpTo(0) { inclusive = true } launchSingleTop = true } }
                 }
                 DrawerItem("Plugins", Icons.Filled.Extension, currentRoute == Dest.Plugins.route) {
-                    closeThen { navToTab(nav, Dest.Plugins.route, currentRoute) }
+                    closeThen { nav.navigate(Dest.Plugins.route) { popUpTo(0) { inclusive = true } launchSingleTop = true } }
                 }
 
                 DrawerSection("TOOLS")
