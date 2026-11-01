@@ -1103,6 +1103,23 @@ private fun externalRoot(app: Application): File {
      * libraries says all four are wrong in one message instead of making the
      * user re-pick to discover the next one.
      */
+    private fun displayName(uri: android.net.Uri): String? {
+        if (uri.scheme == "content") {
+            try {
+                app.contentResolver.query(uri, arrayOf(android.provider.OpenableColumns.DISPLAY_NAME), null, null, null)?.use { c ->
+                    if (c.moveToFirst()) {
+                        val idx = c.getColumnIndex(android.provider.OpenableColumns.DISPLAY_NAME)
+                        if (idx >= 0) {
+                            val v = c.getString(idx)
+                            if (!v.isNullOrBlank()) return v
+                        }
+                    }
+                }
+            } catch (_: Throwable) { }
+        }
+        return uri.lastPathSegment?.substringAfterLast('/')
+    }
+
     fun addCustomLibs(uris: List<android.net.Uri>) {
         if (uris.isEmpty()) return
         val abi = _abi.value
@@ -1111,7 +1128,7 @@ private fun externalRoot(app: Application): File {
         val added = ArrayList<CustomLib>()
 
         for (uri in uris) {
-            val name = uri.lastPathSegment?.substringAfterLast('/')
+            val name = displayName(uri)
             if (name.isNullOrBlank() || !name.endsWith(".so")) {
                 rejected += "$name: not a .so file"
                 continue
