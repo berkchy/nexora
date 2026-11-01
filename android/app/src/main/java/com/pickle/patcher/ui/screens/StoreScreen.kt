@@ -8,6 +8,7 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Download
 import androidx.compose.material.icons.filled.ShoppingCart
@@ -148,9 +149,7 @@ fun StoreScreen(
                             TextButton(onClick = {
                                 try { context.startActivity(android.content.Intent(android.content.Intent.ACTION_VIEW, android.net.Uri.parse(url))) } catch (_: Exception) {}
                             }, contentPadding = PaddingValues(0.dp)) {
-                                Icon(androidx.compose.material.icons.Icons.Filled.OpenInNew, contentDescription = null, modifier = Modifier.size(14.dp), tint = Accent)
-                                Spacer(Modifier.width(4.dp))
-                                Text(lk.optString("label", url), color = Accent, style = MaterialTheme.typography.bodySmall)
+                                                                Text(lk.optString("label", url), color = Accent, style = MaterialTheme.typography.bodySmall)
                             }
                         }
                         Spacer(Modifier.height(8.dp))
@@ -215,11 +214,7 @@ fun StoreScreen(
                                 }
                             }
                         }) {
-                            Icon(
-                                if (liked) androidx.compose.material.icons.Icons.Filled.Favorite else androidx.compose.material.icons.Icons.Outlined.FavoriteBorder,
-                                contentDescription = null,
-                                tint = if (liked) Accent else Gray40,
-                            )
+                            Text(if (liked) "♥" else "♡", color = if (liked) Accent else Gray40)
                         }
                         Text("$likes", style = MaterialTheme.typography.labelSmall, color = Gray40)
                         Spacer(Modifier.width(16.dp))
@@ -231,8 +226,7 @@ fun StoreScreen(
                                 }
                             }
                         }) {
-                            Icon(androidx.compose.material.icons.Icons.Filled.Comment, contentDescription = null, modifier = Modifier.size(14.dp), tint = Accent)
-                            Spacer(Modifier.width(4.dp))
+                            Text("💬 ")
                             Text("Comments (${obj.optInt("commentsCount", 0)})", color = Accent)
                         }
                     }
