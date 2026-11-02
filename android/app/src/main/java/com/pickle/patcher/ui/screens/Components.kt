@@ -20,6 +20,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.border
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.Icon
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
@@ -33,6 +34,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.rememberScrollState
@@ -64,6 +66,171 @@ fun SectionHeader(text: String, modifier: Modifier = Modifier) {
         color = MaterialTheme.colorScheme.onSurfaceVariant,
         modifier = modifier.padding(bottom = 10.dp, top = 4.dp),
     )
+}
+
+enum class StudioTone {
+    Primary,
+    Secondary,
+    Tertiary,
+    Error,
+    Neutral,
+}
+
+data class StudioStat(
+    val label: String,
+    val value: String,
+    val tone: StudioTone = StudioTone.Neutral,
+)
+
+@Composable
+private fun studioColors(tone: StudioTone): Pair<Color, Color> = when (tone) {
+    StudioTone.Primary ->
+        MaterialTheme.colorScheme.primaryContainer to MaterialTheme.colorScheme.onPrimaryContainer
+    StudioTone.Secondary ->
+        MaterialTheme.colorScheme.secondaryContainer to MaterialTheme.colorScheme.onSecondaryContainer
+    StudioTone.Tertiary ->
+        MaterialTheme.colorScheme.tertiaryContainer to MaterialTheme.colorScheme.onTertiaryContainer
+    StudioTone.Error ->
+        MaterialTheme.colorScheme.errorContainer to MaterialTheme.colorScheme.onErrorContainer
+    StudioTone.Neutral ->
+        MaterialTheme.colorScheme.surfaceContainerHighest to MaterialTheme.colorScheme.onSurfaceVariant
+}
+
+@Composable
+fun StudioStatusPill(
+    text: String,
+    modifier: Modifier = Modifier,
+    tone: StudioTone = StudioTone.Neutral,
+) {
+    val (container, content) = studioColors(tone)
+    Surface(modifier = modifier, shape = RoundedCornerShape(50), color = container) {
+        Text(
+            text,
+            style = MaterialTheme.typography.labelSmall,
+            color = content,
+            modifier = Modifier.padding(horizontal = 12.dp, vertical = 7.dp),
+        )
+    }
+}
+
+@Composable
+fun StudioHero(
+    icon: ImageVector,
+    title: String,
+    subtitle: String,
+    modifier: Modifier = Modifier,
+    status: String? = null,
+    statusTone: StudioTone = StudioTone.Neutral,
+    stats: List<StudioStat> = emptyList(),
+) {
+    Surface(
+        modifier = modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(32.dp),
+        color = MaterialTheme.colorScheme.surfaceContainerLow,
+        tonalElevation = 1.dp,
+    ) {
+        Column(modifier = Modifier.padding(22.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Surface(
+                    shape = RoundedCornerShape(18.dp),
+                    color = MaterialTheme.colorScheme.primary,
+                ) {
+                    Box(modifier = Modifier.size(54.dp), contentAlignment = Alignment.Center) {
+                        Icon(
+                            icon,
+                            contentDescription = null,
+                            modifier = Modifier.size(26.dp),
+                            tint = MaterialTheme.colorScheme.onPrimary,
+                        )
+                    }
+                }
+                Spacer(Modifier.width(14.dp))
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        title,
+                        style = MaterialTheme.typography.headlineSmall,
+                        color = MaterialTheme.colorScheme.onSurface,
+                    )
+                    Spacer(Modifier.height(2.dp))
+                    Text(
+                        subtitle,
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+                if (status != null) {
+                    StudioStatusPill(status, tone = statusTone)
+                }
+            }
+            if (stats.isNotEmpty()) {
+                Spacer(Modifier.height(16.dp))
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    stats.forEach { stat ->
+                        StudioStatCard(stat, Modifier.weight(1f))
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun StudioStatCard(stat: StudioStat, modifier: Modifier = Modifier) {
+    val (container, content) = studioColors(stat.tone)
+    Surface(modifier = modifier, shape = RoundedCornerShape(16.dp), color = container) {
+        Column(modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp)) {
+            Text(stat.label, style = MaterialTheme.typography.labelSmall, color = content)
+            Spacer(Modifier.height(2.dp))
+            Text(
+                stat.value,
+                style = MaterialTheme.typography.labelLarge,
+                color = content,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+        }
+    }
+}
+
+@Composable
+fun StudioStepHeader(
+    step: String,
+    title: String,
+    caption: String,
+    modifier: Modifier = Modifier,
+) {
+    Row(
+        modifier = modifier
+            .fillMaxWidth()
+            .padding(bottom = 10.dp, top = 2.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Surface(
+            shape = RoundedCornerShape(50),
+            color = MaterialTheme.colorScheme.secondaryContainer,
+        ) {
+            Box(modifier = Modifier.size(30.dp), contentAlignment = Alignment.Center) {
+                Text(
+                    step,
+                    style = MaterialTheme.typography.labelMedium,
+                    color = MaterialTheme.colorScheme.onSecondaryContainer,
+                )
+            }
+        }
+        Spacer(Modifier.width(10.dp))
+        Column {
+            Text(
+                title,
+                style = MaterialTheme.typography.titleSmall,
+                color = MaterialTheme.colorScheme.onSurface,
+            )
+            Text(
+                caption,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+    }
 }
 
 @Composable
@@ -164,13 +331,17 @@ fun InfoRow(
     label: String,
     value: String,
     modifier: Modifier = Modifier,
-    valueColor: Color = Accent,
+    valueColor: Color = MaterialTheme.colorScheme.primary,
 ) {
     Row(
-        modifier = modifier.fillMaxWidth().padding(vertical = 2.dp),
+        modifier = modifier.fillMaxWidth().padding(vertical = 3.dp),
         horizontalArrangement = Arrangement.SpaceBetween,
     ) {
-        Text(label, style = MaterialTheme.typography.bodySmall, color = Gray40)
+        Text(
+            label,
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
         Text(value, style = MaterialTheme.typography.bodySmall, color = valueColor)
     }
 }
@@ -180,15 +351,15 @@ fun StatPill(
     label: String,
     value: String,
     modifier: Modifier = Modifier,
-    accent: Color = Accent,
+    accent: Color = MaterialTheme.colorScheme.primary,
 ) {
     Surface(
         modifier = modifier,
-        shape = RoundedCornerShape(8.dp),
-        color = Gray85,
+        shape = RoundedCornerShape(14.dp),
+        color = MaterialTheme.colorScheme.surfaceContainerHighest,
     ) {
         Column(
-            modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp).widthIn(min = 80.dp),
+            modifier = Modifier.padding(horizontal = 12.dp, vertical = 9.dp).widthIn(min = 80.dp),
         ) {
             Text(
                 value,
@@ -200,7 +371,7 @@ fun StatPill(
             Text(
                 label,
                 style = MaterialTheme.typography.labelSmall,
-                color = Gray40,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
                 maxLines = 1,
             )
         }
@@ -226,7 +397,7 @@ fun AppProgressBar(fraction: Float, modifier: Modifier = Modifier) {
         Text(
             "${(animated * 100).toInt()}%",
             style = MaterialTheme.typography.labelSmall,
-            color = Gray40,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
     }
 }
@@ -251,8 +422,8 @@ fun RingProgress(
     )
     // Read here rather than inside the Canvas: its lambda is a DrawScope, which
     // is not a composable scope.
-    val trackColor = Gray70
-    val progressColor = Accent
+    val trackColor = MaterialTheme.colorScheme.surfaceContainerHighest
+    val progressColor = MaterialTheme.colorScheme.primary
     Box(modifier = modifier.size(diameter), contentAlignment = Alignment.Center) {
         Canvas(Modifier.size(diameter)) {
             val stroke = strokeWidth.toPx()
@@ -282,12 +453,16 @@ fun RingProgress(
         Column(horizontalAlignment = Alignment.CenterHorizontally) {
             Text(
                 text = "${(animated * 100).toInt()}%",
-                color = Gray30,
+                color = MaterialTheme.colorScheme.onSurface,
                 fontSize = 20.sp,
                 fontWeight = FontWeight.SemiBold,
             )
             if (label.isNotEmpty()) {
-                Text(text = label, color = Gray40, fontSize = 10.sp)
+                Text(
+                    text = label,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    fontSize = 10.sp,
+                )
             }
         }
     }
@@ -306,19 +481,19 @@ fun MiniConsole(
     val scroll = rememberScrollState()
     Surface(
         modifier = modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(12.dp),
-        color = Gray99,
+        shape = RoundedCornerShape(14.dp),
+        color = MaterialTheme.colorScheme.surfaceContainerLowest,
     ) {
         Column(
             modifier = Modifier
                 .height((visibleLines * 16 + 16).dp)
                 .verticalScroll(scroll)
-                .padding(vertical = 8.dp, horizontal = 10.dp),
+                .padding(vertical = 10.dp, horizontal = 12.dp),
         ) {
             if (lines.isEmpty()) {
                 Text(
                     text = "waiting…",
-                    color = Gray60,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
                     fontSize = 11.sp,
                     fontFamily = FontFamily.Monospace,
                 )
@@ -326,7 +501,11 @@ fun MiniConsole(
             lines.forEach { line ->
                 Text(
                     text = line,
-                    color = if (line.startsWith("+")) Accent else Gray30,
+                    color = if (line.startsWith("+")) {
+                        MaterialTheme.colorScheme.primary
+                    } else {
+                        MaterialTheme.colorScheme.onSurfaceVariant
+                    },
                     fontSize = 11.sp,
                     lineHeight = 16.sp,
                     fontFamily = FontFamily.Monospace,

@@ -23,6 +23,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -79,15 +80,17 @@ fun StoreScreen(
     LaunchedEffect(page) { load() }
 
     Column(Modifier.fillMaxSize()) {
-        Row(
-            Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 12.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Icon(Icons.Filled.ShoppingCart, contentDescription = null, tint = Accent, modifier = Modifier.size(24.dp))
-            Spacer(Modifier.width(8.dp))
-            Text("Store", style = MaterialTheme.typography.titleLarge, color = Gray30)
-        }
-        HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
+        StudioHero(
+            icon = Icons.Filled.ShoppingCart,
+            title = "Store Studio",
+            subtitle = "Community mods, libraries, and posts.",
+            status = "MARKET",
+            statusTone = StudioTone.Secondary,
+            stats = listOf(
+                StudioStat("POSTS", "${items?.length() ?: 0}", StudioTone.Primary),
+            ),
+            modifier = Modifier.padding(horizontal = 20.dp, vertical = 16.dp),
+        )
 
         PullToRefreshBox(
             isRefreshing = refreshing,
@@ -96,15 +99,19 @@ fun StoreScreen(
         ) {
             when {
                 loading -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { CircularProgressIndicator() }
-                error != null -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { Text(error!!, color = Gray40) }
+                error != null -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                    Text(error!!, color = MaterialTheme.colorScheme.error)
+                }
                 else -> {
                     val list = items
                     if (list == null || list.length() == 0) {
-                        Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { Text("No items yet", color = Gray40) }
+                        Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                            Text("No items yet", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        }
                     } else {
                         LazyColumn(
-                            Modifier.fillMaxSize().padding(horizontal = 12.dp, vertical = 8.dp),
-                            verticalArrangement = Arrangement.spacedBy(8.dp),
+                            Modifier.fillMaxSize().padding(horizontal = 20.dp, vertical = 8.dp),
+                            verticalArrangement = Arrangement.spacedBy(12.dp),
                         ) {
                             items((0 until list.length()).map { list.getJSONObject(it) }) { obj ->
                                 StoreItemCard(
@@ -127,32 +134,52 @@ fun StoreScreen(
         val links = obj.optJSONArray("links")
         AlertDialog(
             onDismissRequest = { detailItem = null },
-            title = { Text(obj.optString("title", "Untitled")) },
+            title = { Text(obj.optString("title", "Untitled"), color = MaterialTheme.colorScheme.onSurface) },
             text = {
                 Column(Modifier.verticalScroll(androidx.compose.foundation.rememberScrollState())) {
                     val logoUrl = obj.optString("logoUrl", "").takeIf { it.isNotBlank() }
                     if (logoUrl != null) {
-                        AsyncImage(model = logoUrl, contentDescription = null, modifier = Modifier.fillMaxWidth().height(120.dp))
+                        AsyncImage(
+                            model = logoUrl,
+                            contentDescription = null,
+                            modifier = Modifier.fillMaxWidth().height(120.dp).clip(RoundedCornerShape(16.dp)),
+                        )
                         Spacer(Modifier.height(8.dp))
                     }
                     val desc = obj.optString("description", "")
                     if (desc.isNotBlank()) {
-                        MarkdownText(desc, color = Gray40, modifier = Modifier.fillMaxWidth())
+                        MarkdownText(
+                            desc,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.fillMaxWidth(),
+                        )
                         Spacer(Modifier.height(8.dp))
                     }
-                    Text("v${obj.optString("version", "1.0.0")}", style = MaterialTheme.typography.labelSmall, color = Gray40)
+                    Text(
+                        "v${obj.optString("version", "1.0.0")}",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
                     Spacer(Modifier.height(8.dp))
 
                     // Project links
                     if (links != null && links.length() > 0) {
-                        Text("Links", style = MaterialTheme.typography.titleSmall, color = Accent)
+                        Text(
+                            "Links",
+                            style = MaterialTheme.typography.titleSmall,
+                            color = MaterialTheme.colorScheme.primary,
+                        )
                         Spacer(Modifier.height(4.dp))
                         (0 until links.length()).map { links.getJSONObject(it) }.forEach { lk ->
                             val url = lk.optString("url")
                             TextButton(onClick = {
                                 try { context.startActivity(android.content.Intent(android.content.Intent.ACTION_VIEW, android.net.Uri.parse(url))) } catch (_: Exception) {}
                             }, contentPadding = PaddingValues(0.dp)) {
-                                                                Text(lk.optString("label", url), color = Accent, style = MaterialTheme.typography.bodySmall)
+                                Text(
+                                    lk.optString("label", url),
+                                    color = MaterialTheme.colorScheme.primary,
+                                    style = MaterialTheme.typography.bodySmall,
+                                )
                             }
                         }
                         Spacer(Modifier.height(8.dp))
@@ -160,7 +187,11 @@ fun StoreScreen(
 
                     // Libs with download count
                     if (libCount > 0) {
-                        Text("Libs", style = MaterialTheme.typography.titleSmall, color = Accent)
+                        Text(
+                            "Libs",
+                            style = MaterialTheme.typography.titleSmall,
+                            color = MaterialTheme.colorScheme.primary,
+                        )
                         Spacer(Modifier.height(4.dp))
                         (0 until libCount).map { libs!!.getJSONObject(it) }.forEach { l ->
                             Row(
@@ -168,13 +199,32 @@ fun StoreScreen(
                                 verticalAlignment = Alignment.CenterVertically,
                             ) {
                                 Column(Modifier.weight(1f)) {
-                                    Text(l.optString("name"), style = MaterialTheme.typography.bodySmall, color = Gray30, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                                    Text(
+                                        l.optString("name"),
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = MaterialTheme.colorScheme.onSurface,
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis,
+                                    )
                                     Row(verticalAlignment = Alignment.CenterVertically) {
-                                        Text("${l.optInt("size", 0)} B", style = MaterialTheme.typography.labelSmall, color = Gray40)
+                                        Text(
+                                            "${l.optInt("size", 0)} B",
+                                            style = MaterialTheme.typography.labelSmall,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                        )
                                         Spacer(Modifier.width(8.dp))
-                                        Icon(androidx.compose.material.icons.Icons.Filled.Download, contentDescription = null, modifier = Modifier.size(12.dp), tint = Gray40)
+                                        Icon(
+                                            androidx.compose.material.icons.Icons.Filled.Download,
+                                            contentDescription = null,
+                                            modifier = Modifier.size(12.dp),
+                                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                        )
                                         Spacer(Modifier.width(2.dp))
-                                        Text("${l.optInt("downloads", 0)}", style = MaterialTheme.typography.labelSmall, color = Gray40)
+                                        Text(
+                                            "${l.optInt("downloads", 0)}",
+                                            style = MaterialTheme.typography.labelSmall,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                        )
                                     }
                                 }
                                 TextButton(onClick = {
@@ -190,9 +240,14 @@ fun StoreScreen(
                                         android.widget.Toast.makeText(context, "Verify your email to download", android.widget.Toast.LENGTH_SHORT).show()
                                     }
                                 }) {
-                                    Icon(Icons.Filled.Download, contentDescription = null, modifier = Modifier.size(14.dp), tint = Accent)
+                                    Icon(
+                                        Icons.Filled.Download,
+                                        contentDescription = null,
+                                        modifier = Modifier.size(14.dp),
+                                        tint = MaterialTheme.colorScheme.primary,
+                                    )
                                     Spacer(Modifier.width(4.dp))
-                                    Text("Download", color = Accent)
+                                    Text("Download", color = MaterialTheme.colorScheme.primary)
                                 }
                             }
                         }
@@ -227,9 +282,22 @@ fun StoreScreen(
                                 }
                             }
                         }) {
-                            Icon(if (liked) Icons.Filled.Favorite else Icons.Filled.FavoriteBorder, contentDescription = null, modifier = Modifier.size(20.dp), tint = if (liked) Accent else Gray40)
+                            Icon(
+                                if (liked) Icons.Filled.Favorite else Icons.Filled.FavoriteBorder,
+                                contentDescription = null,
+                                modifier = Modifier.size(20.dp),
+                                tint = if (liked) {
+                                    MaterialTheme.colorScheme.primary
+                                } else {
+                                    MaterialTheme.colorScheme.onSurfaceVariant
+                                },
+                            )
                         }
-                        Text("$likes", style = MaterialTheme.typography.labelSmall, color = Gray40)
+                        Text(
+                            "$likes",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
                         Spacer(Modifier.width(16.dp))
                         TextButton(onClick = {
                             showComments = true
@@ -239,15 +307,25 @@ fun StoreScreen(
                                 }
                             }
                         }) {
-                            Icon(Icons.Filled.Comment, contentDescription = null, modifier = Modifier.size(20.dp), tint = Accent)
+                            Icon(
+                                Icons.Filled.Comment,
+                                contentDescription = null,
+                                modifier = Modifier.size(20.dp),
+                                tint = MaterialTheme.colorScheme.primary,
+                            )
                             Spacer(Modifier.width(4.dp))
-                            Text("Comments (${obj.optInt("commentsCount", 0)})", color = Accent)
+                            Text(
+                                "Comments (${obj.optInt("commentsCount", 0)})",
+                                color = MaterialTheme.colorScheme.primary,
+                            )
                         }
                     }
                 }
             },
             confirmButton = {
-                TextButton(onClick = { detailItem = null }) { Text("Close", color = Gray40) }
+                TextButton(onClick = { detailItem = null }) {
+                    Text("Close", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
             },
         )
     }
@@ -257,34 +335,54 @@ fun StoreScreen(
         val obj = detailItem!!
         AlertDialog(
             onDismissRequest = { showComments = false },
-            title = { Text("Comments") },
+            title = { Text("Comments", color = MaterialTheme.colorScheme.onSurface) },
             text = {
                 Column(Modifier.heightIn(max = 300.dp).verticalScroll(androidx.compose.foundation.rememberScrollState())) {
                     val list = comments
                     if (list == null) {
                         Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) { CircularProgressIndicator() }
                     } else if (list.length() == 0) {
-                        Text("No comments yet", color = Gray40)
+                        Text("No comments yet", color = MaterialTheme.colorScheme.onSurfaceVariant)
                     } else {
                         (0 until list.length()).map { list.getJSONObject(it) }.forEach { c ->
                             Row(Modifier.fillMaxWidth().padding(vertical = 4.dp), verticalAlignment = Alignment.Top) {
                                 val u = c.optJSONObject("user")
                                 val uname = u?.optString("username") ?: "?"
                                 val avatar = u?.optString("avatarUrl")
-                                if (!avatar.isNullOrBlank()) {
-                                    AsyncImage(model = avatar, contentDescription = null, modifier = Modifier.size(24.dp).clip(CircleShape))
-                                } else {
-                                    Surface(shape = CircleShape, color = Accent.copy(alpha = 0.2f), modifier = Modifier.size(24.dp)) {
-                                        Box(contentAlignment = Alignment.Center, modifier = Modifier.fillMaxSize()) {
-                                            Text(uname.take(1).uppercase(), style = MaterialTheme.typography.labelSmall, color = Accent)
+                                    if (!avatar.isNullOrBlank()) {
+                                        AsyncImage(
+                                            model = avatar,
+                                            contentDescription = null,
+                                            modifier = Modifier.size(24.dp).clip(CircleShape),
+                                        )
+                                    } else {
+                                        Surface(
+                                            shape = CircleShape,
+                                            color = MaterialTheme.colorScheme.primaryContainer,
+                                            modifier = Modifier.size(24.dp),
+                                        ) {
+                                            Box(contentAlignment = Alignment.Center, modifier = Modifier.fillMaxSize()) {
+                                                Text(
+                                                    uname.take(1).uppercase(),
+                                                    style = MaterialTheme.typography.labelSmall,
+                                                    color = MaterialTheme.colorScheme.onPrimaryContainer,
+                                                )
+                                            }
                                         }
                                     }
-                                }
-                                Spacer(Modifier.width(8.dp))
-                                Column {
-                                    Text(uname, style = MaterialTheme.typography.labelSmall, color = Accent)
-                                    Text(c.optString("content"), style = MaterialTheme.typography.bodySmall, color = Gray30)
-                                }
+                                    Spacer(Modifier.width(8.dp))
+                                    Column {
+                                        Text(
+                                            uname,
+                                            style = MaterialTheme.typography.labelSmall,
+                                            color = MaterialTheme.colorScheme.primary,
+                                        )
+                                        Text(
+                                            c.optString("content"),
+                                            style = MaterialTheme.typography.bodySmall,
+                                            color = MaterialTheme.colorScheme.onSurface,
+                                        )
+                                    }
                             }
                         }
                     }
@@ -317,10 +415,12 @@ fun StoreScreen(
                             }
                         }
                     }
-                }) { Text("Post", color = Accent) }
+                }) { Text("Post", color = MaterialTheme.colorScheme.primary) }
             },
             dismissButton = {
-                TextButton(onClick = { showComments = false }) { Text("Close", color = Gray40) }
+                TextButton(onClick = { showComments = false }) {
+                    Text("Close", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
             },
         )
     }
@@ -335,9 +435,9 @@ private fun StoreItemCard(obj: JSONObject, onUserClick: (String) -> Unit, onOpen
         elevation = CardDefaults.cardElevation(defaultElevation = 1.dp, pressedElevation = 4.dp),
         modifier = Modifier.fillMaxWidth().clickable { onOpenDetail() },
     ) {
-        Row(Modifier.padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
+        Row(Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
             Card(
-                shape = MaterialTheme.shapes.medium,
+                shape = RoundedCornerShape(16.dp),
                 colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerHighest),
                 modifier = Modifier.size(64.dp),
             ) {
@@ -351,18 +451,32 @@ private fun StoreItemCard(obj: JSONObject, onUserClick: (String) -> Unit, onOpen
                             modifier = Modifier.fillMaxSize(),
                         )
                     } else {
-                        Text(obj.optString("title", "?").take(1).uppercase(), style = MaterialTheme.typography.titleLarge, color = Accent)
+                        Text(
+                            obj.optString("title", "?").take(1).uppercase(),
+                            style = MaterialTheme.typography.titleLarge,
+                            color = MaterialTheme.colorScheme.primary,
+                        )
                     }
                 }
             }
-            Spacer(Modifier.width(12.dp))
+            Spacer(Modifier.width(14.dp))
             Column(Modifier.weight(1f)) {
-                Text(obj.optString("title", "Untitled"), style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.onSurface, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                Text(
+                    obj.optString("title", "Untitled"),
+                    style = MaterialTheme.typography.titleMedium,
+                    color = MaterialTheme.colorScheme.onSurface,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
                 val desc = obj.optString("description", "")
                 if (desc.isNotBlank()) {
-                    MarkdownText(desc, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.fillMaxWidth())
+                    MarkdownText(
+                        desc,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.fillMaxWidth(),
+                    )
                 }
-                Spacer(Modifier.height(6.dp))
+                Spacer(Modifier.height(8.dp))
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     val user = obj.optJSONObject("user")
                     val username = user?.optString("username") ?: "?"
@@ -371,29 +485,67 @@ private fun StoreItemCard(obj: JSONObject, onUserClick: (String) -> Unit, onOpen
                         AsyncImage(
                             model = avatarUrl,
                             contentDescription = null,
-                            modifier = Modifier.size(18.dp).clip(CircleShape),
+                            modifier = Modifier.size(20.dp).clip(CircleShape),
                         )
                     } else {
-                        Surface(shape = MaterialTheme.shapes.extraSmall, color = Accent.copy(alpha = 0.2f), modifier = Modifier.size(18.dp)) {
+                        Surface(
+                            shape = CircleShape,
+                            color = MaterialTheme.colorScheme.primaryContainer,
+                            modifier = Modifier.size(20.dp),
+                        ) {
                             Box(contentAlignment = Alignment.Center, modifier = Modifier.fillMaxSize()) {
-                                Text(username.take(1).uppercase(), style = MaterialTheme.typography.labelSmall, color = Accent)
+                                Text(
+                                    username.take(1).uppercase(),
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = MaterialTheme.colorScheme.onPrimaryContainer,
+                                )
                             }
                         }
-                        Spacer(Modifier.width(4.dp))
+                        Spacer(Modifier.width(6.dp))
                     }
                     TextButton(onClick = { onUserClick(username) }, contentPadding = PaddingValues(0.dp)) {
-                        Text("by $username", style = MaterialTheme.typography.labelSmall, color = Accent)
+                        Text(
+                            "by $username",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.primary,
+                        )
                     }
                     Spacer(Modifier.weight(1f))
-                    Icon(Icons.Filled.Favorite, contentDescription = null, modifier = Modifier.size(12.dp), tint = Gray40)
-                    Spacer(Modifier.width(2.dp))
-                    Text("${obj.optInt("likesCount", 0)}", style = MaterialTheme.typography.labelSmall, color = Gray40)
-                    Spacer(Modifier.width(6.dp))
-                    AssistChip(onClick = {}, label = { Text("v${obj.optString("version", "1.0.0")}", style = MaterialTheme.typography.labelSmall) }, enabled = false)
+                    Icon(
+                        Icons.Filled.Favorite,
+                        contentDescription = null,
+                        modifier = Modifier.size(14.dp),
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                    Spacer(Modifier.width(3.dp))
+                    Text(
+                        "${obj.optInt("likesCount", 0)}",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                    Spacer(Modifier.width(8.dp))
+                    Icon(
+                        Icons.Filled.Comment,
+                        contentDescription = null,
+                        modifier = Modifier.size(14.dp),
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                    Spacer(Modifier.width(3.dp))
+                    Text(
+                        "${obj.optInt("commentsCount", 0)}",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+                Spacer(Modifier.height(6.dp))
+                Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                    StudioStatusPill(
+                        "v${obj.optString("version", "1.0.0")}",
+                        tone = StudioTone.Primary,
+                    )
                     val st = obj.optString("status", "approved")
                     if (st != "approved") {
-                        Spacer(Modifier.width(6.dp))
-                        AssistChip(onClick = {}, label = { Text(st, style = MaterialTheme.typography.labelSmall) }, colors = AssistChipDefaults.assistChipColors(labelColor = WarnYellow))
+                        StudioStatusPill(st.uppercase(), tone = StudioTone.Tertiary)
                     }
                 }
             }

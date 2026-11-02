@@ -66,24 +66,38 @@ fun AddonsScreen(vm: PatcherViewModel) {
     LazyColumn(
         modifier = Modifier
             .fillMaxSize()
-            .padding(horizontal = 16.dp, vertical = 12.dp),
-        verticalArrangement = Arrangement.spacedBy(12.dp),
+            .padding(horizontal = 20.dp, vertical = 16.dp),
+        verticalArrangement = Arrangement.spacedBy(20.dp),
     ) {
         item {
-            Text(
-                "Addons Manager",
-                style = MaterialTheme.typography.headlineMedium,
-            )
-            Spacer(Modifier.height(2.dp))
-            Text(
-                "Install and manage AMXX addons into your game directory.",
-                style = MaterialTheme.typography.bodyMedium,
-                color = Gray40,
+            StudioHero(
+                icon = Icons.Filled.FolderOpen,
+                title = "Addons Studio",
+                subtitle = "Install and manage AMXX addons in your game directory.",
+                status = when {
+                    addons is AddonsState.Downloading -> "INSTALLING"
+                    addons is AddonsState.Error -> "ERROR"
+                    total == 0 -> "SETUP"
+                    missing > 0 || outdated > 0 -> "ATTENTION"
+                    else -> "READY"
+                },
+                statusTone = when {
+                    addons is AddonsState.Error -> StudioTone.Error
+                    addons is AddonsState.Downloading -> StudioTone.Tertiary
+                    total > 0 && missing == 0 && outdated == 0 -> StudioTone.Primary
+                    total > 0 -> StudioTone.Tertiary
+                    else -> StudioTone.Neutral
+                },
+                stats = listOf(
+                    StudioStat("INSTALLED", "$installed", StudioTone.Primary),
+                    StudioStat("MISSING", "$missing", if (missing > 0) StudioTone.Error else StudioTone.Neutral),
+                    StudioStat("OUTDATED", "$outdated", if (outdated > 0) StudioTone.Error else StudioTone.Neutral),
+                ),
             )
         }
 
         item {
-            SectionHeader("GAME")
+            StudioStepHeader("01", "GAME", "Choose the target install")
             AppCard {
                 val game by vm.gameId.collectAsState()
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -102,7 +116,7 @@ fun AddonsScreen(vm: PatcherViewModel) {
                 Text(
                     installPath,
                     style = MaterialTheme.typography.bodySmall,
-                    color = Accent,
+                    color = MaterialTheme.colorScheme.primary,
                     fontFamily = FontFamily.Monospace,
                 )
                 Spacer(Modifier.height(4.dp))
@@ -110,34 +124,43 @@ fun AddonsScreen(vm: PatcherViewModel) {
                     "addons/ will be installed under this path. The CZ folder must " +
                         "contain the game files; launch it with -game czero.",
                     style = MaterialTheme.typography.bodySmall,
-                    color = Gray40,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             }
         }
 
         item {
-            SectionHeader("STORAGE PERMISSION")
+            StudioStepHeader("02", "STORAGE ACCESS", "All files permission")
             PermissionCard()
         }
 
         item {
-            SectionHeader("ADDON STATUS")
+            StudioStepHeader("03", "ADDON STATUS", "What is installed")
             AppCard {
                 if (total == 0) {
                     Text(
                         "Addons ship separately from the mod bundle.\nTap \"Download & Install\" below to fetch and install them into your game directory.",
                         style = MaterialTheme.typography.bodyMedium,
-                        color = Gray40,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                 } else {
                     Row(
                         modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceEvenly,
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
                     ) {
-                        StatPill("Total", "$total")
-                        StatPill("Installed", "$installed", accent = SuccessGreen)
-                        StatPill("Missing", "$missing", accent = if (missing > 0) AlertRed else SuccessGreen)
-                        StatPill("Outdated", "$outdated", accent = if (outdated > 0) AlertRed else SuccessGreen)
+                        StudioStatCard(StudioStat("TOTAL", "$total"), Modifier.weight(1f))
+                        StudioStatCard(
+                            StudioStat("READY", "$installed", StudioTone.Primary),
+                            Modifier.weight(1f),
+                        )
+                        StudioStatCard(
+                            StudioStat(
+                                "MISSING",
+                                "${missing + outdated}",
+                                if (missing + outdated > 0) StudioTone.Error else StudioTone.Neutral,
+                            ),
+                            Modifier.weight(1f),
+                        )
                     }
                 }
             }
@@ -145,34 +168,34 @@ fun AddonsScreen(vm: PatcherViewModel) {
 
         if (total > 0 && (missing > 0 || outdated > 0)) {
             item {
-                SectionHeader("MISSING / OUTDATED FILES")
+                StudioStepHeader("04", "REPAIR QUEUE", "Missing or outdated files")
                 AppCard {
                     addonFiles.filter { !it.installed || it.outdated }.forEach { file ->
                         Row(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .padding(vertical = 2.dp),
+                                .padding(vertical = 4.dp),
                             verticalAlignment = Alignment.CenterVertically,
                         ) {
                             Icon(
                                 Icons.Filled.Error,
                                 contentDescription = null,
-                                tint = AlertRed,
-                                modifier = Modifier.size(14.dp),
+                                tint = MaterialTheme.colorScheme.error,
+                                modifier = Modifier.size(16.dp),
                             )
-                            Spacer(Modifier.width(8.dp))
+                            Spacer(Modifier.width(10.dp))
                             Column(modifier = Modifier.weight(1f)) {
                                 Text(
                                     file.path.removePrefix("addons/"),
                                     style = MaterialTheme.typography.bodySmall,
-                                    color = Gray40,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
                                     maxLines = 1,
                                     overflow = TextOverflow.Ellipsis,
                                 )
                                 Text(
                                     if (!file.installed) "missing" else "outdated — will be replaced",
                                     style = MaterialTheme.typography.labelSmall,
-                                    color = AlertRed,
+                                    color = MaterialTheme.colorScheme.error,
                                 )
                             }
                         }
@@ -182,11 +205,15 @@ fun AddonsScreen(vm: PatcherViewModel) {
         }
 
         item {
-            SectionHeader("ACTIONS")
+            StudioStepHeader("05", "INSTALL", "Fetch and write files")
             AppCard {
                 when (val s = addons) {
                     is AddonsState.Downloading -> {
-                        Text(s.step, style = MaterialTheme.typography.bodyMedium, color = Accent)
+                        Text(
+                            s.step,
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.primary,
+                        )
                         Spacer(Modifier.height(8.dp))
                         AppProgressBar(s.percent)
                     }
@@ -194,20 +221,30 @@ fun AddonsScreen(vm: PatcherViewModel) {
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             Icon(
                                 Icons.Filled.CheckCircle, null,
-                                tint = SuccessGreen, modifier = Modifier.size(18.dp),
+                                tint = MaterialTheme.colorScheme.primary,
+                                modifier = Modifier.size(18.dp),
                             )
                             Spacer(Modifier.width(8.dp))
-                            Text(s.message, style = MaterialTheme.typography.bodyMedium, color = SuccessGreen)
+                            Text(
+                                s.message,
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = MaterialTheme.colorScheme.primary,
+                            )
                         }
                     }
                     is AddonsState.Error -> {
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             Icon(
                                 Icons.Filled.Warning, null,
-                                tint = AlertRed, modifier = Modifier.size(18.dp),
+                                tint = MaterialTheme.colorScheme.error,
+                                modifier = Modifier.size(18.dp),
                             )
                             Spacer(Modifier.width(8.dp))
-                            Text(s.message, style = MaterialTheme.typography.bodySmall, color = AlertRed)
+                            Text(
+                                s.message,
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.error,
+                            )
                         }
                     }
                     else -> {}
@@ -251,30 +288,43 @@ fun AddonsScreen(vm: PatcherViewModel) {
 
         if (addonFiles.isNotEmpty()) {
             item {
-                SectionHeader("ALL FILES (${addonFiles.size})")
+                StudioStepHeader("06", "ALL FILES", "${addonFiles.size} tracked files")
             }
             items(addonFiles) { file ->
+                val ok = file.installed && !file.outdated
                 Surface(
                     modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(8.dp),
-                    color = Gray90,
+                    shape = RoundedCornerShape(14.dp),
+                    color = if (ok) {
+                        MaterialTheme.colorScheme.surfaceContainerHighest
+                    } else {
+                        MaterialTheme.colorScheme.errorContainer
+                    },
                 ) {
                     Row(
-                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp).fillMaxWidth(),
+                        modifier = Modifier.padding(horizontal = 14.dp, vertical = 10.dp).fillMaxWidth(),
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
                         Icon(
-                            if (file.installed && !file.outdated) Icons.Filled.CheckCircle else Icons.Filled.Error,
+                            if (ok) Icons.Filled.CheckCircle else Icons.Filled.Error,
                             contentDescription = null,
-                            tint = if (file.installed && !file.outdated) SuccessGreen else AlertRed,
-                            modifier = Modifier.size(14.dp),
+                            tint = if (ok) {
+                                MaterialTheme.colorScheme.primary
+                            } else {
+                                MaterialTheme.colorScheme.onErrorContainer
+                            },
+                            modifier = Modifier.size(16.dp),
                         )
-                        Spacer(Modifier.width(8.dp))
+                        Spacer(Modifier.width(10.dp))
                         Column(modifier = Modifier.weight(1f)) {
                             Text(
                                 file.path.removePrefix("addons/"),
                                 style = MaterialTheme.typography.bodySmall,
-                                color = if (file.installed && !file.outdated) Gray30 else Gray40,
+                                color = if (ok) {
+                                    MaterialTheme.colorScheme.onSurface
+                                } else {
+                                    MaterialTheme.colorScheme.onErrorContainer
+                                },
                                 maxLines = 1,
                                 overflow = TextOverflow.Ellipsis,
                             )
@@ -282,7 +332,7 @@ fun AddonsScreen(vm: PatcherViewModel) {
                                 Text(
                                     "outdated",
                                     style = MaterialTheme.typography.labelSmall,
-                                    color = AlertRed,
+                                    color = MaterialTheme.colorScheme.onErrorContainer,
                                 )
                             }
                         }
@@ -311,20 +361,28 @@ private fun PermissionCard() {
             Icon(
                 if (hasPermission) Icons.Filled.CheckCircle else Icons.Filled.Warning,
                 contentDescription = null,
-                tint = if (hasPermission) SuccessGreen else AlertRed,
-                modifier = Modifier.size(18.dp),
+                tint = if (hasPermission) {
+                    MaterialTheme.colorScheme.primary
+                } else {
+                    MaterialTheme.colorScheme.error
+                },
+                modifier = Modifier.size(20.dp),
             )
             Spacer(Modifier.width(10.dp))
             Column(modifier = Modifier.weight(1f)) {
                 Text(
                     if (hasPermission) "All files access granted" else "All files access required",
                     style = MaterialTheme.typography.titleSmall,
-                    color = if (hasPermission) SuccessGreen else AlertRed,
+                    color = if (hasPermission) {
+                        MaterialTheme.colorScheme.primary
+                    } else {
+                        MaterialTheme.colorScheme.error
+                    },
                 )
                 Text(
                     "Needed to install addons into the game directory.",
                     style = MaterialTheme.typography.bodySmall,
-                    color = Gray40,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             }
         }

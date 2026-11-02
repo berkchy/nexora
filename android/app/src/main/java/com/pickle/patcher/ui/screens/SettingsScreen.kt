@@ -16,6 +16,9 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Slider
 import androidx.compose.material3.Surface
@@ -93,13 +96,19 @@ fun SettingsScreen(vm: PatcherViewModel, drawerWidthController: DrawerWidthContr
         modifier = Modifier
             .fillMaxSize()
             .verticalScroll(rememberScrollState())
-            .padding(horizontal = 16.dp, vertical = 12.dp),
+            .padding(horizontal = 20.dp, vertical = 16.dp),
     ) {
-        Text("Settings", style = MaterialTheme.typography.headlineMedium)
+        StudioHero(
+            icon = Icons.Filled.Settings,
+            title = "Settings Studio",
+            subtitle = "Tune the compiler, folders, and navigation.",
+            status = "SYSTEM",
+            statusTone = StudioTone.Secondary,
+        )
 
-        Spacer(Modifier.height(8.dp))
+        Spacer(Modifier.height(20.dp))
 
-        SectionHeader("COMPILER")
+        StudioStepHeader("01", "COMPILER", "Parallel build workers")
         AppCard {
             Row(
                 modifier = Modifier.fillMaxWidth(),
@@ -114,14 +123,18 @@ fun SettingsScreen(vm: PatcherViewModel, drawerWidthController: DrawerWidthContr
                     // through onSurface, which the theme keeps readable.
                     color = MaterialTheme.colorScheme.onSurface,
                 )
-                Text("$workers", style = MaterialTheme.typography.titleMedium, color = Accent)
+                Text(
+                    "$workers",
+                    style = MaterialTheme.typography.titleMedium,
+                    color = MaterialTheme.colorScheme.primary,
+                )
             }
             Spacer(Modifier.height(2.dp))
             Text(
                 "How many .sma files are compiled at the same time. Higher is " +
                     "faster but uses more memory and heats the device.",
                 style = MaterialTheme.typography.bodySmall,
-                color = Gray40,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
             Slider(
                 value = workers.toFloat(),
@@ -132,9 +145,9 @@ fun SettingsScreen(vm: PatcherViewModel, drawerWidthController: DrawerWidthContr
             )
         }
 
-        Spacer(Modifier.height(16.dp))
+        Spacer(Modifier.height(20.dp))
 
-        SectionHeader("FOLDERS")
+        StudioStepHeader("02", "FOLDERS", "Scripts and compiler output")
         AppCard {
             SettingsPathRow(
                 label = "Scripts",
@@ -157,23 +170,23 @@ fun SettingsScreen(vm: PatcherViewModel, drawerWidthController: DrawerWidthContr
             if (showPermissionRationale) {
                 Spacer(Modifier.height(10.dp))
                 Surface(
-                    shape = RoundedCornerShape(8.dp),
-                    color = AlertRed.copy(alpha = 0.1f),
+                    shape = RoundedCornerShape(14.dp),
+                    color = MaterialTheme.colorScheme.errorContainer,
                 ) {
-                    Column(Modifier.padding(10.dp)) {
+                    Column(Modifier.padding(12.dp)) {
                         Text(
                             "Storage permission is required.",
                             style = MaterialTheme.typography.bodySmall,
-                            color = AlertRed,
+                            color = MaterialTheme.colorScheme.onErrorContainer,
                         )
                     }
                 }
             }
         }
 
-        Spacer(Modifier.height(16.dp))
+        Spacer(Modifier.height(20.dp))
 
-        SectionHeader("DRAWER")
+        StudioStepHeader("03", "NAVIGATION", "Side menu width")
         AppCard {
             Row(
                 modifier = Modifier.fillMaxWidth(),
@@ -185,13 +198,17 @@ fun SettingsScreen(vm: PatcherViewModel, drawerWidthController: DrawerWidthContr
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurface,
                 )
-                Text("${(drawerWidth * 100).toInt()}%", style = MaterialTheme.typography.titleMedium, color = Accent)
+                Text(
+                    "${(drawerWidth * 100).toInt()}%",
+                    style = MaterialTheme.typography.titleMedium,
+                    color = MaterialTheme.colorScheme.primary,
+                )
             }
             Spacer(Modifier.height(2.dp))
             Text(
                 "Width of the side menu as a percentage of the screen. Increase if the menu feels too narrow.",
                 style = MaterialTheme.typography.bodySmall,
-                color = Gray40,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
             Slider(
                 value = drawerWidth,
@@ -222,7 +239,7 @@ private fun SettingsPathRow(
             Text(
                 path ?: empty,
                 style = MaterialTheme.typography.bodySmall,
-                color = Gray40,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
         }
         androidx.compose.material3.TextButton(onClick = onAction) { Text(action) }

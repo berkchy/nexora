@@ -31,49 +31,79 @@ fun StoreRegisterScreen(
     var error by remember { mutableStateOf<String?>(null) }
 
     Column(
-        Modifier.fillMaxSize().padding(24.dp),
+        Modifier
+            .fillMaxSize()
+            .verticalScroll(rememberScrollState())
+            .padding(24.dp),
         verticalArrangement = Arrangement.Center,
     ) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Icon(Icons.Filled.PersonAdd, contentDescription = null, tint = Accent, modifier = Modifier.size(24.dp))
-            Spacer(Modifier.width(8.dp))
-            Text("Register", style = MaterialTheme.typography.headlineMedium, color = Gray30)
-        }
-        Spacer(Modifier.height(24.dp))
+        StudioHero(
+            icon = Icons.Filled.PersonAdd,
+            title = "Create Account",
+            subtitle = "Join the Nexora community store.",
+            status = "REGISTER",
+            statusTone = StudioTone.Secondary,
+        )
+        Spacer(Modifier.height(20.dp))
 
-        OutlinedTextField(value = email, onValueChange = { email = it }, label = { Text("Email") }, modifier = Modifier.fillMaxWidth(), singleLine = true)
-        Spacer(Modifier.height(12.dp))
-        OutlinedTextField(value = username, onValueChange = { username = it }, label = { Text("Username") }, modifier = Modifier.fillMaxWidth(), singleLine = true)
-        Spacer(Modifier.height(12.dp))
-        OutlinedTextField(value = password, onValueChange = { password = it }, label = { Text("Password (min 8)") }, visualTransformation = PasswordVisualTransformation(), modifier = Modifier.fillMaxWidth(), singleLine = true)
-        Spacer(Modifier.height(8.dp))
-        error?.let { Text(it, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall) }
-        Spacer(Modifier.height(16.dp))
+        AppCard {
+            OutlinedTextField(
+                value = email,
+                onValueChange = { email = it },
+                label = { Text("Email") },
+                modifier = Modifier.fillMaxWidth(),
+                singleLine = true,
+            )
+            Spacer(Modifier.height(12.dp))
+            OutlinedTextField(
+                value = username,
+                onValueChange = { username = it },
+                label = { Text("Username") },
+                modifier = Modifier.fillMaxWidth(),
+                singleLine = true,
+            )
+            Spacer(Modifier.height(12.dp))
+            OutlinedTextField(
+                value = password,
+                onValueChange = { password = it },
+                label = { Text("Password (min 8)") },
+                visualTransformation = PasswordVisualTransformation(),
+                modifier = Modifier.fillMaxWidth(),
+                singleLine = true,
+            )
+            Spacer(Modifier.height(8.dp))
+            error?.let {
+                Text(
+                    it,
+                    color = MaterialTheme.colorScheme.error,
+                    style = MaterialTheme.typography.bodySmall,
+                )
+            }
+            Spacer(Modifier.height(16.dp))
 
-        Button(
-            onClick = {
-                loading = true; error = null
-                scope.launch {
-                    api.register(email, password, username).fold(
-                        onSuccess = { json ->
-                            val uname = json.optString("username")
-                            val email = json.optString("email")
-                            loading = false
-                            onRegisterSuccess(email)
-                        },
-                        onFailure = { t ->
-                            error = t.message ?: "Register failed"
-                            loading = false
-                        },
-                    )
-                }
-            },
-            enabled = !loading && email.isNotBlank() && username.isNotBlank() && password.length >= 8,
-            modifier = Modifier.fillMaxWidth(),
-        ) {
-            if (loading) CircularProgressIndicator(Modifier.size(18.dp), strokeWidth = 2.dp)
-            else Text("Register")
+            Button(
+                onClick = {
+                    loading = true; error = null
+                    scope.launch {
+                        api.register(email, password, username).fold(
+                            onSuccess = { json ->
+                                val email = json.optString("email")
+                                loading = false
+                                onRegisterSuccess(email)
+                            },
+                            onFailure = { t ->
+                                error = t.message ?: "Register failed"
+                                loading = false
+                            },
+                        )
+                    }
+                },
+                enabled = !loading && email.isNotBlank() && username.isNotBlank() && password.length >= 8,
+                modifier = Modifier.fillMaxWidth(),
+            ) {
+                if (loading) CircularProgressIndicator(Modifier.size(18.dp), strokeWidth = 2.dp)
+                else Text("Register")
+            }
         }
-        Spacer(Modifier.height(12.dp))
     }
 }

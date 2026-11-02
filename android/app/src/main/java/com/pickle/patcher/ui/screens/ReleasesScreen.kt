@@ -18,6 +18,7 @@ import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.CloudDownload
 import androidx.compose.material.icons.filled.Error
 import androidx.compose.material.icons.filled.FolderSpecial
+import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material3.Icon
 import androidx.compose.material3.LinearProgressIndicator
@@ -55,19 +56,29 @@ fun ReleasesScreen(vm: PatcherViewModel) {
         modifier = Modifier
             .fillMaxSize()
             .verticalScroll(scroll)
-            .padding(horizontal = 16.dp, vertical = 12.dp),
+            .padding(horizontal = 20.dp, vertical = 16.dp),
     ) {
-        Text("Downloads", style = MaterialTheme.typography.headlineMedium)
-        Spacer(Modifier.height(2.dp))
-        Text(
-            "Install addons or manage the mod bundle.",
-            style = MaterialTheme.typography.bodyMedium,
-            color = Gray40,
+        StudioHero(
+            icon = Icons.Filled.CloudDownload,
+            title = "Downloads Studio",
+            subtitle = "Install addons, bundles, and app updates.",
+            status = when {
+                addons is AddonsState.Downloading || bundle is BundleState.Downloading -> "DOWNLOADING"
+                addons is AddonsState.Error || bundle is BundleState.DownloadError -> "ERROR"
+                addons is AddonsState.Done || bundle is BundleState.Ready || bundle is BundleState.Loaded -> "READY"
+                else -> "IDLE"
+            },
+            statusTone = when {
+                addons is AddonsState.Downloading || bundle is BundleState.Downloading -> StudioTone.Tertiary
+                addons is AddonsState.Error || bundle is BundleState.DownloadError -> StudioTone.Error
+                addons is AddonsState.Done || bundle is BundleState.Ready || bundle is BundleState.Loaded -> StudioTone.Primary
+                else -> StudioTone.Neutral
+            },
         )
 
         Spacer(Modifier.height(20.dp))
 
-        SectionHeader("ADDONS")
+        StudioStepHeader("01", "ADDONS", "Plugins, modules, and configs")
         AppCard {
             Text(
                 "Plugins, modules, and configs for cstrike/.",
@@ -80,11 +91,15 @@ fun ReleasesScreen(vm: PatcherViewModel) {
                 is AddonsState.Downloading -> {
                     AppProgressBar(a.percent)
                     Spacer(Modifier.height(4.dp))
-                    Text(a.step, style = MaterialTheme.typography.bodySmall, color = Gray40)
+                    Text(
+                        a.step,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
                 }
-                is AddonsState.Done -> StatusRow(SuccessGreen, a.message)
-                is AddonsState.Error -> StatusRow(AlertRed, a.message)
-                is AddonsState.None -> StatusRow(Gray40, "Not downloaded yet.")
+                is AddonsState.Done -> StatusRow(StudioTone.Primary, a.message)
+                is AddonsState.Error -> StatusRow(StudioTone.Error, a.message)
+                is AddonsState.None -> StatusRow(StudioTone.Neutral, "Not downloaded yet.")
             }
 
             Spacer(Modifier.height(10.dp))
@@ -95,13 +110,18 @@ fun ReleasesScreen(vm: PatcherViewModel) {
             )
         }
 
-        Spacer(Modifier.height(16.dp))
+        Spacer(Modifier.height(20.dp))
 
-        SectionHeader("MOD BUNDLE")
+        StudioStepHeader("02", "MOD BUNDLE", "Game libraries and metadata")
         AppCard {
             note?.let {
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    Icon(Icons.Filled.CloudDownload, null, tint = Accent, modifier = Modifier.size(18.dp))
+                    Icon(
+                        Icons.Filled.CloudDownload,
+                        null,
+                        tint = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.size(18.dp),
+                    )
                     Spacer(Modifier.width(6.dp))
                     Text(it, style = MaterialTheme.typography.titleSmall, maxLines = 2)
                 }
@@ -114,16 +134,20 @@ fun ReleasesScreen(vm: PatcherViewModel) {
                         Text(
                             "Downloading ${b.fileIndex + 1}/${b.fileTotal}: ${b.currentFile}",
                             style = MaterialTheme.typography.bodySmall,
-                            color = Gray40,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
                         )
                     } else {
-                        Text("Downloading…", style = MaterialTheme.typography.bodySmall, color = Gray40)
+                        Text(
+                            "Downloading…",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
                     }
                 }
-                is BundleState.DownloadError -> StatusRow(AlertRed, b.message)
-                is BundleState.Ready -> StatusRow(SuccessGreen, "${b.bundleName}  ·  v${b.version}")
-                is BundleState.Loaded -> StatusRow(SuccessGreen, "Libs loaded  ·  Up to date")
-                is BundleState.None -> StatusRow(Gray40, "Not downloaded yet.")
+                is BundleState.DownloadError -> StatusRow(StudioTone.Error, b.message)
+                is BundleState.Ready -> StatusRow(StudioTone.Primary, "${b.bundleName}  ·  v${b.version}")
+                is BundleState.Loaded -> StatusRow(StudioTone.Primary, "Libs loaded  ·  Up to date")
+                is BundleState.None -> StatusRow(StudioTone.Neutral, "Not downloaded yet.")
             }
 
             Spacer(Modifier.height(10.dp))
@@ -143,9 +167,9 @@ fun ReleasesScreen(vm: PatcherViewModel) {
             }
         }
 
-        Spacer(Modifier.height(16.dp))
+        Spacer(Modifier.height(20.dp))
 
-        SectionHeader("APP UPDATE")
+        StudioStepHeader("03", "APP UPDATE", "Check for a newer patcher")
         AppCard {
             val context = LocalContext.current
             val pm = context.packageManager
@@ -161,14 +185,14 @@ fun ReleasesScreen(vm: PatcherViewModel) {
             Text(
                 "Current: ${current ?: "unknown"}",
                 style = MaterialTheme.typography.bodySmall,
-                color = Gray40,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
             Spacer(Modifier.height(4.dp))
             Text(
                 "Check GitHub releases for a newer patcher APK. If one is found, " +
                     "a popup offers download with progress and automatic install.",
                 style = MaterialTheme.typography.bodySmall,
-                color = Gray40,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
             Spacer(Modifier.height(10.dp))
             PrimaryButton(
@@ -178,24 +202,37 @@ fun ReleasesScreen(vm: PatcherViewModel) {
             )
         }
 
-        Spacer(Modifier.height(16.dp))
+        Spacer(Modifier.height(20.dp))
 
-        SectionHeader("GAME FOLDERS")
+        StudioStepHeader("04", "GAME FOLDERS", "Verify your install layout")
         GameFoldersCard()
+        Spacer(Modifier.height(20.dp))
     }
 }
 
 @Composable
-private fun StatusRow(tint: androidx.compose.ui.graphics.Color, text: String) {
+private fun StatusRow(tone: StudioTone, text: String) {
+    val (_, content) = when (tone) {
+        StudioTone.Primary ->
+            MaterialTheme.colorScheme.primaryContainer to MaterialTheme.colorScheme.primary
+        StudioTone.Error ->
+            MaterialTheme.colorScheme.errorContainer to MaterialTheme.colorScheme.error
+        else ->
+            MaterialTheme.colorScheme.surfaceContainerHighest to MaterialTheme.colorScheme.onSurfaceVariant
+    }
     Row(verticalAlignment = Alignment.CenterVertically) {
         Icon(
-            if (tint == SuccessGreen) Icons.Filled.CheckCircle else Icons.Filled.Error,
+            when (tone) {
+                StudioTone.Primary -> Icons.Filled.CheckCircle
+                StudioTone.Error -> Icons.Filled.Error
+                else -> Icons.Filled.Info
+            },
             contentDescription = null,
-            tint = tint,
+            tint = content,
             modifier = Modifier.size(16.dp),
         )
         Spacer(Modifier.width(6.dp))
-        Text(text, style = MaterialTheme.typography.bodySmall, color = tint)
+        Text(text, style = MaterialTheme.typography.bodySmall, color = content)
     }
 }
 
@@ -210,22 +247,53 @@ private fun GameFoldersCard() {
     )
 
     AppCard {
-        folders.forEach { (path, desc) ->
+        folders.forEachIndexed { index, (path, desc) ->
             val dir = File("/storage/emulated/0/xash/cstrike/$path")
             val exists = dir.exists()
-            Row(
-                modifier = Modifier.fillMaxWidth().padding(vertical = 3.dp),
-                verticalAlignment = Alignment.CenterVertically,
+            if (index > 0) Spacer(Modifier.height(8.dp))
+            Surface(
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(14.dp),
+                color = if (exists) {
+                    MaterialTheme.colorScheme.surfaceContainerHighest
+                } else {
+                    MaterialTheme.colorScheme.errorContainer
+                },
             ) {
-                Icon(
-                    Icons.Filled.FolderSpecial, null,
-                    tint = if (exists) SuccessGreen else Gray70,
-                    modifier = Modifier.size(16.dp),
-                )
-                Spacer(Modifier.width(8.dp))
-                Column(modifier = Modifier.weight(1f)) {
-                    Text(path, style = MaterialTheme.typography.labelSmall, color = Gray30)
-                    Text(desc, style = MaterialTheme.typography.labelSmall, color = Gray40)
+                Row(
+                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 9.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Icon(
+                        Icons.Filled.FolderSpecial, null,
+                        tint = if (exists) {
+                            MaterialTheme.colorScheme.primary
+                        } else {
+                            MaterialTheme.colorScheme.onErrorContainer
+                        },
+                        modifier = Modifier.size(18.dp),
+                    )
+                    Spacer(Modifier.width(10.dp))
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            path,
+                            style = MaterialTheme.typography.labelSmall,
+                            color = if (exists) {
+                                MaterialTheme.colorScheme.onSurface
+                            } else {
+                                MaterialTheme.colorScheme.onErrorContainer
+                            },
+                        )
+                        Text(
+                            if (exists) desc else "$desc · missing",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = if (exists) {
+                                MaterialTheme.colorScheme.onSurfaceVariant
+                            } else {
+                                MaterialTheme.colorScheme.onErrorContainer
+                            },
+                        )
+                    }
                 }
             }
         }

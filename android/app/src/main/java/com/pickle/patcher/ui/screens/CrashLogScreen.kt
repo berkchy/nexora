@@ -57,28 +57,34 @@ fun CrashLogScreen(vm: PatcherViewModel) {
         modifier = Modifier
             .fillMaxSize()
             .verticalScroll(scroll)
-            .padding(horizontal = 16.dp, vertical = 12.dp),
+            .padding(horizontal = 20.dp, vertical = 16.dp),
     ) {
-        Text("Crash Log", style = MaterialTheme.typography.headlineMedium)
-        Spacer(Modifier.height(2.dp))
-        Text(
-            "Stack traces from uncaught exceptions.",
-            style = MaterialTheme.typography.bodyMedium,
-            color = Gray40,
+        StudioHero(
+            icon = Icons.Filled.BugReport,
+            title = "Crash Studio",
+            subtitle = "Stack traces from uncaught exceptions.",
+            status = if (crash != null) "CRASH FOUND" else "HEALTHY",
+            statusTone = if (crash != null) StudioTone.Error else StudioTone.Primary,
         )
 
         Spacer(Modifier.height(20.dp))
 
+        StudioStepHeader("01", "LATEST CRASH", "Most recent stack trace")
         AppCard {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Icon(Icons.Filled.BugReport, null, tint = Accent, modifier = Modifier.size(18.dp))
+                Icon(
+                    Icons.Filled.BugReport,
+                    null,
+                    tint = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.size(18.dp),
+                )
                 Spacer(Modifier.width(8.dp))
                 Text("Latest crash", style = MaterialTheme.typography.titleSmall)
                 Spacer(Modifier.weight(1f))
                 if (crash != null) {
-                    Icon(Icons.Filled.CheckCircle, null, tint = SuccessGreen, modifier = Modifier.size(16.dp))
+                    StudioStatusPill("LOGGED", tone = StudioTone.Error)
                 } else {
-                    Text("None", style = MaterialTheme.typography.labelSmall, color = AlertRed)
+                    StudioStatusPill("NONE", tone = StudioTone.Primary)
                 }
             }
 
@@ -86,25 +92,30 @@ fun CrashLogScreen(vm: PatcherViewModel) {
 
             val c = crash
             if (c == null) {
-                Icon(Icons.Filled.Warning, null, tint = Gray40, modifier = Modifier.size(20.dp))
+                Icon(
+                    Icons.Filled.CheckCircle,
+                    null,
+                    tint = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.size(20.dp),
+                )
                 Spacer(Modifier.height(4.dp))
                 Text("No crash file found.", style = MaterialTheme.typography.bodyMedium)
                 Spacer(Modifier.height(2.dp))
                 Text(
                     "The app hasn't crashed yet, or the log file is missing.",
                     style = MaterialTheme.typography.bodySmall,
-                    color = Gray40,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             } else {
                 Text(
                     "${c.fileName}  ·  ${c.modified}",
                     style = MaterialTheme.typography.labelSmall,
-                    color = Accent,
+                    color = MaterialTheme.colorScheme.primary,
                 )
                 Spacer(Modifier.height(8.dp))
                 Surface(
-                    shape = RoundedCornerShape(8.dp),
-                    color = Gray80,
+                    shape = RoundedCornerShape(14.dp),
+                    color = MaterialTheme.colorScheme.surfaceContainerLowest,
                 ) {
                     Text(
                         c.content,
@@ -113,17 +124,18 @@ fun CrashLogScreen(vm: PatcherViewModel) {
                             fontSize = 11.sp,
                             lineHeight = 15.sp,
                         ),
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
                         modifier = Modifier
                             .fillMaxWidth()
                             .heightIn(min = 120.dp, max = 360.dp)
                             .verticalScroll(textScroll)
-                            .padding(10.dp),
+                            .padding(12.dp),
                     )
                 }
             }
         }
 
-        Spacer(Modifier.height(12.dp))
+        Spacer(Modifier.height(16.dp))
 
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             PrimaryButton(

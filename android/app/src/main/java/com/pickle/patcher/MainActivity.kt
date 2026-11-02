@@ -489,6 +489,12 @@ private fun NavDrawer(
         gesturesEnabled = true,
         drawerContent = {
             androidx.compose.material3.ModalDrawerSheet(
+                drawerShape = androidx.compose.foundation.shape.RoundedCornerShape(
+                    topEnd = 28.dp,
+                    bottomEnd = 28.dp,
+                ),
+                drawerContainerColor = MaterialTheme.colorScheme.surfaceContainerLow,
+                drawerContentColor = MaterialTheme.colorScheme.onSurface,
                 modifier = androidx.compose.ui.Modifier
                     .fillMaxWidth(drawerWidthFraction)
                     .verticalScroll(androidx.compose.foundation.rememberScrollState()),
@@ -659,7 +665,14 @@ private fun DrawerHeader() {
                 .clip(androidx.compose.foundation.shape.RoundedCornerShape(9.dp)),
         )
         Spacer(Modifier.width(12.dp))
-        Text("Nexora", style = MaterialTheme.typography.titleMedium)
+        Column {
+            Text("Nexora", style = MaterialTheme.typography.titleMedium)
+            Text(
+                "AMXX patcher studio",
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
     }
 }
 
@@ -685,6 +698,14 @@ private fun DrawerItem(
         selected = selected,
         onClick = onClick,
         icon = { Icon(icon, contentDescription = null) },
+        colors = androidx.compose.material3.NavigationDrawerItemDefaults.colors(
+            selectedContainerColor = MaterialTheme.colorScheme.primaryContainer,
+            selectedIconColor = MaterialTheme.colorScheme.onPrimaryContainer,
+            selectedTextColor = MaterialTheme.colorScheme.onPrimaryContainer,
+            unselectedIconColor = MaterialTheme.colorScheme.onSurfaceVariant,
+            unselectedTextColor = MaterialTheme.colorScheme.onSurfaceVariant,
+            unselectedContainerColor = androidx.compose.ui.graphics.Color.Transparent,
+        ),
         modifier = Modifier.padding(horizontal = 12.dp, vertical = 1.dp),
     )
 }
@@ -696,16 +717,24 @@ private fun AboutDialog(version: String, onDismiss: () -> Unit) {
         title = { Text("Nexora") },
         text = {
             Column {
-                Text("Version: $version", style = MaterialTheme.typography.bodySmall, color = Gray40)
+                Text(
+                    "Version: $version",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
                 Spacer(modifier = Modifier.height(4.dp))
                 Text(
                     "AMXX bundle injection for CS 1.6 on Android: " +
                         "Pawn compiler, addons manager and crash logs.",
                     style = MaterialTheme.typography.bodySmall,
-                    color = Gray40,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
                 Spacer(modifier = Modifier.height(4.dp))
-                Text("github.com/berkchy/nexora", style = MaterialTheme.typography.bodySmall, color = Gray40)
+                Text(
+                    "github.com/berkchy/nexora",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
             }
         },
         confirmButton = {

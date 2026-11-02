@@ -11,6 +11,9 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -77,89 +80,164 @@ fun StoreProfileScreen(
     }
 
     Column(Modifier.fillMaxSize()) {
-        Row(Modifier.fillMaxWidth().padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
-            Icon(Icons.Filled.Person, contentDescription = null, tint = Accent, modifier = Modifier.size(24.dp))
-            Spacer(Modifier.width(8.dp))
-            Text("Profile", style = MaterialTheme.typography.titleLarge, color = Gray30)
-            Spacer(Modifier.weight(1f))
-            val isOwn = profile?.optBoolean("isOwn", false) == true
-            if (isOwn) {
-                TextButton(onClick = { showEdit = true }) { Text("Edit", color = Accent) }
-                TextButton(onClick = {
-                    StoreSession.clear(context)
-                    val api2 = StoreApi("https://nexora-store-tawny.vercel.app", context)
-                    scope.launch { api2.logout() }
-                    android.widget.Toast.makeText(context, "Logged out", android.widget.Toast.LENGTH_SHORT).show()
-                    onBack()
-                }) { Icon(Icons.Filled.Logout, contentDescription = null, tint = Gray40, modifier = Modifier.size(18.dp)) }
-            } else {
-                Spacer(Modifier.width(60.dp))
+        val isOwn = profile?.optBoolean("isOwn", false) == true
+        StudioHero(
+            icon = Icons.Filled.Person,
+            title = "Profile Studio",
+            subtitle = "@$username",
+            status = if (isOwn) "OWNER" else "VISITOR",
+            statusTone = if (isOwn) StudioTone.Primary else StudioTone.Secondary,
+            stats = listOf(
+                StudioStat(
+                    "LIBS",
+                    "${profile?.optJSONArray("items")?.length() ?: 0}",
+                    StudioTone.Primary,
+                ),
+            ),
+            modifier = Modifier.padding(horizontal = 20.dp, vertical = 16.dp),
+        )
+        if (isOwn) {
+            Row(
+                Modifier.fillMaxWidth().padding(horizontal = 20.dp),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                SecondaryButton(
+                    text = "Edit profile",
+                    onClick = { showEdit = true },
+                    modifier = Modifier.weight(1f),
+                )
+                SecondaryButton(
+                    text = "Log out",
+                    onClick = {
+                        StoreSession.clear(context)
+                        val api2 = StoreApi("https://nexora-store-tawny.vercel.app", context)
+                        scope.launch { api2.logout() }
+                        android.widget.Toast.makeText(context, "Logged out", android.widget.Toast.LENGTH_SHORT).show()
+                        onBack()
+                    },
+                    modifier = Modifier.weight(1f),
+                )
             }
         }
-        HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
 
         when {
             loading -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { CircularProgressIndicator() }
-            error != null -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { Text(error!!, color = Gray40) }
+            error != null -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                Text(error!!, color = MaterialTheme.colorScheme.error)
+            }
             profile != null -> {
                 val p = profile!!
                 val avatarUrl = p.optString("avatarUrl", "").takeIf { it.isNotBlank() }
-                Column(Modifier.fillMaxSize().padding(16.dp)) {
+                Column(
+                    Modifier
+                        .fillMaxSize()
+                        .verticalScroll(rememberScrollState())
+                        .padding(horizontal = 20.dp, vertical = 16.dp),
+                ) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
-                        Surface(shape = MaterialTheme.shapes.medium, color = MaterialTheme.colorScheme.surfaceContainerHigh, modifier = Modifier.size(64.dp).clip(CircleShape)) {
+                        Surface(
+                            shape = CircleShape,
+                            color = MaterialTheme.colorScheme.primaryContainer,
+                            modifier = Modifier.size(72.dp),
+                        ) {
                             Box(contentAlignment = Alignment.Center, modifier = Modifier.fillMaxSize()) {
                                 if (avatarUrl != null) {
                                     AsyncImage(model = avatarUrl, contentDescription = null, modifier = Modifier.fillMaxSize())
                                 } else {
-                                    Text(p.optString("username", "?").take(1).uppercase(), style = MaterialTheme.typography.headlineMedium, color = Accent)
+                                    Text(
+                                        p.optString("username", "?").take(1).uppercase(),
+                                        style = MaterialTheme.typography.headlineMedium,
+                                        color = MaterialTheme.colorScheme.onPrimaryContainer,
+                                    )
                                 }
                             }
                         }
                         Spacer(Modifier.width(16.dp))
                         Column {
-                            Text(p.optString("displayName", p.optString("username")), style = MaterialTheme.typography.titleMedium, color = Gray30)
-                            Text("@${p.optString("username")}", style = MaterialTheme.typography.bodySmall, color = Gray40)
+                            Text(
+                                p.optString("displayName", p.optString("username")),
+                                style = MaterialTheme.typography.titleMedium,
+                                color = MaterialTheme.colorScheme.onSurface,
+                            )
+                            Text(
+                                "@${p.optString("username")}",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
                         }
                     }
-                    Spacer(Modifier.height(16.dp))
-                    Text("Libs", style = MaterialTheme.typography.titleSmall, color = Accent)
-                    Spacer(Modifier.height(8.dp))
+                    Spacer(Modifier.height(20.dp))
+                    StudioStepHeader("01", "LIBRARY", "Published posts")
                     val items = p.optJSONArray("items") ?: JSONArray()
                     if (items.length() == 0) {
-                        Text("No items yet", color = Gray40, style = MaterialTheme.typography.bodySmall)
+                        Text(
+                            "No items yet",
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            style = MaterialTheme.typography.bodySmall,
+                        )
                     } else {
-                        LazyColumn {
-                            items((0 until items.length()).map { items.getJSONObject(it) }) { item ->
-                                Surface(
-                                    shape = MaterialTheme.shapes.small,
-                                    color = MaterialTheme.colorScheme.surfaceContainerHigh,
-                                    modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp).clickable { detailItem = item },
-                                ) {
-                                    Row(Modifier.padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
-                                        val logoUrl = item.optString("logoUrl", "").takeIf { it.isNotBlank() }
-                                        Surface(shape = MaterialTheme.shapes.small, color = MaterialTheme.colorScheme.surfaceContainerHighest, modifier = Modifier.size(32.dp)) {
-                                            Box(contentAlignment = Alignment.Center, modifier = Modifier.fillMaxSize()) {
-                                                if (logoUrl != null) AsyncImage(model = logoUrl, contentDescription = null, modifier = Modifier.fillMaxSize())
-                                                else Text(item.optString("title", "?").take(1).uppercase(), style = MaterialTheme.typography.labelMedium, color = Accent)
+                        (0 until items.length()).map { items.getJSONObject(it) }.forEach { item ->
+                            Surface(
+                                shape = RoundedCornerShape(16.dp),
+                                color = MaterialTheme.colorScheme.surfaceContainerHigh,
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(vertical = 4.dp)
+                                    .clickable { detailItem = item },
+                            ) {
+                                Row(Modifier.padding(14.dp), verticalAlignment = Alignment.CenterVertically) {
+                                    val logoUrl = item.optString("logoUrl", "").takeIf { it.isNotBlank() }
+                                    Surface(
+                                        shape = RoundedCornerShape(12.dp),
+                                        color = MaterialTheme.colorScheme.surfaceContainerHighest,
+                                        modifier = Modifier.size(40.dp),
+                                    ) {
+                                        Box(contentAlignment = Alignment.Center, modifier = Modifier.fillMaxSize()) {
+                                            if (logoUrl != null) {
+                                                AsyncImage(model = logoUrl, contentDescription = null, modifier = Modifier.fillMaxSize())
+                                            } else {
+                                                Text(
+                                                    item.optString("title", "?").take(1).uppercase(),
+                                                    style = MaterialTheme.typography.labelMedium,
+                                                    color = MaterialTheme.colorScheme.primary,
+                                                )
                                             }
                                         }
-                                        Spacer(Modifier.width(8.dp))
-                                        Column(Modifier.weight(1f)) {
-                                            Text(item.optString("title"), style = MaterialTheme.typography.bodyMedium, color = Gray30)
-                                            Row {
-                                                Text("v${item.optString("version")}", style = MaterialTheme.typography.labelSmall, color = Gray40)
-                                                if (item.optString("status", "approved") != "approved") {
-                                                    Spacer(Modifier.width(6.dp))
-                                                    Text("• pending approval", style = MaterialTheme.typography.labelSmall, color = WarnYellow)
-                                                }
-                                            }
-                                        }
-                                        Icon(Icons.Filled.Download, contentDescription = null, tint = Gray40, modifier = Modifier.size(16.dp))
                                     }
+                                    Spacer(Modifier.width(10.dp))
+                                    Column(Modifier.weight(1f)) {
+                                        Text(
+                                            item.optString("title"),
+                                            style = MaterialTheme.typography.bodyMedium,
+                                            color = MaterialTheme.colorScheme.onSurface,
+                                        )
+                                        Row(verticalAlignment = Alignment.CenterVertically) {
+                                            Text(
+                                                "v${item.optString("version")}",
+                                                style = MaterialTheme.typography.labelSmall,
+                                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                            )
+                                            val status = item.optString("status", "approved")
+                                            if (status != "approved") {
+                                                Spacer(Modifier.width(6.dp))
+                                                StudioStatusPill(
+                                                    status.uppercase(),
+                                                    tone = StudioTone.Tertiary,
+                                                )
+                                            }
+                                        }
+                                    }
+                                    Icon(
+                                        Icons.Filled.Download,
+                                        contentDescription = null,
+                                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                        modifier = Modifier.size(18.dp),
+                                    )
                                 }
                             }
                         }
                     }
+                    Spacer(Modifier.height(20.dp))
                 }
             }
         }
@@ -171,29 +249,55 @@ fun StoreProfileScreen(
         val libCount = libs?.length() ?: 0
         AlertDialog(
             onDismissRequest = { detailItem = null },
-            title = { Text(item.optString("title", "Untitled")) },
+            title = { Text(item.optString("title", "Untitled"), color = MaterialTheme.colorScheme.onSurface) },
             text = {
                 Column {
                     val logoUrl = item.optString("logoUrl", "").takeIf { it.isNotBlank() }
                     if (logoUrl != null) {
-                        AsyncImage(model = logoUrl, contentDescription = null, modifier = Modifier.fillMaxWidth().height(120.dp))
+                        AsyncImage(
+                            model = logoUrl,
+                            contentDescription = null,
+                            modifier = Modifier.fillMaxWidth().height(120.dp).clip(RoundedCornerShape(16.dp)),
+                        )
                         Spacer(Modifier.height(8.dp))
                     }
                     val desc = item.optString("description", "")
                     if (desc.isNotBlank()) {
-                        Text(desc, style = MaterialTheme.typography.bodySmall, color = Gray40)
+                        Text(
+                            desc,
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
                         Spacer(Modifier.height(8.dp))
                     }
-                    Text("v${item.optString("version", "1.0.0")}", style = MaterialTheme.typography.labelSmall, color = Gray40)
+                    Text(
+                        "v${item.optString("version", "1.0.0")}",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
                     if (libCount > 0) {
                         Spacer(Modifier.height(8.dp))
-                        Text("Libs", style = MaterialTheme.typography.titleSmall, color = Accent)
+                        Text(
+                            "Libs",
+                            style = MaterialTheme.typography.titleSmall,
+                            color = MaterialTheme.colorScheme.primary,
+                        )
                         Spacer(Modifier.height(4.dp))
                         (0 until libCount).map { libs!!.getJSONObject(it) }.forEach { l ->
                             Row(Modifier.fillMaxWidth().padding(vertical = 4.dp), verticalAlignment = Alignment.CenterVertically) {
                                 Column(Modifier.weight(1f)) {
-                                    Text(l.optString("name"), style = MaterialTheme.typography.bodySmall, color = Gray30, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                                    Text("${l.optInt("size", 0)} B", style = MaterialTheme.typography.labelSmall, color = Gray40)
+                                    Text(
+                                        l.optString("name"),
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = MaterialTheme.colorScheme.onSurface,
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis,
+                                    )
+                                    Text(
+                                        "${l.optInt("size", 0)} B",
+                                        style = MaterialTheme.typography.labelSmall,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    )
                                 }
                                 TextButton(onClick = {
                                     val ctx = context
@@ -209,16 +313,25 @@ fun StoreProfileScreen(
                                         Toast.makeText(ctx, "Download failed: ${e.message}", Toast.LENGTH_SHORT).show()
                                     }
                                 }) {
-                                    Icon(Icons.Filled.Download, contentDescription = null, modifier = Modifier.size(14.dp), tint = Accent)
+                                    Icon(
+                                        Icons.Filled.Download,
+                                        contentDescription = null,
+                                        modifier = Modifier.size(14.dp),
+                                        tint = MaterialTheme.colorScheme.primary,
+                                    )
                                     Spacer(Modifier.width(4.dp))
-                                    Text("Download", color = Accent)
+                                    Text("Download", color = MaterialTheme.colorScheme.primary)
                                 }
                             }
                         }
                     }
                 }
             },
-            confirmButton = { TextButton(onClick = { detailItem = null }) { Text("Close", color = Gray40) } },
+            confirmButton = {
+                TextButton(onClick = { detailItem = null }) {
+                    Text("Close", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
+            },
         )
     }
 
@@ -255,7 +368,7 @@ private fun EditProfileDialog(api: StoreApi, username: String, onDismiss: () -> 
 
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("Edit Profile") },
+        title = { Text("Edit Profile", color = MaterialTheme.colorScheme.onSurface) },
         text = {
             Column {
                 OutlinedTextField(value = displayName, onValueChange = { displayName = it }, label = { Text("Display name") }, modifier = Modifier.fillMaxWidth(), singleLine = true)
@@ -263,7 +376,11 @@ private fun EditProfileDialog(api: StoreApi, username: String, onDismiss: () -> 
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Button(onClick = { avatarPicker.launch(arrayOf("image/*")) }) { Text("Pick Avatar") }
                     Spacer(Modifier.width(8.dp))
-                    Text(avatarUri?.lastPathSegment ?: "No avatar", color = Gray40, style = MaterialTheme.typography.bodySmall)
+                    Text(
+                        avatarUri?.lastPathSegment ?: "No avatar",
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        style = MaterialTheme.typography.bodySmall,
+                    )
                 }
                 error?.let { Spacer(Modifier.height(8.dp)); Text(it, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall) }
             }
@@ -295,8 +412,12 @@ private fun EditProfileDialog(api: StoreApi, username: String, onDismiss: () -> 
                     }
                 },
                 enabled = !loading,
-            ) { Text(if (loading) "Saving…" else "Save", color = Accent) }
+            ) { Text(if (loading) "Saving…" else "Save", color = MaterialTheme.colorScheme.primary) }
         },
-        dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel", color = Gray40) } },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text("Cancel", color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+        },
     )
 }

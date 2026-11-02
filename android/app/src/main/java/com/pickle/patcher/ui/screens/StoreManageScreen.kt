@@ -1,6 +1,7 @@
 package com.pickle.patcher.ui.screens
 
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.lazy.items
@@ -66,41 +67,68 @@ fun StoreManageScreen(
     }
 
     Column(Modifier.fillMaxSize()) {
-        Row(Modifier.fillMaxWidth().padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
-            Icon(Icons.Filled.Edit, contentDescription = null, tint = Accent, modifier = Modifier.size(24.dp))
-            Spacer(Modifier.width(8.dp))
-            Text("Manage Libs", style = MaterialTheme.typography.titleLarge, color = Gray30)
-        }
+        StudioHero(
+            icon = Icons.Filled.Edit,
+            title = "Library Studio",
+            subtitle = "Manage your uploaded library posts.",
+            status = "LIBRARY",
+            statusTone = StudioTone.Secondary,
+            modifier = Modifier.padding(horizontal = 20.dp, vertical = 16.dp),
+        )
 
         when {
             loading -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { CircularProgressIndicator() }
-            error != null -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { Text(error!!, color = Gray40) }
+            error != null -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                Text(error!!, color = MaterialTheme.colorScheme.error)
+            }
             else -> {
                 val list = items
                 if (list == null || list.length() == 0) {
-                    Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { Text("No items yet", color = Gray40) }
+                    Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                        Text("No items yet", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    }
                 } else {
-                    LazyColumn(Modifier.fillMaxSize().padding(horizontal = 12.dp)) {
+                    LazyColumn(
+                        Modifier.fillMaxSize().padding(horizontal = 20.dp),
+                        verticalArrangement = Arrangement.spacedBy(12.dp),
+                    ) {
                         items((0 until list.length()).map { list.getJSONObject(it) }) { obj ->
                             val id = obj.optString("id")
+                            val status = obj.optString("status", "approved")
                             Surface(
-                                shape = MaterialTheme.shapes.small,
+                                shape = RoundedCornerShape(20.dp),
                                 color = MaterialTheme.colorScheme.surfaceContainerHigh,
-                                modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
+                                modifier = Modifier.fillMaxWidth(),
                             ) {
-                                Column(Modifier.padding(12.dp)) {
-                                    Text(obj.optString("title"), style = MaterialTheme.typography.bodyMedium, color = Gray30)
-                                    Row {
-                                        Text("v${obj.optString("version")} · ${obj.optJSONArray("libs")?.length() ?: 0} lib(s)", style = MaterialTheme.typography.labelSmall, color = Gray40)
-                                        if (obj.optString("status", "approved") != "approved") {
-                                            Spacer(Modifier.width(6.dp))
-                                            Text("• ${obj.optString("status")}", style = MaterialTheme.typography.labelSmall, color = WarnYellow)
-                                        }
+                                Column(Modifier.padding(16.dp)) {
+                                    Row(verticalAlignment = Alignment.CenterVertically) {
+                                        Text(
+                                            obj.optString("title"),
+                                            style = MaterialTheme.typography.titleSmall,
+                                            color = MaterialTheme.colorScheme.onSurface,
+                                            modifier = Modifier.weight(1f),
+                                            maxLines = 1,
+                                            overflow = TextOverflow.Ellipsis,
+                                        )
+                                        StudioStatusPill(
+                                            status.uppercase(),
+                                            tone = if (status == "approved") StudioTone.Primary else StudioTone.Tertiary,
+                                        )
                                     }
+                                    Spacer(Modifier.height(4.dp))
+                                    Text(
+                                        "v${obj.optString("version")} · ${obj.optJSONArray("libs")?.length() ?: 0} lib(s)",
+                                        style = MaterialTheme.typography.labelSmall,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    )
                                     Spacer(Modifier.height(8.dp))
-                                    Row {
-                                        TextButton(onClick = { editTarget = obj }) { Text("Edit", color = Accent) }
-                                        TextButton(onClick = { deleteTarget = id }) { Text("Delete", color = AlertRed) }
+                                    Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                                        TextButton(onClick = { editTarget = obj }) {
+                                            Text("Edit", color = MaterialTheme.colorScheme.primary)
+                                        }
+                                        TextButton(onClick = { deleteTarget = id }) {
+                                            Text("Delete", color = MaterialTheme.colorScheme.error)
+                                        }
                                     }
                                 }
                             }
@@ -115,8 +143,13 @@ fun StoreManageScreen(
     deleteTarget?.let { id ->
         AlertDialog(
             onDismissRequest = { deleteTarget = null },
-            title = { Text("Delete item?", color = AlertRed) },
-            text = { Text("This cannot be undone.", color = Gray40) },
+            title = { Text("Delete item?", color = MaterialTheme.colorScheme.error) },
+            text = {
+                Text(
+                    "This cannot be undone.",
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            },
             confirmButton = {
                 TextButton(onClick = {
                     scope.launch {
@@ -125,10 +158,12 @@ fun StoreManageScreen(
                             onFailure = { t -> error = t.message; deleteTarget = null },
                         )
                     }
-                }) { Text("Delete", color = AlertRed) }
+                }) { Text("Delete", color = MaterialTheme.colorScheme.error) }
             },
             dismissButton = {
-                TextButton(onClick = { deleteTarget = null }) { Text("Cancel", color = Gray40) }
+                TextButton(onClick = { deleteTarget = null }) {
+                    Text("Cancel", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
             },
         )
     }
@@ -181,7 +216,7 @@ fun StoreManageScreen(
 
             AlertDialog(
                 onDismissRequest = { editTarget = null },
-                title = { Text("Edit item", color = Gray30) },
+                title = { Text("Edit item", color = MaterialTheme.colorScheme.onSurface) },
                 text = {
                     Column(Modifier.verticalScroll(androidx.compose.foundation.rememberScrollState())) {
                         OutlinedTextField(value = title, onValueChange = { title = it }, label = { Text("Title") }, modifier = Modifier.fillMaxWidth(), singleLine = true)
@@ -200,11 +235,14 @@ fun StoreManageScreen(
                                     existingLogo != null -> "current logo"
                                     else -> "No logo"
                                 },
-                                color = Gray40, style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                style = MaterialTheme.typography.bodySmall,
                             )
                             if (logoUri != null || existingLogo != null) {
                                 Spacer(Modifier.width(8.dp))
-                                TextButton(onClick = { logoUri = null; /* keep existing? */ }) { Text("Clear", color = Gray40) }
+                                TextButton(onClick = { logoUri = null; /* keep existing? */ }) {
+                                    Text("Clear", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                }
                             }
                         }
                         Spacer(Modifier.height(12.dp))
@@ -212,23 +250,47 @@ fun StoreManageScreen(
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             Button(onClick = { libPicker.launch(arrayOf("*/*")) }) { Text("Add Libs") }
                             Spacer(Modifier.width(8.dp))
-                            Text("${initialLibs.count { it.optString("url") !in removedLibs } + newLibs.size} lib(s)", color = Gray40, style = MaterialTheme.typography.bodySmall)
+                            Text(
+                                "${initialLibs.count { it.optString("url") !in removedLibs } + newLibs.size} lib(s)",
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                style = MaterialTheme.typography.bodySmall,
+                            )
                         }
                         initialLibs.forEach { l ->
                             val url = l.optString("url")
                             if (url in removedLibs) return@forEach
                             Row(Modifier.fillMaxWidth().padding(vertical = 2.dp), verticalAlignment = Alignment.CenterVertically) {
-                                Text("  • ${l.optString("name")}", color = Gray40, style = MaterialTheme.typography.labelSmall, modifier = Modifier.weight(1f))
+                                Text(
+                                    "  • ${l.optString("name")}",
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    style = MaterialTheme.typography.labelSmall,
+                                    modifier = Modifier.weight(1f),
+                                )
                                 IconButton(onClick = { removedLibs = removedLibs + url }, modifier = Modifier.size(20.dp)) {
-                                    Icon(Icons.Filled.Close, contentDescription = "Remove", tint = Gray40, modifier = Modifier.size(14.dp))
+                                    Icon(
+                                        Icons.Filled.Close,
+                                        contentDescription = "Remove",
+                                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                        modifier = Modifier.size(14.dp),
+                                    )
                                 }
                             }
                         }
                         newLibs.forEach { (uri, _, name) ->
                             Row(Modifier.fillMaxWidth().padding(vertical = 2.dp), verticalAlignment = Alignment.CenterVertically) {
-                                Text("  • $name (new)", color = Accent, style = MaterialTheme.typography.labelSmall, modifier = Modifier.weight(1f))
+                                Text(
+                                    "  • $name (new)",
+                                    color = MaterialTheme.colorScheme.primary,
+                                    style = MaterialTheme.typography.labelSmall,
+                                    modifier = Modifier.weight(1f),
+                                )
                                 IconButton(onClick = { newLibs = newLibs.filter { it.first != uri } }, modifier = Modifier.size(20.dp)) {
-                                    Icon(Icons.Filled.Close, contentDescription = "Remove", tint = Gray40, modifier = Modifier.size(14.dp))
+                                    Icon(
+                                        Icons.Filled.Close,
+                                        contentDescription = "Remove",
+                                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                        modifier = Modifier.size(14.dp),
+                                    )
                                 }
                             }
                         }
@@ -244,14 +306,30 @@ fun StoreManageScreen(
                         }
                         links.forEachIndexed { idx, (_, url) ->
                             Row(Modifier.fillMaxWidth().padding(vertical = 2.dp), verticalAlignment = Alignment.CenterVertically) {
-                                Text("  • $url", color = Gray40, style = MaterialTheme.typography.labelSmall, modifier = Modifier.weight(1f))
+                                Text(
+                                    "  • $url",
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    style = MaterialTheme.typography.labelSmall,
+                                    modifier = Modifier.weight(1f),
+                                )
                                 IconButton(onClick = { links = links.filterIndexed { i, _ -> i != idx } }, modifier = Modifier.size(20.dp)) {
-                                    Icon(Icons.Filled.Close, contentDescription = "Remove", tint = Gray40, modifier = Modifier.size(14.dp))
+                                    Icon(
+                                        Icons.Filled.Close,
+                                        contentDescription = "Remove",
+                                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                        modifier = Modifier.size(14.dp),
+                                    )
                                 }
                             }
                         }
 
-                        if (progressLabel.isNotBlank()) Text(progressLabel, color = Gray40, style = MaterialTheme.typography.bodySmall)
+                        if (progressLabel.isNotBlank()) {
+                            Text(
+                                progressLabel,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                style = MaterialTheme.typography.bodySmall,
+                            )
+                        }
                     }
                 },
                 confirmButton = {
@@ -314,10 +392,12 @@ fun StoreManageScreen(
                             }
                         },
                         enabled = !saving,
-                    ) { Text("Save", color = Accent) }
+                    ) { Text("Save", color = MaterialTheme.colorScheme.primary) }
                 },
                 dismissButton = {
-                    TextButton(onClick = { editTarget = null }) { Text("Cancel", color = Gray40) }
+                    TextButton(onClick = { editTarget = null }) {
+                        Text("Cancel", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    }
                 },
             )
         }

@@ -14,7 +14,8 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.ContentCopy
+import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.Save
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
@@ -183,13 +184,13 @@ fun PluginsScreen(vm: PatcherViewModel) {
     val file = selected
     // Recomputed when the theme changes, so the highlighter repaints with it.
     val iniColors = IniColors(
-        comment = Gray60,
-        pluginName = Tertiary,
-        section = Accent,
-        text = Gray30,
-        operator = Gray70,
-        string = SuccessGreen,
-        value = Secondary,
+        comment = MaterialTheme.colorScheme.onSurfaceVariant,
+        pluginName = MaterialTheme.colorScheme.tertiary,
+        section = MaterialTheme.colorScheme.primary,
+        text = MaterialTheme.colorScheme.onSurface,
+        operator = MaterialTheme.colorScheme.outline,
+        string = MaterialTheme.colorScheme.tertiary,
+        value = MaterialTheme.colorScheme.secondary,
     )
     val lineCount = remember(text) { text.count { it == '\n' } + 1 }
     val editorStyle = MaterialTheme.typography.bodySmall.copy(
@@ -206,44 +207,64 @@ fun PluginsScreen(vm: PatcherViewModel) {
             .fillMaxSize()
             .verticalScroll(pageScroll)
             .imePadding()
-            .padding(horizontal = 16.dp, vertical = 12.dp),
+            .padding(horizontal = 20.dp, vertical = 16.dp),
     ) {
-        Text("Plugins", style = MaterialTheme.typography.headlineMedium)
-        Spacer(Modifier.height(2.dp))
-        Text(
-            file?.name ?: "No plugins-*.ini found. Set the game folder on the Addons tab.",
-            style = MaterialTheme.typography.bodyMedium,
-            color = if (file != null) Gray40 else Tertiary,
-            maxLines = 1,
+        StudioHero(
+            icon = Icons.Filled.Edit,
+            title = "Plugins Studio",
+            subtitle = file?.name
+                ?: "No plugins-*.ini found. Set the game folder on the Addons tab.",
+            status = when {
+                dirty -> "UNSAVED"
+                saved -> "SAVED"
+                file == null -> "NO FILE"
+                else -> "READY"
+            },
+            statusTone = when {
+                dirty -> StudioTone.Tertiary
+                saved -> StudioTone.Primary
+                file == null -> StudioTone.Error
+                else -> StudioTone.Neutral
+            },
         )
 
         if (inis.isNotEmpty()) {
-            Spacer(Modifier.height(10.dp))
+            Spacer(Modifier.height(20.dp))
+            StudioStepHeader("01", "CONFIG FILE", "Choose a plugin list")
             LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 items(inis) { ini ->
                     val active = ini.file == file
                     Surface(
-                        shape = RoundedCornerShape(8.dp),
-                        color = if (active) Accent.copy(alpha = 0.14f) else Gray85,
+                        shape = RoundedCornerShape(50),
+                        color = if (active) {
+                            MaterialTheme.colorScheme.primaryContainer
+                        } else {
+                            MaterialTheme.colorScheme.surfaceContainerHighest
+                        },
                         modifier = Modifier.clickable { selected = ini.file },
                     ) {
                         Text(
                             ini.name,
                             style = MaterialTheme.typography.labelLarge,
-                            color = if (active) Accent else Gray40,
-                            modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp),
+                            color = if (active) {
+                                MaterialTheme.colorScheme.onPrimaryContainer
+                            } else {
+                                MaterialTheme.colorScheme.onSurfaceVariant
+                            },
+                            modifier = Modifier.padding(horizontal = 14.dp, vertical = 8.dp),
                         )
                     }
                 }
             }
         }
 
-        Spacer(Modifier.height(10.dp))
+        Spacer(Modifier.height(20.dp))
+        if (file != null) StudioStepHeader("02", "EDITOR", "Edit the INI in place")
 
         if (file != null) {
             Surface(
-                shape = RoundedCornerShape(12.dp),
-                color = Gray99,
+                shape = RoundedCornerShape(20.dp),
+                color = MaterialTheme.colorScheme.surfaceContainerLowest,
                 modifier = Modifier.fillMaxWidth(),
             ) {
                 // The viewport is a fixed 18 lines; scrolling happens inside it in
@@ -263,7 +284,9 @@ fun PluginsScreen(vm: PatcherViewModel) {
                         // dp per line against the field's single text layout.
                         Text(
                             text = gutterText,
-                            style = editorStyle.copy(color = Gray70),
+                            style = editorStyle.copy(
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            ),
                             softWrap = false,
                             textAlign = TextAlign.End,
                         )
@@ -273,8 +296,10 @@ fun PluginsScreen(vm: PatcherViewModel) {
                         BasicTextField(
                             value = text,
                             onValueChange = vm::editIniText,
-                            textStyle = editorStyle.copy(color = Gray30),
-                            cursorBrush = SolidColor(Accent),
+                            textStyle = editorStyle.copy(
+                                color = MaterialTheme.colorScheme.onSurface,
+                            ),
+                            cursorBrush = SolidColor(MaterialTheme.colorScheme.primary),
                             visualTransformation = IniHighlight(iniColors),
                             modifier = Modifier.widthIn(min = 240.dp),
                         )
@@ -282,7 +307,8 @@ fun PluginsScreen(vm: PatcherViewModel) {
                 }
             }
 
-            Spacer(Modifier.height(10.dp))
+            Spacer(Modifier.height(20.dp))
+            StudioStepHeader("03", "SAVE", "Write changes to disk")
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(
                     when {
@@ -292,9 +318,9 @@ fun PluginsScreen(vm: PatcherViewModel) {
                     },
                     style = MaterialTheme.typography.bodySmall,
                     color = when {
-                        dirty -> Tertiary
-                        saved -> SuccessGreen
-                        else -> Gray40
+                        dirty -> MaterialTheme.colorScheme.tertiary
+                        saved -> MaterialTheme.colorScheme.primary
+                        else -> MaterialTheme.colorScheme.onSurfaceVariant
                     },
                     modifier = Modifier.weight(1f),
                 )
@@ -306,14 +332,14 @@ fun PluginsScreen(vm: PatcherViewModel) {
                     text = "Save",
                     onClick = { vm.savePluginIni(file) },
                     enabled = dirty,
-                    icon = { Icon(Icons.Filled.ContentCopy, null, modifier = Modifier.size(16.dp)) },
+                    icon = { Icon(Icons.Filled.Save, null, modifier = Modifier.size(16.dp)) },
                 )
             }
-            Spacer(Modifier.height(4.dp))
+            Spacer(Modifier.height(6.dp))
             Text(
                 "Restart the game for changes to take effect.",
                 style = MaterialTheme.typography.bodySmall,
-                color = Gray60,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
         }
     }

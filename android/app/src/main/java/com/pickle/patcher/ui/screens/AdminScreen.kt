@@ -1,6 +1,8 @@
 package com.pickle.patcher.ui.screens
 
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.ui.draw.clip
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
@@ -33,9 +35,21 @@ fun AdminScreen(api: StoreApi, onBack: () -> Unit) {
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Admin", color = Gray30) },
+                title = {
+                    Text(
+                        "Admin",
+                        color = MaterialTheme.colorScheme.onSurface,
+                        style = MaterialTheme.typography.titleLarge,
+                    )
+                },
                 navigationIcon = {
-                    IconButton(onClick = onBack) { Icon(Icons.Filled.ArrowBack, contentDescription = null, tint = Gray30) }
+                    IconButton(onClick = onBack) {
+                        Icon(
+                            Icons.Filled.ArrowBack,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.onSurface,
+                        )
+                    }
                 },
             )
         },
@@ -89,7 +103,18 @@ private fun AdminPosts(api: StoreApi, token: String) {
     LaunchedEffect(statusFilter) { load() }
 
     Column(Modifier.fillMaxSize()) {
-        Row(Modifier.fillMaxWidth().padding(12.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        StudioHero(
+            icon = Icons.Filled.Article,
+            title = "Posts Studio",
+            subtitle = "Review, approve, and moderate store posts.",
+            status = "MODERATION",
+            statusTone = StudioTone.Secondary,
+            modifier = Modifier.padding(horizontal = 20.dp, vertical = 16.dp),
+        )
+        Row(
+            Modifier.fillMaxWidth().padding(horizontal = 20.dp),
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
             listOf<Pair<String?, String>>(null to "All", "pending" to "Pending", "approved" to "Approved", "rejected" to "Rejected").forEach { (v, label) ->
                 FilterChip(
                     selected = statusFilter == v,
@@ -98,15 +123,23 @@ private fun AdminPosts(api: StoreApi, token: String) {
                 )
             }
         }
+        Spacer(Modifier.height(12.dp))
         when {
             loading -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { CircularProgressIndicator() }
-            error != null -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { Text(error!!, color = Gray40) }
+            error != null -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                Text(error!!, color = MaterialTheme.colorScheme.error)
+            }
             else -> {
                 val list = items
                 if (list == null || list.length() == 0) {
-                    Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { Text("No items", color = Gray40) }
+                    Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                        Text("No items", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    }
                 } else {
-                    LazyColumn(Modifier.fillMaxSize().padding(horizontal = 12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    LazyColumn(
+                        Modifier.fillMaxSize().padding(horizontal = 20.dp),
+                        verticalArrangement = Arrangement.spacedBy(12.dp),
+                    ) {
                         items((0 until list.length()).map { list.getJSONObject(it) }) { obj ->
                             AdminPostCard(obj, api, token, onAction = { load() })
                         }
@@ -122,40 +155,81 @@ private fun AdminPostCard(obj: JSONObject, api: StoreApi, token: String, onActio
     val scope = rememberCoroutineScope()
     val id = obj.optString("id")
     val status = obj.optString("status", "pending")
-    val statusColor = when (status) {
-        "approved" -> Accent
-        "rejected" -> WarnYellow
-        else -> Gray40
-    }
-    Surface(shape = MaterialTheme.shapes.medium, color = MaterialTheme.colorScheme.surfaceContainerHigh, modifier = Modifier.fillMaxWidth()) {
-        Column(Modifier.padding(12.dp)) {
+    Surface(
+        shape = RoundedCornerShape(20.dp),
+        color = MaterialTheme.colorScheme.surfaceContainerHigh,
+        modifier = Modifier.fillMaxWidth(),
+    ) {
+        Column(Modifier.padding(16.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 val logoUrl = obj.optString("logoUrl", "").takeIf { it.isNotBlank() }
                 if (logoUrl != null) {
-                    AsyncImage(model = logoUrl, contentDescription = null, modifier = Modifier.size(40.dp))
-                    Spacer(Modifier.width(8.dp))
+                    AsyncImage(
+                        model = logoUrl,
+                        contentDescription = null,
+                        modifier = Modifier.size(44.dp).clip(RoundedCornerShape(12.dp)),
+                    )
+                    Spacer(Modifier.width(10.dp))
+                } else {
+                    Surface(
+                        shape = RoundedCornerShape(12.dp),
+                        color = MaterialTheme.colorScheme.primaryContainer,
+                    ) {
+                        Box(Modifier.size(44.dp), contentAlignment = Alignment.Center) {
+                            Icon(
+                                Icons.Filled.Article,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.onPrimaryContainer,
+                                modifier = Modifier.size(20.dp),
+                            )
+                        }
+                    }
+                    Spacer(Modifier.width(10.dp))
                 }
                 Column(Modifier.weight(1f)) {
-                    Text(obj.optString("title", "Untitled"), style = MaterialTheme.typography.titleSmall, color = Gray30, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                    Text("by ${obj.optJSONObject("user")?.optString("username") ?: "?"}  •  v${obj.optString("version", "1.0.0")}", style = MaterialTheme.typography.labelSmall, color = Gray40)
+                    Text(
+                        obj.optString("title", "Untitled"),
+                        style = MaterialTheme.typography.titleSmall,
+                        color = MaterialTheme.colorScheme.onSurface,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                    Text(
+                        "by ${obj.optJSONObject("user")?.optString("username") ?: "?"}  •  v${obj.optString("version", "1.0.0")}",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
                 }
-                Text(status, style = MaterialTheme.typography.labelSmall, color = statusColor)
+                StudioStatusPill(
+                    status.uppercase(),
+                    tone = when (status) {
+                        "approved" -> StudioTone.Primary
+                        "rejected" -> StudioTone.Error
+                        else -> StudioTone.Tertiary
+                    },
+                )
             }
-            Spacer(Modifier.height(8.dp))
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            Spacer(Modifier.height(10.dp))
+            Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
                 if (status != "approved") {
                     TextButton(onClick = {
                         scope.launch { api.adminPatchItem(token, id, "approved"); onAction() }
-                    }) { Text("Approve", color = Accent) }
+                    }) {
+                        Text("Approve", color = MaterialTheme.colorScheme.primary)
+                    }
                 }
                 if (status != "rejected") {
                     TextButton(onClick = {
                         scope.launch { api.adminPatchItem(token, id, "rejected"); onAction() }
-                    }) { Text("Reject", color = WarnYellow) }
+                    }) {
+                        Text("Reject", color = MaterialTheme.colorScheme.tertiary)
+                    }
                 }
                 TextButton(onClick = {
                     scope.launch { api.adminDeleteItem(token, id); onAction() }
-                }) { Text("Delete", color = MaterialTheme.colorScheme.error) }
+                }) {
+                    Text("Delete", color = MaterialTheme.colorScheme.error)
+                }
             }
         }
     }
@@ -186,17 +260,34 @@ private fun AdminUsers(api: StoreApi, token: String) {
 
     LaunchedEffect(Unit) { load() }
 
-    when {
-        loading -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { CircularProgressIndicator() }
-        error != null -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { Text(error!!, color = Gray40) }
-        else -> {
-            val list = users
-            if (list == null || list.length() == 0) {
-                Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { Text("No users", color = Gray40) }
-            } else {
-                LazyColumn(Modifier.fillMaxSize().padding(horizontal = 12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    items((0 until list.length()).map { list.getJSONObject(it) }) { obj ->
-                        AdminUserCard(obj, api, token, onAction = { load() })
+    Column(Modifier.fillMaxSize()) {
+        StudioHero(
+            icon = Icons.Filled.People,
+            title = "Users Studio",
+            subtitle = "Manage roles, permissions, and accounts.",
+            status = "TEAM",
+            statusTone = StudioTone.Secondary,
+            modifier = Modifier.padding(horizontal = 20.dp, vertical = 16.dp),
+        )
+        when {
+            loading -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { CircularProgressIndicator() }
+            error != null -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                Text(error!!, color = MaterialTheme.colorScheme.error)
+            }
+            else -> {
+                val list = users
+                if (list == null || list.length() == 0) {
+                    Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                        Text("No users", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    }
+                } else {
+                    LazyColumn(
+                        Modifier.fillMaxSize().padding(horizontal = 20.dp),
+                        verticalArrangement = Arrangement.spacedBy(12.dp),
+                    ) {
+                        items((0 until list.length()).map { list.getJSONObject(it) }) { obj ->
+                            AdminUserCard(obj, api, token, onAction = { load() })
+                        }
                     }
                 }
             }
@@ -222,39 +313,77 @@ private fun AdminUserCard(obj: JSONObject, api: StoreApi, token: String, onActio
     var showPerms by remember { mutableStateOf(false) }
     var perms by remember { mutableStateOf(initialPerms) }
 
-    Surface(shape = MaterialTheme.shapes.medium, color = MaterialTheme.colorScheme.surfaceContainerHigh, modifier = Modifier.fillMaxWidth()) {
-        Column(Modifier.padding(12.dp)) {
+    Surface(
+        shape = RoundedCornerShape(20.dp),
+        color = MaterialTheme.colorScheme.surfaceContainerHigh,
+        modifier = Modifier.fillMaxWidth(),
+    ) {
+        Column(Modifier.padding(16.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 val avatarUrl = obj.optString("avatarUrl", "").takeIf { it.isNotBlank() }
                 if (avatarUrl != null) {
-                    AsyncImage(model = avatarUrl, contentDescription = null, modifier = Modifier.size(40.dp).padding(4.dp))
+                    AsyncImage(
+                        model = avatarUrl,
+                        contentDescription = null,
+                        modifier = Modifier.size(44.dp).clip(RoundedCornerShape(12.dp)),
+                    )
                 } else {
-                    Surface(shape = MaterialTheme.shapes.small, color = Accent.copy(alpha = 0.2f), modifier = Modifier.size(40.dp)) {
+                    Surface(
+                        shape = RoundedCornerShape(12.dp),
+                        color = MaterialTheme.colorScheme.primaryContainer,
+                        modifier = Modifier.size(44.dp),
+                    ) {
                         Box(contentAlignment = Alignment.Center, modifier = Modifier.fillMaxSize()) {
-                            Icon(Icons.Filled.Person, contentDescription = null, tint = Accent, modifier = Modifier.size(24.dp))
+                            Icon(
+                                Icons.Filled.Person,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.onPrimaryContainer,
+                                modifier = Modifier.size(22.dp),
+                            )
                         }
                     }
                 }
-                Spacer(Modifier.width(8.dp))
+                Spacer(Modifier.width(10.dp))
                 Column(Modifier.weight(1f)) {
-                    Text(displayName ?: username, style = MaterialTheme.typography.titleSmall, color = Gray30)
-                    Text("$email  •  $itemCount posts", style = MaterialTheme.typography.labelSmall, color = Gray40)
-                    Text("role: $role", style = MaterialTheme.typography.labelSmall, color = if (role == "admin") WarnYellow else Gray40)
+                    Text(
+                        displayName ?: username,
+                        style = MaterialTheme.typography.titleSmall,
+                        color = MaterialTheme.colorScheme.onSurface,
+                    )
+                    Text(
+                        "$email  •  $itemCount posts",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                    StudioStatusPill(
+                        role.uppercase(),
+                        tone = if (role == "admin") StudioTone.Tertiary else StudioTone.Neutral,
+                        modifier = Modifier.padding(top = 4.dp),
+                    )
                 }
             }
             if (!isOwner) {
                 Row(horizontalArrangement = Arrangement.spacedBy(4.dp), modifier = Modifier.padding(top = 8.dp)) {
-                    TextButton(onClick = { showPerms = true }) { Text("Permissions", color = Accent) }
+                    TextButton(onClick = { showPerms = true }) {
+                        Text("Permissions", color = MaterialTheme.colorScheme.primary)
+                    }
                     TextButton(onClick = {
                         scope.launch {
                             val newRole = if (role == "admin") "user" else "admin"
                             api.adminPatchUser(token, id, role = newRole)
                             onAction()
                         }
-                    }) { Text(if (role == "admin") "Demote" else "Promote", color = Accent) }
+                    }) {
+                        Text(
+                            if (role == "admin") "Demote" else "Promote",
+                            color = MaterialTheme.colorScheme.primary,
+                        )
+                    }
                     TextButton(onClick = {
                         scope.launch { api.adminDeleteUser(token, id); onAction() }
-                    }) { Text("Delete", color = MaterialTheme.colorScheme.error) }
+                    }) {
+                        Text("Delete", color = MaterialTheme.colorScheme.error)
+                    }
                 }
             }
         }

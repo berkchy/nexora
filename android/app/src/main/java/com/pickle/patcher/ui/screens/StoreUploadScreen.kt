@@ -81,36 +81,49 @@ fun StoreUploadScreen(
     }
 
     Column(
-        Modifier.fillMaxSize().padding(16.dp).verticalScroll(rememberScrollState()),
+        Modifier.fillMaxSize().padding(horizontal = 20.dp, vertical = 16.dp).verticalScroll(rememberScrollState()),
     ) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Icon(Icons.Filled.Upload, contentDescription = null, tint = Accent, modifier = Modifier.size(24.dp))
-            Spacer(Modifier.width(8.dp))
-            Text("Upload Lib", style = MaterialTheme.typography.titleLarge, color = Gray30)
-        }
-        Spacer(Modifier.height(16.dp))
+        StudioHero(
+            icon = Icons.Filled.Upload,
+            title = "Upload Studio",
+            subtitle = "Publish a new library post.",
+            status = "UPLOAD",
+            statusTone = StudioTone.Secondary,
+            stats = listOf(StudioStat("LIBS", "${libEntries.size}", StudioTone.Primary)),
+        )
+        Spacer(Modifier.height(20.dp))
+        StudioStepHeader("01", "DETAILS", "Describe the post")
 
         OutlinedTextField(value = title, onValueChange = { title = it }, label = { Text("Title") }, modifier = Modifier.fillMaxWidth(), singleLine = true)
         Spacer(Modifier.height(12.dp))
         OutlinedTextField(value = description, onValueChange = { description = it }, label = { Text("Description") }, modifier = Modifier.fillMaxWidth(), minLines = 3)
         Spacer(Modifier.height(12.dp))
         OutlinedTextField(value = version, onValueChange = { version = it }, label = { Text("Version") }, modifier = Modifier.fillMaxWidth(), singleLine = true)
-        Spacer(Modifier.height(12.dp))
+        Spacer(Modifier.height(20.dp))
+        StudioStepHeader("02", "ASSETS", "Logo and library files")
 
         Row(verticalAlignment = Alignment.CenterVertically) {
             Button(onClick = { logoPicker.launch(arrayOf("image/*")) }) { Text("Pick Logo") }
             Spacer(Modifier.width(8.dp))
-            Text(logoUri?.lastPathSegment ?: "No logo", color = Gray40, style = MaterialTheme.typography.bodySmall)
+            Text(
+                logoUri?.lastPathSegment ?: "No logo",
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                style = MaterialTheme.typography.bodySmall,
+            )
         }
         Spacer(Modifier.height(12.dp))
 
         Row(verticalAlignment = Alignment.CenterVertically) {
             Button(onClick = { libPicker.launch(arrayOf("*/*")) }) { Text("Add Libs") }
             Spacer(Modifier.width(8.dp))
-            Text("${libEntries.size} lib(s) selected", color = Gray40, style = MaterialTheme.typography.bodySmall)
+            Text(
+                "${libEntries.size} lib(s) selected",
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                style = MaterialTheme.typography.bodySmall,
+            )
         }
-        // Project links
-        Spacer(Modifier.height(8.dp))
+        Spacer(Modifier.height(20.dp))
+        StudioStepHeader("03", "LINKS", "Point to the project source")
         Row(verticalAlignment = Alignment.CenterVertically) {
             OutlinedTextField(value = linkInput, onValueChange = { linkInput = it }, label = { Text("Project link URL") }, modifier = Modifier.weight(1f), singleLine = true)
             Spacer(Modifier.width(8.dp))
@@ -123,9 +136,19 @@ fun StoreUploadScreen(
             Spacer(Modifier.height(4.dp))
             links.forEachIndexed { idx, (label, url) ->
                 Row(Modifier.fillMaxWidth().padding(vertical = 2.dp), verticalAlignment = Alignment.CenterVertically) {
-                    Text("  • $url", color = Gray40, style = MaterialTheme.typography.labelSmall, modifier = Modifier.weight(1f))
+                    Text(
+                        "  • $url",
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        style = MaterialTheme.typography.labelSmall,
+                        modifier = Modifier.weight(1f),
+                    )
                     IconButton(onClick = { links = links.filterIndexed { i, _ -> i != idx } }, modifier = Modifier.size(20.dp)) {
-                        Icon(Icons.Filled.Close, contentDescription = "Remove", tint = Gray40, modifier = Modifier.size(14.dp))
+                        Icon(
+                            Icons.Filled.Close,
+                            contentDescription = "Remove",
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.size(14.dp),
+                        )
                     }
                 }
             }
@@ -139,24 +162,55 @@ fun StoreUploadScreen(
                     Modifier.fillMaxWidth().padding(vertical = 2.dp),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
-                    Text("  • ${libEntries.find { it.first == uri }?.third ?: uri.lastPathSegment}", color = Gray40, style = MaterialTheme.typography.labelSmall, modifier = Modifier.weight(1f))
+                    Text(
+                        "  • ${libEntries.find { it.first == uri }?.third ?: uri.lastPathSegment}",
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        style = MaterialTheme.typography.labelSmall,
+                        modifier = Modifier.weight(1f),
+                    )
                     IconButton(onClick = { libEntries = libEntries.filter { it.first != uri } }, modifier = Modifier.size(20.dp)) {
-                        Icon(Icons.Filled.Close, contentDescription = "Remove", tint = Gray40, modifier = Modifier.size(14.dp))
+                        Icon(
+                            Icons.Filled.Close,
+                            contentDescription = "Remove",
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.size(14.dp),
+                        )
                     }
                 }
             }
         }
-        dupMsg?.let { Text(it, color = Accent, style = MaterialTheme.typography.bodySmall) }
+        dupMsg?.let {
+            Text(
+                it,
+                color = MaterialTheme.colorScheme.primary,
+                style = MaterialTheme.typography.bodySmall,
+            )
+        }
         Spacer(Modifier.height(8.dp))
-        cooldown?.let { Text(it, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall) }
-        error?.let { Text(it, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall) }
+        cooldown?.let {
+            Text(it, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
+        }
+        error?.let {
+            Text(it, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
+        }
         if (loading) {
             Spacer(Modifier.height(8.dp))
-            if (progressLabel.isNotBlank()) Text(progressLabel, color = Gray40, style = MaterialTheme.typography.bodySmall)
+            if (progressLabel.isNotBlank()) {
+                Text(
+                    progressLabel,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    style = MaterialTheme.typography.bodySmall,
+                )
+            }
             LinearProgressIndicator(progress = { progress }, modifier = Modifier.fillMaxWidth())
-            Text("${(progress * 100).toInt()}%", color = Gray40, style = MaterialTheme.typography.labelSmall)
+            Text(
+                "${(progress * 100).toInt()}%",
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                style = MaterialTheme.typography.labelSmall,
+            )
         }
-        Spacer(Modifier.height(16.dp))
+        Spacer(Modifier.height(20.dp))
+        StudioStepHeader("04", "PUBLISH", "Submit for review")
 
         Button(
             onClick = {

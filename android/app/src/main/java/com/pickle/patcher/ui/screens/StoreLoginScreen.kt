@@ -1,6 +1,8 @@
 package com.pickle.patcher.ui.screens
 
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -33,67 +35,82 @@ fun StoreLoginScreen(
     var error by remember { mutableStateOf<String?>(null) }
 
     Column(
-        Modifier.fillMaxSize().padding(24.dp),
+        Modifier
+            .fillMaxSize()
+            .verticalScroll(rememberScrollState())
+            .padding(24.dp),
         verticalArrangement = Arrangement.Center,
     ) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Icon(Icons.Filled.Login, contentDescription = null, tint = Accent, modifier = Modifier.size(24.dp))
-            Spacer(Modifier.width(8.dp))
-            Text("Login", style = MaterialTheme.typography.headlineMedium, color = Gray30)
-        }
-        Spacer(Modifier.height(24.dp))
-
-        OutlinedTextField(
-            value = email, onValueChange = { email = it },
-            label = { Text("Email or username") },
-            modifier = Modifier.fillMaxWidth(),
-            singleLine = true,
+        StudioHero(
+            icon = Icons.Filled.Login,
+            title = "Account Studio",
+            subtitle = "Sign in to publish and download.",
+            status = "LOGIN",
+            statusTone = StudioTone.Primary,
         )
-        Spacer(Modifier.height(12.dp))
-        OutlinedTextField(
-            value = password, onValueChange = { password = it },
-            label = { Text("Password") },
-            visualTransformation = PasswordVisualTransformation(),
-            modifier = Modifier.fillMaxWidth(),
-            singleLine = true,
-        )
-        Spacer(Modifier.height(8.dp))
-        error?.let { Text(it, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall) }
-        Spacer(Modifier.height(16.dp))
+        Spacer(Modifier.height(20.dp))
 
-        Button(
-            onClick = {
-                loading = true; error = null
-                scope.launch {
-                    api.login(email, password).fold(
-                        onSuccess = { json ->
-                            val t = json.optString("token")
-                            api.token = t
-                            val uname = json.optString("username")
-                            val role = json.optString("role", "user")
-                            val ev = json.optBoolean("emailVerified", false)
-                            loading = false
-                            com.pickle.patcher.data.StoreSession.save(context, t, uname, role, ev)
-                            if (ev) {
-                                onLoginSuccess()
-                            } else {
-                                onNeedsVerification(email)
-                            }
-                        },
-                        onFailure = { t ->
-                            error = t.message ?: "Login failed"
-                            loading = false
-                        },
-                    )
-                }
-            },
-            enabled = !loading && email.isNotBlank() && password.isNotBlank(),
-            modifier = Modifier.fillMaxWidth(),
-        ) {
-            if (loading) CircularProgressIndicator(Modifier.size(18.dp), strokeWidth = 2.dp)
-            else Text("Login")
+        AppCard {
+            OutlinedTextField(
+                value = email, onValueChange = { email = it },
+                label = { Text("Email or username") },
+                modifier = Modifier.fillMaxWidth(),
+                singleLine = true,
+            )
+            Spacer(Modifier.height(12.dp))
+            OutlinedTextField(
+                value = password, onValueChange = { password = it },
+                label = { Text("Password") },
+                visualTransformation = PasswordVisualTransformation(),
+                modifier = Modifier.fillMaxWidth(),
+                singleLine = true,
+            )
+            Spacer(Modifier.height(8.dp))
+            error?.let {
+                Text(
+                    it,
+                    color = MaterialTheme.colorScheme.error,
+                    style = MaterialTheme.typography.bodySmall,
+                )
+            }
+            Spacer(Modifier.height(16.dp))
+
+            Button(
+                onClick = {
+                    loading = true; error = null
+                    scope.launch {
+                        api.login(email, password).fold(
+                            onSuccess = { json ->
+                                val t = json.optString("token")
+                                api.token = t
+                                val uname = json.optString("username")
+                                val role = json.optString("role", "user")
+                                val ev = json.optBoolean("emailVerified", false)
+                                loading = false
+                                com.pickle.patcher.data.StoreSession.save(context, t, uname, role, ev)
+                                if (ev) {
+                                    onLoginSuccess()
+                                } else {
+                                    onNeedsVerification(email)
+                                }
+                            },
+                            onFailure = { t ->
+                                error = t.message ?: "Login failed"
+                                loading = false
+                            },
+                        )
+                    }
+                },
+                enabled = !loading && email.isNotBlank() && password.isNotBlank(),
+                modifier = Modifier.fillMaxWidth(),
+            ) {
+                if (loading) CircularProgressIndicator(Modifier.size(18.dp), strokeWidth = 2.dp)
+                else Text("Login")
+            }
+            Spacer(Modifier.height(8.dp))
+            TextButton(onClick = onRegister, modifier = Modifier.fillMaxWidth()) {
+                Text("No account? Register", color = MaterialTheme.colorScheme.primary)
+            }
         }
-        Spacer(Modifier.height(12.dp))
-        TextButton(onClick = onRegister) { Text("No account? Register", color = Accent) }
     }
 }
