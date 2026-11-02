@@ -113,27 +113,27 @@ fun PatchScreen(vm: PatcherViewModel) {
 
         Spacer(Modifier.height(24.dp))
 
-        SectionHeader("SOURCE APK")
+        StepHeader("01", "SOURCE APK", "Game client")
         SourceCard(vm)
 
         Spacer(Modifier.height(24.dp))
 
-        SectionHeader("MOD BUNDLE")
+        StepHeader("02", "MOD BUNDLE", "Target libraries")
         BundleCard(vm)
 
         Spacer(Modifier.height(20.dp))
 
-        SectionHeader("LIBS")
+        StepHeader("03", "LIBS", "Installed modules")
         LibListCard(vm)
 
         Spacer(Modifier.height(20.dp))
 
-        SectionHeader("CUSTOM LIBS")
+        StepHeader("04", "CUSTOM LIBS", "Optional overrides")
         CustomLibsCard(vm)
 
         Spacer(Modifier.height(24.dp))
 
-        SectionHeader("BUILD")
+        StepHeader("05", "BUILD", "Sign the output")
         PatchCard(vm)
 
         Spacer(Modifier.height(24.dp))
@@ -144,25 +144,45 @@ fun PatchScreen(vm: PatcherViewModel) {
 private fun PatchHero(vm: PatcherViewModel) {
     val source by vm.source.collectAsState()
     val bundle by vm.bundle.collectAsState()
-    val ready = source != null && (bundle is BundleState.Ready || bundle is BundleState.Loaded)
+    val libs by vm.libs.collectAsState()
+    val customLibs by vm.customLibs.collectAsState()
+
+    val sourceReady = source != null
+    val bundleReady = bundle is BundleState.Ready || bundle is BundleState.Loaded
+    val libsReady = libs.isNotEmpty() || customLibs.isNotEmpty()
+    val ready = sourceReady && bundleReady
 
     Surface(
         modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(28.dp),
+        shape = RoundedCornerShape(32.dp),
         color = MaterialTheme.colorScheme.surfaceContainerLow,
         tonalElevation = 1.dp,
     ) {
-        Column(modifier = Modifier.padding(20.dp)) {
+        Column(modifier = Modifier.padding(22.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
+                Surface(
+                    shape = RoundedCornerShape(18.dp),
+                    color = MaterialTheme.colorScheme.primary,
+                ) {
+                    Box(modifier = Modifier.size(54.dp), contentAlignment = Alignment.Center) {
+                        Icon(
+                            Icons.Filled.Bolt,
+                            contentDescription = null,
+                            modifier = Modifier.size(26.dp),
+                            tint = MaterialTheme.colorScheme.onPrimary,
+                        )
+                    }
+                }
+                Spacer(Modifier.width(14.dp))
                 Column(modifier = Modifier.weight(1f)) {
                     Text(
-                        "Nexora",
-                        style = MaterialTheme.typography.headlineMedium,
+                        "Patch Studio",
+                        style = MaterialTheme.typography.headlineSmall,
                         color = MaterialTheme.colorScheme.onSurface,
                     )
                     Spacer(Modifier.height(2.dp))
                     Text(
-                        "Patch workspace",
+                        "Nexora build pipeline",
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
@@ -187,13 +207,114 @@ private fun PatchHero(vm: PatcherViewModel) {
                     )
                 }
             }
-            Spacer(Modifier.height(14.dp))
+
+            Spacer(Modifier.height(16.dp))
             Text(
                 if (ready) {
-                    "Everything is loaded. Build a signed APK when you are ready."
+                    "Your workspace is ready. Review the steps and build a signed APK."
                 } else {
-                    "Download the client APK and a mod bundle to begin."
+                    "Complete the steps below to prepare a signed client APK."
                 },
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+
+            Spacer(Modifier.height(16.dp))
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                MiniStat(
+                    label = "CLIENT",
+                    value = if (sourceReady) "Ready" else "Missing",
+                    active = sourceReady,
+                    modifier = Modifier.weight(1f),
+                )
+                MiniStat(
+                    label = "BUNDLE",
+                    value = if (bundleReady) "Ready" else "Missing",
+                    active = bundleReady,
+                    modifier = Modifier.weight(1f),
+                )
+                MiniStat(
+                    label = "LIBS",
+                    value = if (libsReady) "${libs.size + customLibs.size}" else "None",
+                    active = libsReady,
+                    modifier = Modifier.weight(1f),
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun MiniStat(
+    label: String,
+    value: String,
+    active: Boolean,
+    modifier: Modifier = Modifier,
+) {
+    Surface(
+        modifier = modifier,
+        shape = RoundedCornerShape(16.dp),
+        color = if (active) {
+            MaterialTheme.colorScheme.primaryContainer
+        } else {
+            MaterialTheme.colorScheme.surfaceContainerHighest
+        },
+    ) {
+        Column(modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp)) {
+            Text(
+                label,
+                style = MaterialTheme.typography.labelSmall,
+                color = if (active) {
+                    MaterialTheme.colorScheme.onPrimaryContainer
+                } else {
+                    MaterialTheme.colorScheme.onSurfaceVariant
+                },
+            )
+            Spacer(Modifier.height(2.dp))
+            Text(
+                value,
+                style = MaterialTheme.typography.labelLarge,
+                color = if (active) {
+                    MaterialTheme.colorScheme.onPrimaryContainer
+                } else {
+                    MaterialTheme.colorScheme.onSurfaceVariant
+                },
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+        }
+    }
+}
+
+@Composable
+private fun StepHeader(step: String, title: String, caption: String) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(bottom = 10.dp, top = 2.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Surface(
+            shape = CircleShape,
+            color = MaterialTheme.colorScheme.secondaryContainer,
+        ) {
+            Box(modifier = Modifier.size(30.dp), contentAlignment = Alignment.Center) {
+                Text(
+                    step,
+                    style = MaterialTheme.typography.labelMedium,
+                    color = MaterialTheme.colorScheme.onSecondaryContainer,
+                )
+            }
+        }
+        Spacer(Modifier.width(10.dp))
+        Column {
+            Text(
+                title,
+                style = MaterialTheme.typography.titleSmall,
+                color = MaterialTheme.colorScheme.onSurface,
+            )
+            Text(
+                caption,
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
@@ -566,7 +687,7 @@ private fun LibListCard(vm: PatcherViewModel) {
             Text(
                 if (libs.isEmpty()) "Local libs" else "${libs.size} local libs",
                 style = MaterialTheme.typography.titleSmall,
-                color = Gray40,
+                color = MaterialTheme.colorScheme.onSurface,
             )
             GhostButton(
                 text = if (checking) "Checking…" else "Check updates",

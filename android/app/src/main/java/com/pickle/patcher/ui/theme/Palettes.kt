@@ -40,6 +40,21 @@ private val WHITE = Color(0xFFFFFFFF)
  */
 fun schemeFor(p: Palette, dark: Boolean): ColorScheme = if (dark) darkOf(p) else lightOf(p)
 
+/**
+ * Lifts a dark scheme away from pure black and tints it with its own primary,
+ * so Material You's wallpaper-derived near-black surfaces do not read as an
+ * AMOLED void. Containers are lifted a little more than the background.
+ */
+fun softenDarkScheme(scheme: ColorScheme): ColorScheme = scheme.copy(
+    background = mix(scheme.background, scheme.primary, 0.16f),
+    surface = mix(scheme.surface, scheme.primary, 0.14f),
+    surfaceContainerLowest = mix(scheme.surfaceContainerLowest, scheme.primary, 0.12f),
+    surfaceContainerLow = mix(scheme.surfaceContainerLow, scheme.primary, 0.14f),
+    surfaceContainer = mix(scheme.surfaceContainer, scheme.primary, 0.16f),
+    surfaceContainerHigh = mix(scheme.surfaceContainerHigh, scheme.primary, 0.18f),
+    surfaceContainerHighest = mix(scheme.surfaceContainerHighest, scheme.primary, 0.20f),
+)
+
 private fun darkOf(p: Palette): ColorScheme {
     val accent = mix(p.primary, WHITE, 0.30f)
     val secondary = mix(p.secondary, WHITE, 0.30f)
@@ -58,17 +73,17 @@ private fun darkOf(p: Palette): ColorScheme {
         onTertiary = mix(p.tertiary, BLACK, 0.82f),
         tertiaryContainer = mix(p.tertiary, BLACK, 0.60f),
         onTertiaryContainer = mix(p.tertiary, WHITE, 0.88f),
-        background = mix(p.primary, BLACK, 0.90f),
+        background = mix(p.primary, BLACK, 0.80f),
         onBackground = mix(p.primary, WHITE, 0.95f),
-        surface = mix(p.primary, BLACK, 0.87f),
+        surface = mix(p.primary, BLACK, 0.77f),
         onSurface = mix(p.primary, WHITE, 0.95f),
-        surfaceVariant = mix(p.secondary, BLACK, 0.80f),
-        onSurfaceVariant = mix(p.primary, WHITE, 0.68f),
-        surfaceContainerLowest = mix(p.primary, BLACK, 0.94f),
-        surfaceContainerLow = mix(p.primary, BLACK, 0.89f),
-        surfaceContainer = mix(p.primary, BLACK, 0.86f),
-        surfaceContainerHigh = mix(p.primary, BLACK, 0.82f),
-        surfaceContainerHighest = mix(p.primary, BLACK, 0.77f),
+        surfaceVariant = mix(p.secondary, BLACK, 0.72f),
+        onSurfaceVariant = mix(p.primary, WHITE, 0.72f),
+        surfaceContainerLowest = mix(p.primary, BLACK, 0.84f),
+        surfaceContainerLow = mix(p.primary, BLACK, 0.79f),
+        surfaceContainer = mix(p.primary, BLACK, 0.76f),
+        surfaceContainerHigh = mix(p.primary, BLACK, 0.72f),
+        surfaceContainerHighest = mix(p.primary, BLACK, 0.67f),
         outline = mix(p.primary, WHITE, 0.42f),
         outlineVariant = mix(p.primary, WHITE, 0.24f),
         error = AlertRed,

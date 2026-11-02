@@ -41,7 +41,7 @@ fun NexoraTheme(
 
     val context = LocalContext.current
     val colorScheme = if (choice.themeId == "dynamic" && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-        if (dark) dynamicDarkColorScheme(context) else dynamicLightColorScheme(context)
+        if (dark) softenDarkScheme(dynamicDarkColorScheme(context)) else dynamicLightColorScheme(context)
     } else {
         schemeFor(choice.palette, dark)
     }
