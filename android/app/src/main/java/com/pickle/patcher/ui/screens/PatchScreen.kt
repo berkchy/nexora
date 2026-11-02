@@ -105,34 +105,99 @@ fun PatchScreen(vm: PatcherViewModel) {
         modifier = Modifier
             .fillMaxSize()
             .verticalScroll(scroll)
-            .padding(horizontal = 16.dp, vertical = 12.dp),
+            .padding(horizontal = 20.dp, vertical = 16.dp),
     ) {
         Spacer(Modifier.height(4.dp))
+
+        PatchHero(vm)
+
+        Spacer(Modifier.height(24.dp))
 
         SectionHeader("SOURCE APK")
         SourceCard(vm)
 
-        Spacer(Modifier.height(16.dp))
+        Spacer(Modifier.height(24.dp))
 
         SectionHeader("MOD BUNDLE")
         BundleCard(vm)
 
-        Spacer(Modifier.height(12.dp))
+        Spacer(Modifier.height(20.dp))
 
         SectionHeader("LIBS")
         LibListCard(vm)
 
-        Spacer(Modifier.height(12.dp))
+        Spacer(Modifier.height(20.dp))
 
         SectionHeader("CUSTOM LIBS")
         CustomLibsCard(vm)
 
-        Spacer(Modifier.height(16.dp))
+        Spacer(Modifier.height(24.dp))
 
         SectionHeader("BUILD")
         PatchCard(vm)
 
-        Spacer(Modifier.height(16.dp))
+        Spacer(Modifier.height(24.dp))
+    }
+}
+
+@Composable
+private fun PatchHero(vm: PatcherViewModel) {
+    val source by vm.source.collectAsState()
+    val bundle by vm.bundle.collectAsState()
+    val ready = source != null && (bundle is BundleState.Ready || bundle is BundleState.Loaded)
+
+    Surface(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(28.dp),
+        color = MaterialTheme.colorScheme.surfaceContainerLow,
+        tonalElevation = 1.dp,
+    ) {
+        Column(modifier = Modifier.padding(20.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        "Nexora",
+                        style = MaterialTheme.typography.headlineMedium,
+                        color = MaterialTheme.colorScheme.onSurface,
+                    )
+                    Spacer(Modifier.height(2.dp))
+                    Text(
+                        "Patch workspace",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+                Surface(
+                    shape = CircleShape,
+                    color = if (ready) {
+                        MaterialTheme.colorScheme.primaryContainer
+                    } else {
+                        MaterialTheme.colorScheme.surfaceContainerHighest
+                    },
+                ) {
+                    Text(
+                        if (ready) "READY" else "SETUP",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = if (ready) {
+                            MaterialTheme.colorScheme.onPrimaryContainer
+                        } else {
+                            MaterialTheme.colorScheme.onSurfaceVariant
+                        },
+                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 7.dp),
+                    )
+                }
+            }
+            Spacer(Modifier.height(14.dp))
+            Text(
+                if (ready) {
+                    "Everything is loaded. Build a signed APK when you are ready."
+                } else {
+                    "Download the client APK and a mod bundle to begin."
+                },
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
     }
 }
 
@@ -155,40 +220,48 @@ private fun SourceCard(vm: PatcherViewModel) {
     LaunchedEffect(Unit) { vm.refreshSourceApkStatus() }
 
     AppCard {
-        if (source != null) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Surface(
-                    shape = RoundedCornerShape(8.dp),
-                    color = Accent.copy(alpha = 0.12f),
-                ) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Surface(
+                shape = RoundedCornerShape(18.dp),
+                color = if (source != null) {
+                    MaterialTheme.colorScheme.primaryContainer
+                } else {
+                    MaterialTheme.colorScheme.surfaceContainerHighest
+                },
+            ) {
+                Box(modifier = Modifier.size(56.dp), contentAlignment = Alignment.Center) {
                     Icon(
                         Icons.Filled.InstallDesktop,
                         contentDescription = null,
-                        modifier = Modifier.padding(8.dp).size(18.dp),
-                        tint = Accent,
-                    )
-                }
-                Spacer(Modifier.width(10.dp))
-                Column(modifier = Modifier.weight(1f)) {
-                    Text(
-                        source!!.name,
-                        style = MaterialTheme.typography.titleSmall,
-                        maxLines = 2,
-                        overflow = TextOverflow.Ellipsis,
-                    )
-                    Text(
-                        "${source!!.sizeBytes.mb()}  ·  ${source!!.entryCount} entries",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = Gray40,
+                        modifier = Modifier.size(26.dp),
+                        tint = if (source != null) {
+                            MaterialTheme.colorScheme.onPrimaryContainer
+                        } else {
+                            MaterialTheme.colorScheme.onSurfaceVariant
+                        },
                     )
                 }
             }
-        } else {
-            Text(
-                "No client APK yet.",
-                style = MaterialTheme.typography.bodyMedium,
-                color = Gray40,
-            )
+            Spacer(Modifier.width(14.dp))
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    source?.name ?: "No client APK yet",
+                    style = MaterialTheme.typography.titleMedium,
+                    color = MaterialTheme.colorScheme.onSurface,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis,
+                )
+                Spacer(Modifier.height(2.dp))
+                Text(
+                    if (source != null) {
+                        "${source!!.sizeBytes.mb()}  ·  ${source!!.entryCount} entries"
+                    } else {
+                        "Download the game client from GitHub to start."
+                    },
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
         }
 
         Spacer(Modifier.height(12.dp))
@@ -269,20 +342,31 @@ private fun BundleCard(vm: PatcherViewModel) {
         // Read-only: the device architecture picks the ABI, there is nothing to
         // choose. The status line still shows what that means for the bundle.
         val target = abiStatus.firstOrNull { it.selected }
-        Column {
-            Text(
-                "Target",
-                style = MaterialTheme.typography.titleSmall,
-                color = Gray40,
-            )
-            Spacer(Modifier.height(6.dp))
-            Text(
-                "${displayAbi(target?.abi ?: vm.isDeviceAbi)} · " +
-                    if (target?.abi == "arm64-v8a") "64-bit" else "32-bit",
-                style = MaterialTheme.typography.titleSmall,
-                color = Gray30,
-            )
-            Spacer(Modifier.height(2.dp))
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Surface(
+                shape = RoundedCornerShape(12.dp),
+                color = MaterialTheme.colorScheme.secondaryContainer,
+            ) {
+                Row(
+                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Icon(
+                        Icons.Filled.PhoneAndroid,
+                        contentDescription = null,
+                        modifier = Modifier.size(16.dp),
+                        tint = MaterialTheme.colorScheme.onSecondaryContainer,
+                    )
+                    Spacer(Modifier.width(6.dp))
+                    Text(
+                        "${displayAbi(target?.abi ?: vm.isDeviceAbi)} · " +
+                            if (target?.abi == "arm64-v8a") "64-bit" else "32-bit",
+                        style = MaterialTheme.typography.labelLarge,
+                        color = MaterialTheme.colorScheme.onSecondaryContainer,
+                    )
+                }
+            }
+            Spacer(Modifier.width(12.dp))
             Text(
                 when {
                     target == null || !target.inSource -> "Waiting for the client APK"
@@ -290,7 +374,7 @@ private fun BundleCard(vm: PatcherViewModel) {
                     else -> "No libraries yet"
                 },
                 style = MaterialTheme.typography.bodySmall,
-                color = Gray40,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
         }
 
@@ -411,7 +495,7 @@ private fun CustomLibsCard(vm: PatcherViewModel) {
             Text(
                 if (customLibs.isEmpty()) "Custom libs" else "${customLibs.size} custom lib(s)",
                 style = MaterialTheme.typography.titleSmall,
-                color = Gray40,
+                color = MaterialTheme.colorScheme.onSurface,
             )
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 GhostButton(text = "Releases", onClick = {
@@ -433,8 +517,8 @@ private fun CustomLibsCard(vm: PatcherViewModel) {
                 customLibs.forEach { lib ->
                     val isStale = lib in stale
                     Surface(
-                        shape = RoundedCornerShape(8.dp),
-                        color = MaterialTheme.colorScheme.surfaceContainerHigh,
+                        shape = RoundedCornerShape(14.dp),
+                        color = MaterialTheme.colorScheme.surfaceContainerHighest,
                         modifier = Modifier.fillMaxWidth(),
                     ) {
                         Row(
@@ -618,6 +702,18 @@ private fun PatchCard(vm: PatcherViewModel) {
     AppCard {
         when (val s = state) {
             is PatchUiState.Idle -> {
+                Text(
+                    "Ready to build",
+                    style = MaterialTheme.typography.titleMedium,
+                    color = MaterialTheme.colorScheme.onSurface,
+                )
+                Spacer(Modifier.height(4.dp))
+                Text(
+                    "Inject the selected libraries, align the archive and sign the APK.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                Spacer(Modifier.height(14.dp))
                 PrimaryButton(
                     text = "Patch & Sign APK",
                     onClick = { showComponents = true },
@@ -629,7 +725,7 @@ private fun PatchCard(vm: PatcherViewModel) {
                     Text(
                         "Select an APK and load a bundle to continue.",
                         style = MaterialTheme.typography.bodySmall,
-                        color = Gray40,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                 }
             }
@@ -1084,10 +1180,10 @@ private fun PatchResult(
     ) {
         Column {
             Surface(
-                shape = RoundedCornerShape(8.dp),
-                color = SuccessGreen.copy(alpha = 0.08f),
+                shape = RoundedCornerShape(16.dp),
+                color = SuccessGreen.copy(alpha = 0.12f),
             ) {
-                Column(modifier = Modifier.fillMaxWidth().padding(12.dp)) {
+                Column(modifier = Modifier.fillMaxWidth().padding(14.dp)) {
                     Text("Patch Complete", style = MaterialTheme.typography.titleMedium, color = SuccessGreen)
                     Spacer(Modifier.height(4.dp))
                     val v = report.verification
