@@ -30,6 +30,18 @@ jobs:
         with:
           submodules: recursive
 
+      - name: Fetch cs16-client
+        shell: bash
+        run: |
+          PIN=$(tr -d '[:space:]' < cs16-client.pin)
+          [ -n "$PIN" ] || { echo "::error::cs16-client.pin is empty"; exit 1; }
+          git clone "$CS16_CLIENT_URL" cs16-client
+          git -C cs16-client fetch origin "$PIN" 2>/dev/null || git -C cs16-client fetch origin
+          git -C cs16-client checkout "$PIN"
+          git -C cs16-client submodule update --init --recursive
+          GOT=$(git -C cs16-client rev-parse HEAD)
+          [ "$GOT" = "$PIN" ] || { echo "::error::cs16-client is $GOT, pin says $PIN"; exit 1; }
+
       # cs16-client is a plain directory, not a submodule, so `submodules: recursive`
       # does not fetch it and `git diff` cannot see it change. cs16-client.pin
       # holds the commit to build and takes that role: changing it is what makes
