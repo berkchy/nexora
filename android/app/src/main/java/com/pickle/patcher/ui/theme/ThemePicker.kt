@@ -1,7 +1,7 @@
 package com.pickle.patcher.ui.theme
 
-import androidx.compose.foundation.background
-import androidx.compose.foundation.border
+import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.backgroundimport androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
@@ -36,6 +36,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.unit.dp
 
 /** Which of the three wells a candidate colour will land in. */
@@ -186,11 +187,7 @@ private fun ThemeSwatch(
                 .clickable(onClick = onClick),
             contentAlignment = Alignment.Center,
         ) {
-            Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                SwatchDot(colors.first)
-                SwatchDot(colors.second)
-                SwatchDot(colors.third)
-            }
+            PaletteCircle(colors = colors, modifier = Modifier.size(30.dp))
             if (selected) {
                 Icon(
                     Icons.Filled.Check,
@@ -205,6 +202,16 @@ private fun ThemeSwatch(
         }
         Spacer(Modifier.height(4.dp))
         Text(label, style = MaterialTheme.typography.labelSmall)
+    }
+}
+
+@Composable
+private fun PaletteCircle(colors: Triple<Color, Color, Color>, modifier: Modifier = Modifier) {
+    Canvas(modifier = modifier.clip(CircleShape)) {
+        val sweep = 120f
+        drawArc(colors.first, startAngle = -90f, sweepAngle = sweep, useCenter = true)
+        drawArc(colors.second, startAngle = 30f, sweepAngle = sweep, useCenter = true)
+        drawArc(colors.third, startAngle = 150f, sweepAngle = sweep, useCenter = true)
     }
 }
 

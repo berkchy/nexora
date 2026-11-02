@@ -52,17 +52,17 @@ import com.pickle.patcher.ui.theme.Gray70
 import com.pickle.patcher.ui.theme.Gray85
 import com.pickle.patcher.ui.theme.Gray99
 
-private val CardShape = RoundedCornerShape(16.dp)
-private val ButtonShape = RoundedCornerShape(14.dp)
+private val CardShape = RoundedCornerShape(20.dp)
+private val ButtonShape = RoundedCornerShape(12.dp)
 
 
 @Composable
 fun SectionHeader(text: String, modifier: Modifier = Modifier) {
     Text(
         text = text,
-        style = MaterialTheme.typography.labelLarge,
+        style = MaterialTheme.typography.titleSmall,
         color = MaterialTheme.colorScheme.onSurfaceVariant,
-        modifier = modifier.padding(bottom = 8.dp),
+        modifier = modifier.padding(bottom = 10.dp, top = 4.dp),
     )
 }
 
@@ -75,9 +75,10 @@ fun AppCard(
         modifier = modifier.fillMaxWidth(),
         shape = CardShape,
         color = MaterialTheme.colorScheme.surfaceContainerHigh,
-        tonalElevation = 1.dp,
+        tonalElevation = 2.dp,
+        shadowElevation = 1.dp,
     ) {
-        Column(modifier = Modifier.padding(16.dp)) {
+        Column(modifier = Modifier.padding(18.dp)) {
             content()
         }
     }
