@@ -11,7 +11,7 @@ permissions:
   contents: write
 
 env:
-  CS16_CLIENT_URL: https://github.com/Velaron/cs16-client.git
+  CS16_CLIENT_URL: https://github.com/berkchy/cs16-client.git
 
 jobs:
   build-client:

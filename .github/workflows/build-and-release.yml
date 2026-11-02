@@ -16,7 +16,7 @@ permissions:
 env:
   BUNDLE_VERSION: ${{ github.event.inputs.version || github.ref_name || '1.10.0' }}
   ANDROID_DIR: android
-  CS16_CLIENT_URL: https://github.com/Velaron/cs16-client.git
+  CS16_CLIENT_URL: https://github.com/berkchy/cs16-client.git
 
 # NOTE: intentionally a SINGLE job. The old 3-job layout passed ~200 MB
 # through Actions artifacts on every tag and hit the repo artifact quota.
