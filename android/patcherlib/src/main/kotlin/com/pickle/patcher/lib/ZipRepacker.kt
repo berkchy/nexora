@@ -5,6 +5,8 @@ import java.io.IOException
 import java.io.RandomAccessFile
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
+import java.util.concurrent.Callable
+import java.util.concurrent.Executors
 import java.util.zip.CRC32
 import java.util.zip.Deflater
 
@@ -91,6 +93,7 @@ object ZipRepacker {
         extraAssetsZip: File? = null,
         progress: ((Long, Long) -> Unit)? = null,
         onEntry: ((index: Int, total: Int, name: String, kind: String) -> Unit)? = null,
+        workers: Int = 1,
     ): Result {
         val src = ZipRaw.open(source) ?: throw IOException("Source APK could not be parsed")
         val srcLen = source.length()
@@ -284,11 +287,12 @@ object ZipRepacker {
 
                 // add bundle entries
                 val added = ArrayList<String>()
-                for (be in bundle.manifest.entries) {
-                    onEntry?.invoke(done, total, be.target, "add")
-                    var content = bundle.resolveEntry(be) ?: continue
-                    val stored = be.method == BundleManifest.Compression.STORED
-                    added.add(be.target)
+                val bundleItems = bundle.manifest.entries.mapNotNull { be ->
+                    bundle.resolveEntry(be)?.let { be to it }
+                }
+                val preparedBundle = parallelMap(bundleItems, workers) { (be, raw) ->
+                    var content = raw
+                    var patched = false
 
                     // a bundled libcs replaces the base entry (removed above); it still
                     // needs the weapon-slot guard, so apply it here too (fail-safe).
@@ -296,28 +300,32 @@ object ZipRepacker {
                         val guarded = patchLibCs(content)
                         if (guarded != null) {
                             content = guarded
-                            patchedLibs.add(be.target)
+                            patched = true
                         }
                     }
 
-                    if (stored) {
-                        val crc = crc32(content)
-                        writeLocalHeader(be.target, 0, content.size.toLong(), content.size.toLong(), crc, content)
+                    val stored = be.method == BundleManifest.Compression.STORED
+                    PreparedBundleEntry(
+                        target = be.target,
+                        content = content,
+                        compressed = if (stored) null else deflate(content),
+                        stored = stored,
+                        patched = patched,
+                    )
+                }
+
+                for (entry in preparedBundle) {
+                    onEntry?.invoke(done, total, entry.target, "add")
+                    added.add(entry.target)
+                    if (entry.patched)
+                        patchedLibs.add(entry.target)
+
+                    if (entry.stored) {
+                        val crc = crc32(entry.content)
+                        writeLocalHeader(entry.target, 0, entry.content.size.toLong(), entry.content.size.toLong(), crc, entry.content)
                     } else {
-                        val out = java.io.ByteArrayOutputStream()
-                        val def = Deflater(9, true)
-                        val inp = java.io.ByteArrayInputStream(content)
-                        val buf = ByteArray(8192)
-                        def.setInput(content)
-                        def.finish()
-                        val chunk = ByteArray(8192)
-                        while (!def.finished()) {
-                            val n = def.deflate(chunk)
-                            out.write(chunk, 0, n)
-                        }
-                        def.end()
-                        val compressed = out.toByteArray()
-                        writeLocalHeader(be.target, 8, compressed.size.toLong(), content.size.toLong(), crc32(content), compressed)
+                        val compressed = entry.compressed ?: deflate(entry.content)
+                        writeLocalHeader(entry.target, 8, compressed.size.toLong(), entry.content.size.toLong(), crc32(entry.content), compressed)
                     }
                     done++
                     progress?.invoke(bytesWritten, srcLen)
@@ -336,44 +344,53 @@ object ZipRepacker {
                 // with a blank menu.
                 val addedAssets = ArrayList<String>()
                 if (extraAssetsZip != null && extraAssetsZip.isFile) {
-                    java.util.zip.ZipFile(extraAssetsZip).use { zf ->
-                        val zEntries = zf.entries().asSequence().toList()
-                        for ((zi, ze) in zEntries.withIndex()) {
-                            if (ze.isDirectory || ze.name.isBlank()) continue
+                    val assetNames = java.util.zip.ZipFile(extraAssetsZip).use { zf ->
+                        zf.entries().asSequence()
+                            .filter { !it.isDirectory && it.name.isNotBlank() }
                             // Defensive: a zip that escapes assets/ would let a
                             // crafted archive overwrite the manifest or a lib.
-                            if (ze.name.contains("..") || ze.name.startsWith("/")) continue
-                            val target = "assets/${ze.name}"
-                            if (target in bundleTargets) continue
-                            onEntry?.invoke(done, done + zEntries.size, target, "asset")
-                            val content = zf.getInputStream(ze).use { it.readBytes() }
-
-                            val out2 = java.io.ByteArrayOutputStream()
-                            val def2 = Deflater(9, true)
-                            def2.setInput(content)
-                            def2.finish()
-                            val chunk2 = ByteArray(8192)
-                            while (!def2.finished()) {
-                                val n = def2.deflate(chunk2)
-                                out2.write(chunk2, 0, n)
+                            .filter { !it.name.contains("..") && !it.name.startsWith("/") }
+                            .map { it.name }
+                            .filter { "assets/${it}" !in bundleTargets }
+                            .toList()
+                    }
+                    val chunkSize = workers.coerceAtLeast(1)
+                    var assetIndex = 0
+                    while (assetIndex < assetNames.size) {
+                        val chunkEnd = minOf(assetIndex + chunkSize, assetNames.size)
+                        val names = assetNames.subList(assetIndex, chunkEnd)
+                        val contents = java.util.zip.ZipFile(extraAssetsZip).use { zf ->
+                            names.mapNotNull { name ->
+                                val ze = zf.getEntry(name) ?: return@mapNotNull null
+                                if (ze.isDirectory) return@mapNotNull null
+                                name to zf.getInputStream(ze).use { it.readBytes() }
                             }
-                            def2.end()
-                            val compressed2 = out2.toByteArray()
+                        }
+                        val preparedAssets = parallelMap(contents, workers) { (name, content) ->
+                            PreparedAssetEntry(
+                                target = "assets/$name",
+                                content = content,
+                                compressed = deflate(content),
+                            )
+                        }
+                        for (asset in preparedAssets) {
+                            onEntry?.invoke(done, done + assetNames.size, asset.target, "asset")
                             // Assets are deflated, not stored: aapt already
                             // compresses them that way in a normal build, and
                             // the 26 MB tree would otherwise land uncompressed.
                             writeLocalHeader(
-                                name = target,
+                                name = asset.target,
                                 method = 8,
-                                compressedSize = compressed2.size.toLong(),
-                                uncompressedSize = content.size.toLong(),
-                                crc = crc32(content),
-                                data = compressed2,
+                                compressedSize = asset.compressed.size.toLong(),
+                                uncompressedSize = asset.content.size.toLong(),
+                                crc = crc32(asset.content),
+                                data = asset.compressed,
                             )
-                            addedAssets.add(target)
+                            addedAssets.add(asset.target)
                             done++
                             progress?.invoke(bytesWritten, srcLen)
                         }
+                        assetIndex = chunkEnd
                     }
                 }
 
@@ -486,11 +503,57 @@ object ZipRepacker {
         return true
     }
 
+    private fun deflate(data: ByteArray): ByteArray {
+        val out = java.io.ByteArrayOutputStream()
+        val def = Deflater(9, true)
+        try {
+            def.setInput(data)
+            def.finish()
+            val chunk = ByteArray(8192)
+            while (!def.finished()) {
+                val n = def.deflate(chunk)
+                out.write(chunk, 0, n)
+            }
+        } finally {
+            def.end()
+        }
+        return out.toByteArray()
+    }
+
+    private fun <T, R> parallelMap(
+        items: List<T>,
+        workers: Int,
+        transform: (T) -> R,
+    ): List<R> {
+        if (workers <= 1 || items.size <= 1) return items.map(transform)
+        val pool = Executors.newFixedThreadPool(minOf(workers, items.size))
+        try {
+            val futures = items.map { item -> pool.submit(Callable { transform(item) }) }
+            return futures.map { it.get() }
+        } finally {
+            pool.shutdown()
+        }
+    }
+
     private fun crc32(data: ByteArray): Long {
         val c = CRC32()
         c.update(data)
         return c.value
     }
+
+    private data class PreparedBundleEntry(
+        val target: String,
+        val content: ByteArray,
+        val compressed: ByteArray?,
+        val stored: Boolean,
+        val patched: Boolean,
+    )
+
+    private data class PreparedAssetEntry(
+        val target: String,
+        val content: ByteArray,
+        val compressed: ByteArray,
+    )
 
     private data class CdRecord(
         val name: String,

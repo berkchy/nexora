@@ -327,15 +327,24 @@ class PatcherViewModel(app: Application) : AndroidViewModel(app) {
         getApplication<Application>().getSharedPreferences("compiler_prefs", Context.MODE_PRIVATE)
     }
 
+    private val patcherPrefs by lazy {
+        getApplication<Application>().getSharedPreferences("patcher_prefs", Context.MODE_PRIVATE)
+    }
+
     // How many amxxpc processes may run at once. Defaults to every core but one
     // so the UI and the game keep a core, and is clamped on read because the
     // device may have fewer cores than when the setting was saved.
     private val _compileWorkers = MutableStateFlow(0)
     val compileWorkers: StateFlow<Int> = _compileWorkers.asStateFlow()
 
+    private val _patchWorkers = MutableStateFlow(0)
+    val patchWorkers: StateFlow<Int> = _patchWorkers.asStateFlow()
+
     init {
         val saved = compilerPrefs.getInt("compile_workers", 0)
         _compileWorkers.value = if (saved > 0) saved.coerceIn(1, maxCompileWorkers()) else maxCompileWorkers()
+        val savedPatch = patcherPrefs.getInt("patch_workers", 0)
+        _patchWorkers.value = if (savedPatch > 0) savedPatch.coerceIn(1, maxPatchWorkers()) else maxPatchWorkers()
     }
 
     /** Upper bound for the worker slider: never more than the usable cores. */
@@ -351,6 +360,18 @@ class PatcherViewModel(app: Application) : AndroidViewModel(app) {
         if (clamped == _compileWorkers.value) return
         _compileWorkers.value = clamped
         compilerPrefs.edit().putInt("compile_workers", clamped).apply()
+    }
+
+    fun maxPatchWorkers(): Int = Runtime.getRuntime().availableProcessors().coerceAtLeast(2)
+
+    fun effectivePatchWorkers(): Int =
+        _patchWorkers.value.coerceIn(1, maxPatchWorkers())
+
+    fun setPatchWorkers(count: Int) {
+        val clamped = count.coerceIn(1, maxPatchWorkers())
+        if (clamped == _patchWorkers.value) return
+        _patchWorkers.value = clamped
+        patcherPrefs.edit().putInt("patch_workers", clamped).apply()
     }
 
     // Declared before init: useCachedBundle() runs synchronously in init and
@@ -1764,6 +1785,7 @@ private fun externalRoot(app: Application): File {
                         src, out, finalBundle, keystore,
                         keepAbi = selAbi,
                         assetsZip = assetsZip,
+                        workers = effectivePatchWorkers(),
                     ),
                     onProgress = { tick ->
                         val prev = _patch.value as? PatchUiState.Running
@@ -1852,32 +1874,37 @@ private fun externalRoot(app: Application): File {
         _pendingInstall.value = null
     }
 
+    private val _pendingUninstall = MutableStateFlow<Intent?>(null)
+    val pendingUninstall: StateFlow<Intent?> = _pendingUninstall.asStateFlow()
+
+    fun consumePendingUninstall() {
+        _pendingUninstall.value = null
+    }
+
+    private fun isTargetInstalled(pkg: String): Boolean = runCatching {
+        app.packageManager.getPackageInfo(pkg, 0)
+        true
+    }.getOrDefault(false)
+
     fun requestInstall() {
-        val targetInstalled = try {
-            app.packageManager.getPackageInfo("su.xash.cs16client.nexora", 0)
-            true
-        } catch (_: Exception) { false }
-        if (targetInstalled) {
-            val target = "su.xash.cs16client.nexora"
-            runCatching {
-                app.startActivity(
-                    Intent(Intent.ACTION_DELETE, android.net.Uri.parse("package:$target"))
-                        .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                )
-            }
-            viewModelScope.launch(kotlinx.coroutines.Dispatchers.Main) {
-                kotlinx.coroutines.delay(1000)
-                val out = outputApk()
-                if (out != null && out.exists() && lastReport != null) {
-                    _pendingInstall.value = installIntentFor(out)
-                } else {
-                    installAfterPatch = true
-                    startPatch()
-                }
-            }
+        val target = "su.xash.cs16client.nexora"
+        if (isTargetInstalled(target)) {
+            _pendingUninstall.value =
+                Intent(Intent.ACTION_DELETE, android.net.Uri.parse("package:$target"))
             return
         }
         _pendingInstall.value = installIntent()
+    }
+
+    fun onUninstallFinished() {
+        if (isTargetInstalled("su.xash.cs16client.nexora")) return
+        val out = outputApk()
+        if (out != null && out.exists() && lastReport != null) {
+            _pendingInstall.value = installIntentFor(out)
+        } else {
+            installAfterPatch = true
+            startPatch()
+        }
     }
 
     /** Set when a patch was started only so the install could follow it. */

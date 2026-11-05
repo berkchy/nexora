@@ -2,8 +2,10 @@ package com.pickle.patcher
 
 import android.os.Bundle
 import androidx.activity.ComponentActivity
+import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedContentTransitionScope
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
@@ -181,6 +183,19 @@ fun PatcherApp(vm: PatcherViewModel, drawerWidthController: DrawerWidthControlle
         pendingInstall?.let {
             context.startActivity(it)
             vm.consumePendingInstall()
+        }
+    }
+
+    val uninstallLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.StartActivityForResult(),
+    ) {
+        vm.onUninstallFinished()
+    }
+    val pendingUninstall by vm.pendingUninstall.collectAsState()
+    androidx.compose.runtime.LaunchedEffect(pendingUninstall) {
+        pendingUninstall?.let {
+            uninstallLauncher.launch(it)
+            vm.consumePendingUninstall()
         }
     }
 

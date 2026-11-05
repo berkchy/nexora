@@ -18,7 +18,6 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Settings
-import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Slider
 import androidx.compose.material3.Surface
@@ -35,9 +34,6 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import com.pickle.patcher.patcher.PatcherViewModel
 import com.pickle.patcher.ui.DrawerWidthController
-import com.pickle.patcher.ui.theme.Accent
-import com.pickle.patcher.ui.theme.AlertRed
-import com.pickle.patcher.ui.theme.Gray40
 
 /**
  * Everything the app can be tuned with, kept out of the three task screens so
@@ -51,8 +47,10 @@ import com.pickle.patcher.ui.theme.Gray40
 fun SettingsScreen(vm: PatcherViewModel, drawerWidthController: DrawerWidthController) {
     val context = LocalContext.current
     val workers by vm.compileWorkers.collectAsState()
+    val patchWorkers by vm.patchWorkers.collectAsState()
     val drawerWidth by drawerWidthController.fraction.collectAsState()
     val maxWorkers = vm.maxCompileWorkers()
+    val maxPatchWorkers = vm.maxPatchWorkers()
     val scriptRoot by vm.scriptRoot.collectAsState()
     val outputRoot by vm.outputRoot.collectAsState()
 
@@ -101,7 +99,7 @@ fun SettingsScreen(vm: PatcherViewModel, drawerWidthController: DrawerWidthContr
         StudioHero(
             icon = Icons.Filled.Settings,
             title = "Settings Studio",
-            subtitle = "Tune the compiler, folders, and navigation.",
+            subtitle = "Tune the compiler, patcher, folders, and navigation.",
             status = "SYSTEM",
             statusTone = StudioTone.Secondary,
         )
@@ -147,7 +145,42 @@ fun SettingsScreen(vm: PatcherViewModel, drawerWidthController: DrawerWidthContr
 
         Spacer(Modifier.height(20.dp))
 
-        StudioStepHeader("02", "FOLDERS", "Scripts and compiler output")
+        StudioStepHeader("02", "PATCHER", "Parallel APK workers")
+        AppCard {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = androidx.compose.foundation.layout.Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Text(
+                    "Compress at once",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurface,
+                )
+                Text(
+                    "$patchWorkers",
+                    style = MaterialTheme.typography.titleMedium,
+                    color = MaterialTheme.colorScheme.primary,
+                )
+            }
+            Spacer(Modifier.height(2.dp))
+            Text(
+                "How many APK entries are compressed at the same time. Higher is " +
+                    "faster but uses more memory and heats the device.",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            Slider(
+                value = patchWorkers.toFloat(),
+                onValueChange = { vm.setPatchWorkers(it.toInt()) },
+                valueRange = 1f..maxPatchWorkers.toFloat(),
+                steps = (maxPatchWorkers - 2).coerceAtLeast(0),
+            )
+        }
+
+        Spacer(Modifier.height(20.dp))
+
+        StudioStepHeader("03", "FOLDERS", "Scripts and compiler output")
         AppCard {
             SettingsPathRow(
                 label = "Scripts",
@@ -186,7 +219,7 @@ fun SettingsScreen(vm: PatcherViewModel, drawerWidthController: DrawerWidthContr
 
         Spacer(Modifier.height(20.dp))
 
-        StudioStepHeader("03", "NAVIGATION", "Side menu width")
+        StudioStepHeader("04", "NAVIGATION", "Side menu width")
         AppCard {
             Row(
                 modifier = Modifier.fillMaxWidth(),

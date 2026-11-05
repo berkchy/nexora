@@ -32,6 +32,7 @@ object ApkPatcher {
         val exclude: ExcludeRule = ExcludeRule.DEFAULT,
         val minSdk: Int = 21,
         val keepAbi: String? = null,
+        val workers: Int = 1,
         /**
          * game-assets.zip, written into assets/ of the output.
          *
@@ -89,6 +90,7 @@ object ApkPatcher {
             exclude = request.exclude,
             pruneAbiExcept = request.keepAbi,
             extraAssetsZip = request.assetsZip,
+            workers = request.workers,
             progress = { done, total ->
                 val p = 0.1f + 0.5f * (done.toFloat() / total.toFloat())
                 progressLast = done
