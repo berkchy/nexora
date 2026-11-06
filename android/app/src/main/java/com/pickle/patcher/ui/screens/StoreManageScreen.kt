@@ -69,9 +69,9 @@ fun StoreManageScreen(
     Column(Modifier.fillMaxSize()) {
         StudioHero(
             icon = Icons.Filled.Edit,
-            title = "Library Studio",
-            subtitle = "Manage your uploaded library posts.",
-            status = "LIBRARY",
+            title = "Package Studio",
+            subtitle = "Manage your uploaded package posts.",
+            status = "PACKAGES",
             statusTone = StudioTone.Secondary,
             modifier = Modifier.padding(horizontal = 20.dp, vertical = 16.dp),
         )
@@ -117,7 +117,7 @@ fun StoreManageScreen(
                                     }
                                     Spacer(Modifier.height(4.dp))
                                     Text(
-                                        "v${obj.optString("version")} · ${obj.optJSONArray("libs")?.length() ?: 0} lib(s)",
+                                        "v${obj.optString("version")} · ${obj.optJSONArray("libs")?.length() ?: 0} file(s)",
                                         style = MaterialTheme.typography.labelSmall,
                                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                                     )
@@ -248,10 +248,10 @@ fun StoreManageScreen(
                         Spacer(Modifier.height(12.dp))
 
                         Row(verticalAlignment = Alignment.CenterVertically) {
-                            Button(onClick = { libPicker.launch(arrayOf("*/*")) }) { Text("Add Libs") }
+                            Button(onClick = { libPicker.launch(arrayOf("*/*")) }) { Text("Add Files") }
                             Spacer(Modifier.width(8.dp))
                             Text(
-                                "${initialLibs.count { it.optString("url") !in removedLibs } + newLibs.size} lib(s)",
+                                "${initialLibs.count { it.optString("url") !in removedLibs } + newLibs.size} file(s)",
                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                                 style = MaterialTheme.typography.bodySmall,
                             )
@@ -351,20 +351,20 @@ fun StoreManageScreen(
                                         hasLogo = true
                                     }
                                 }
-                                // Upload only new libs.
+                                // Upload only new files.
                                 val uploadedNew = mutableListOf<com.pickle.patcher.data.StoreApi.LibUpload>()
                                 val total = newLibs.size
                                 newLibs.forEachIndexed { idx, (uri, _, name) ->
-                                    val f = uriToFile(context, uri, "lib", name)
+                                    val f = uriToFile(context, uri, "file", name)
                                     if (f != null) {
-                                        progressLabel = "Uploading lib ${idx + 1}/$total: ${f.name}"
+                                        progressLabel = "Uploading file ${idx + 1}/$total: ${f.name}"
                                         val r = api.uploadFile(f) { _, _ -> }
-                                        if (r.isFailure) { error = r.exceptionOrNull()?.message ?: "Lib upload failed"; saving = false; return@launch }
+                                        if (r.isFailure) { error = r.exceptionOrNull()?.message ?: "File upload failed"; saving = false; return@launch }
                                         val u = r.getOrNull()!!
                                         uploadedNew.add(com.pickle.patcher.data.StoreApi.LibUpload(f.name, u.url, u.bytes))
                                     }
                                 }
-                                // Final libs list: unchanged existing + uploaded new.
+                                // Final file list: unchanged existing + uploaded new.
                                 val finalLibs = mutableListOf<com.pickle.patcher.data.StoreApi.LibUpload>()
                                 initialLibs.forEach { l ->
                                     val url = l.optString("url")

@@ -89,7 +89,7 @@ fun StoreProfileScreen(
             statusTone = if (isOwn) StudioTone.Primary else StudioTone.Secondary,
             stats = listOf(
                 StudioStat(
-                    "LIBS",
+                    "POSTS",
                     "${profile?.optJSONArray("items")?.length() ?: 0}",
                     StudioTone.Primary,
                 ),
@@ -167,7 +167,7 @@ fun StoreProfileScreen(
                         }
                     }
                     Spacer(Modifier.height(20.dp))
-                    StudioStepHeader("01", "LIBRARY", "Published posts")
+                    StudioStepHeader("01", "PACKAGES", "Published posts")
                     val items = p.optJSONArray("items") ?: JSONArray()
                     if (items.length() == 0) {
                         Text(
@@ -278,7 +278,7 @@ fun StoreProfileScreen(
                     if (libCount > 0) {
                         Spacer(Modifier.height(8.dp))
                         Text(
-                            "Libs",
+                            "Files",
                             style = MaterialTheme.typography.titleSmall,
                             color = MaterialTheme.colorScheme.primary,
                         )

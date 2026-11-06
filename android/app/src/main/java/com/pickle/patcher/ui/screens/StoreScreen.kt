@@ -83,7 +83,7 @@ fun StoreScreen(
         StudioHero(
             icon = Icons.Filled.ShoppingCart,
             title = "Store Studio",
-            subtitle = "Community mods, libraries, and posts.",
+            subtitle = "Community mods, packages, and posts.",
             status = "MARKET",
             statusTone = StudioTone.Secondary,
             stats = listOf(
@@ -185,10 +185,10 @@ fun StoreScreen(
                         Spacer(Modifier.height(8.dp))
                     }
 
-                    // Libs with download count
+                    // Files with download count
                     if (libCount > 0) {
                         Text(
-                            "Libs",
+                            "Files",
                             style = MaterialTheme.typography.titleSmall,
                             color = MaterialTheme.colorScheme.primary,
                         )

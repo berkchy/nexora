@@ -37,7 +37,7 @@ fun StoreUploadScreen(
     var description by remember { mutableStateOf("") }
     var version by remember { mutableStateOf("1.0.0") }
     var logoUri by remember { mutableStateOf<Uri?>(null) }
-    // libUris paired with their content hash for dedup
+    // Selected file URIs paired with their content hash for dedup
     var libEntries by remember { mutableStateOf<List<Triple<Uri, String, String>>>(emptyList()) }
     var links by remember { mutableStateOf<List<Pair<String?, String>>>(emptyList()) }
     var linkInput by remember { mutableStateOf("") }
@@ -65,7 +65,7 @@ fun StoreUploadScreen(
                     added.add(Triple(u, h, name))
                 }
                 if (added.isNotEmpty()) libEntries = libEntries + added
-                dupMsg = if (skipped > 0) "$skipped duplicate lib(s) skipped" else null
+                dupMsg = if (skipped > 0) "$skipped duplicate file(s) skipped" else null
             }
         }
     }
@@ -86,10 +86,10 @@ fun StoreUploadScreen(
         StudioHero(
             icon = Icons.Filled.Upload,
             title = "Upload Studio",
-            subtitle = "Publish a new library post.",
+            subtitle = "Publish a new package post.",
             status = "UPLOAD",
             statusTone = StudioTone.Secondary,
-            stats = listOf(StudioStat("LIBS", "${libEntries.size}", StudioTone.Primary)),
+            stats = listOf(StudioStat("FILES", "${libEntries.size}", StudioTone.Primary)),
         )
         Spacer(Modifier.height(20.dp))
         StudioStepHeader("01", "DETAILS", "Describe the post")
@@ -100,7 +100,7 @@ fun StoreUploadScreen(
         Spacer(Modifier.height(12.dp))
         OutlinedTextField(value = version, onValueChange = { version = it }, label = { Text("Version") }, modifier = Modifier.fillMaxWidth(), singleLine = true)
         Spacer(Modifier.height(20.dp))
-        StudioStepHeader("02", "ASSETS", "Logo and library files")
+        StudioStepHeader("02", "ASSETS", "Logo and package files")
 
         Row(verticalAlignment = Alignment.CenterVertically) {
             Button(onClick = { logoPicker.launch(arrayOf("image/*")) }) { Text("Pick Logo") }
@@ -114,10 +114,10 @@ fun StoreUploadScreen(
         Spacer(Modifier.height(12.dp))
 
         Row(verticalAlignment = Alignment.CenterVertically) {
-            Button(onClick = { libPicker.launch(arrayOf("*/*")) }) { Text("Add Libs") }
+            Button(onClick = { libPicker.launch(arrayOf("*/*")) }) { Text("Add Files") }
             Spacer(Modifier.width(8.dp))
             Text(
-                "${libEntries.size} lib(s) selected",
+                "${libEntries.size} file(s) selected",
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 style = MaterialTheme.typography.bodySmall,
             )
@@ -244,12 +244,12 @@ fun StoreUploadScreen(
                     val libUploads = mutableListOf<StoreApi.LibUpload>()
                     val totalLibs = libEntries.size
                     libEntries.forEachIndexed { idx, (uri, _, name) ->
-                        val f = uriToFile(uri, "lib", name)
+                        val f = uriToFile(uri, "file", name)
                         if (f != null) {
-                            progressLabel = "Uploading lib ${idx + 1}/$totalLibs: ${f.name}"
+                            progressLabel = "Uploading file ${idx + 1}/$totalLibs: ${f.name}"
                             progress = 0f
                             val r = api.uploadFile(f) { w, t -> progress = if (t > 0) w.toFloat() / t else 0f }
-                            if (r.isFailure) { error = r.exceptionOrNull()?.message ?: "Lib upload failed"; loading = false; return@launch }
+                            if (r.isFailure) { error = r.exceptionOrNull()?.message ?: "File upload failed"; loading = false; return@launch }
                             val u = r.getOrNull()!!
                             libUploads.add(StoreApi.LibUpload(f.name, u.url, u.bytes))
                         }
