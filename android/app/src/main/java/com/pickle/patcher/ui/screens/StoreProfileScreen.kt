@@ -287,14 +287,14 @@ fun StoreProfileScreen(
                             Row(Modifier.fillMaxWidth().padding(vertical = 4.dp), verticalAlignment = Alignment.CenterVertically) {
                                 Column(Modifier.weight(1f)) {
                                     Text(
-                                        l.optString("name"),
+                                        cleanStoreFileName(l.optString("name")),
                                         style = MaterialTheme.typography.bodySmall,
                                         color = MaterialTheme.colorScheme.onSurface,
                                         maxLines = 1,
                                         overflow = TextOverflow.Ellipsis,
                                     )
                                     Text(
-                                        "${l.optInt("size", 0)} B",
+                                        formatFileSize(l.optLong("size", 0)),
                                         style = MaterialTheme.typography.labelSmall,
                                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                                     )
@@ -302,13 +302,14 @@ fun StoreProfileScreen(
                                 TextButton(onClick = {
                                     val ctx = context
                                     try {
+                                        val fileName = cleanStoreFileName(l.optString("name"))
                                         val dm = ctx.getSystemService(Context.DOWNLOAD_SERVICE) as DownloadManager
                                         val req = DownloadManager.Request(Uri.parse(l.optString("url")))
-                                            .setTitle(l.optString("name"))
+                                            .setTitle(fileName)
                                             .setNotificationVisibility(DownloadManager.Request.VISIBILITY_VISIBLE_NOTIFY_COMPLETED)
-                                            .setDestinationInExternalPublicDir(Environment.DIRECTORY_DOWNLOADS, l.optString("name"))
+                                            .setDestinationInExternalPublicDir(Environment.DIRECTORY_DOWNLOADS, fileName)
                                         dm.enqueue(req)
-                                        Toast.makeText(ctx, "Downloading ${l.optString("name")}", Toast.LENGTH_SHORT).show()
+                                        Toast.makeText(ctx, "Downloading $fileName", Toast.LENGTH_SHORT).show()
                                     } catch (e: Exception) {
                                         Toast.makeText(ctx, "Download failed: ${e.message}", Toast.LENGTH_SHORT).show()
                                     }

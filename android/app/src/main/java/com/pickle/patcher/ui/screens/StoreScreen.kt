@@ -200,7 +200,7 @@ fun StoreScreen(
                             ) {
                                 Column(Modifier.weight(1f)) {
                                     Text(
-                                        l.optString("name"),
+                                        cleanStoreFileName(l.optString("name")),
                                         style = MaterialTheme.typography.bodySmall,
                                         color = MaterialTheme.colorScheme.onSurface,
                                         maxLines = 1,
@@ -208,7 +208,7 @@ fun StoreScreen(
                                     )
                                     Row(verticalAlignment = Alignment.CenterVertically) {
                                         Text(
-                                            "${l.optInt("size", 0)} B",
+                                            formatFileSize(l.optLong("size", 0)),
                                             style = MaterialTheme.typography.labelSmall,
                                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                                         )
@@ -229,7 +229,7 @@ fun StoreScreen(
                                 }
                                 TextButton(onClick = {
                                     if (com.pickle.patcher.data.StoreSession.emailVerified(context)) {
-                                        downloadLib(context, l.optString("url"), l.optString("name"))
+                                        downloadLib(context, l.optString("url"), cleanStoreFileName(l.optString("name")))
                                         scope.launch {
                                             api.incrementLibDownload(obj.optString("id"), l.optString("id")).onSuccess { count ->
                                                 l.put("downloads", count)

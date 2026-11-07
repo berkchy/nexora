@@ -202,7 +202,7 @@ fun StoreManageScreen(
                             val h = hashUri(context, u) ?: continue
                             if (h in existing) continue
                             existing.add(h)
-                            added.add(Triple(u, h, displayName(context, u)))
+                            added.add(Triple(u, h, cleanStoreFileName(displayName(context, u))))
                         }
                         if (added.isNotEmpty()) newLibs = newLibs + added
                     }
@@ -261,7 +261,7 @@ fun StoreManageScreen(
                             if (url in removedLibs) return@forEach
                             Row(Modifier.fillMaxWidth().padding(vertical = 2.dp), verticalAlignment = Alignment.CenterVertically) {
                                 Text(
-                                    "  • ${l.optString("name")}",
+                                    "  • ${cleanStoreFileName(l.optString("name"))}",
                                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                                     style = MaterialTheme.typography.labelSmall,
                                     modifier = Modifier.weight(1f),
@@ -279,7 +279,7 @@ fun StoreManageScreen(
                         newLibs.forEach { (uri, _, name) ->
                             Row(Modifier.fillMaxWidth().padding(vertical = 2.dp), verticalAlignment = Alignment.CenterVertically) {
                                 Text(
-                                    "  • $name (new)",
+                                    "  • ${cleanStoreFileName(name)} (new)",
                                     color = MaterialTheme.colorScheme.primary,
                                     style = MaterialTheme.typography.labelSmall,
                                     modifier = Modifier.weight(1f),
@@ -369,7 +369,7 @@ fun StoreManageScreen(
                                 initialLibs.forEach { l ->
                                     val url = l.optString("url")
                                     if (url !in removedLibs) {
-                                        finalLibs.add(com.pickle.patcher.data.StoreApi.LibUpload(l.optString("name"), url, l.optLong("size", 0)))
+                                        finalLibs.add(com.pickle.patcher.data.StoreApi.LibUpload(cleanStoreFileName(l.optString("name")), url, l.optLong("size", 0)))
                                     }
                                 }
                                 finalLibs.addAll(uploadedNew)

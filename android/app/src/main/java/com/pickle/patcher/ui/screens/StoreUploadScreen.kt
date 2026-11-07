@@ -61,7 +61,7 @@ fun StoreUploadScreen(
                     val h = hashUri(context, u)
                     if (h == null || h in existing) { skipped++; continue }
                     existing.add(h)
-                    val name = displayName(context, u)
+                    val name = cleanStoreFileName(displayName(context, u))
                     added.add(Triple(u, h, name))
                 }
                 if (added.isNotEmpty()) libEntries = libEntries + added
@@ -251,7 +251,7 @@ fun StoreUploadScreen(
                             val r = api.uploadFile(f) { w, t -> progress = if (t > 0) w.toFloat() / t else 0f }
                             if (r.isFailure) { error = r.exceptionOrNull()?.message ?: "File upload failed"; loading = false; return@launch }
                             val u = r.getOrNull()!!
-                            libUploads.add(StoreApi.LibUpload(f.name, u.url, u.bytes))
+                            libUploads.add(StoreApi.LibUpload(cleanStoreFileName(f.name), u.url, u.bytes))
                         }
                     }
                     api.createItem(token, title, description, version, logoUrl, libUploads, links).fold(
