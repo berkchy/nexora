@@ -90,15 +90,29 @@ fun StatusPill(
     text: String,
     modifier: Modifier = Modifier,
     tone: Tone = Tone.Neutral,
+    icon: ImageVector? = null,
 ) {
     val (container, content) = toneColors(tone)
     Surface(modifier = modifier, shape = RoundedCornerShape(50), color = container) {
-        Text(
-            text,
-            style = MaterialTheme.typography.labelSmall,
-            color = content,
+        Row(
             modifier = Modifier.padding(horizontal = 12.dp, vertical = 7.dp),
-        )
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            if (icon != null) {
+                Icon(
+                    icon,
+                    contentDescription = null,
+                    modifier = Modifier.size(14.dp),
+                    tint = content,
+                )
+                Spacer(Modifier.width(5.dp))
+            }
+            Text(
+                text,
+                style = MaterialTheme.typography.labelSmall,
+                color = content,
+            )
+        }
     }
 }
 

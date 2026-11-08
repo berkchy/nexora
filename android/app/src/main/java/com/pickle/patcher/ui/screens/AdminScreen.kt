@@ -1,10 +1,14 @@
 package com.pickle.patcher.ui.screens
 
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.ui.draw.clip
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
@@ -20,7 +24,10 @@ import com.pickle.patcher.ui.theme.Accent
 import com.pickle.patcher.ui.theme.Gray40
 import com.pickle.patcher.ui.theme.WarnYellow
 import com.pickle.patcher.ui.theme.Gray30
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+import com.pickle.patcher.ui.MarkdownText
 import org.json.JSONArray
 import org.json.JSONObject
 
@@ -154,8 +161,14 @@ private fun AdminPosts(api: StoreApi, token: String) {
 @Composable
 private fun AdminPostCard(obj: JSONObject, api: StoreApi, token: String, onAction: () -> Unit) {
     val scope = rememberCoroutineScope()
+    val context = androidx.compose.ui.platform.LocalContext.current
     val id = obj.optString("id")
     val status = obj.optString("status", "pending")
+    var expanded by remember { mutableStateOf(false) }
+    var previewFile by remember { mutableStateOf<JSONObject?>(null) }
+    val description = obj.optString("description", "").trim()
+    val libs = obj.optJSONArray("libs")
+    val libCount = libs?.length() ?: 0
     Surface(
         shape = MaterialTheme.shapes.large,
         color = MaterialTheme.colorScheme.surfaceContainerHigh,
@@ -208,32 +221,232 @@ private fun AdminPostCard(obj: JSONObject, api: StoreApi, token: String, onActio
                         "rejected" -> Tone.Error
                         else -> Tone.Tertiary
                     },
+                    icon = when (status) {
+                        "approved" -> Icons.Filled.CheckCircle
+                        "rejected" -> Icons.Filled.Cancel
+                        else -> Icons.Filled.Schedule
+                    },
                 )
             }
             Spacer(Modifier.height(10.dp))
-            Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                if (status != "approved") {
-                    TextButton(onClick = {
-                        scope.launch { api.adminPatchItem(token, id, "approved"); onAction() }
-                    }) {
-                        Text("Approve", color = MaterialTheme.colorScheme.primary)
+            Surface(
+                shape = MaterialTheme.shapes.medium,
+                color = MaterialTheme.colorScheme.surfaceContainerHighest,
+                modifier = Modifier.fillMaxWidth(),
+            ) {
+                Row(
+                    Modifier
+                        .fillMaxWidth()
+                        .clickable { expanded = !expanded }
+                        .padding(horizontal = 12.dp, vertical = 10.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Icon(
+                        Icons.Filled.FolderOpen,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.size(18.dp),
+                    )
+                    Spacer(Modifier.width(8.dp))
+                    Text(
+                        if (libCount > 0) "$libCount file(s) in this post" else "No files attached",
+                        style = MaterialTheme.typography.labelLarge,
+                        color = MaterialTheme.colorScheme.onSurface,
+                        modifier = Modifier.weight(1f),
+                    )
+                    Icon(
+                        if (expanded) Icons.Filled.ExpandLess else Icons.Filled.ExpandMore,
+                        contentDescription = if (expanded) "Hide content" else "Show content",
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+            }
+            if (expanded) {
+                Spacer(Modifier.height(10.dp))
+                if (description.isNotBlank()) {
+                    Text(
+                        "Description",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                    Spacer(Modifier.height(4.dp))
+                    MarkdownText(
+                        description,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.fillMaxWidth(),
+                    )
+                    Spacer(Modifier.height(10.dp))
+                }
+                if (libCount > 0) {
+                    Text(
+                        "Package files",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                    Spacer(Modifier.height(4.dp))
+                    val fileList = libs!!
+                    (0 until fileList.length()).map { fileList.getJSONObject(it) }.forEach { file ->
+                        val name = file.optString("name", "Untitled")
+                        val url = file.optString("url", "")
+                        val size = formatFileSize(file.optLong("size", 0L))
+                        val extension = name.substringAfterLast('.', "").lowercase()
+                        val previewable = extension in setOf("sma", "inc", "cfg", "ini", "txt", "md", "lua", "json", "log", "cs", "zip")
+                        Row(
+                            Modifier
+                                .fillMaxWidth()
+                                .clickable(enabled = url.isNotBlank()) {
+                                    if (previewable) {
+                                        previewFile = file
+                                    } else {
+                                        runCatching {
+                                            context.startActivity(android.content.Intent(android.content.Intent.ACTION_VIEW, android.net.Uri.parse(url)))
+                                        }
+                                    }
+                                }
+                                .padding(vertical = 8.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            Icon(
+                                if (previewable) Icons.Filled.Description else Icons.Filled.AttachFile,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.primary,
+                                modifier = Modifier.size(19.dp),
+                            )
+                            Spacer(Modifier.width(8.dp))
+                            Column(Modifier.weight(1f)) {
+                                Text(
+                                    name,
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    color = MaterialTheme.colorScheme.onSurface,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis,
+                                )
+                                Text(
+                                    size,
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                )
+                            }
+                            Icon(
+                                if (previewable) Icons.Filled.Visibility else Icons.Filled.OpenInNew,
+                                contentDescription = if (previewable) "Preview $name" else "Open $name",
+                                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                modifier = Modifier.size(18.dp),
+                            )
+                        }
                     }
+                }
+                Spacer(Modifier.height(6.dp))
+            }
+            Spacer(Modifier.height(10.dp))
+            Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                if (status != "approved") {
+                    PrimaryButton(
+                        text = "Approve",
+                        onClick = {
+                            scope.launch { api.adminPatchItem(token, id, "approved"); onAction() }
+                        },
+                        modifier = Modifier.weight(1f),
+                        icon = { Icon(Icons.Filled.Check, contentDescription = null, modifier = Modifier.size(18.dp)) },
+                    )
                 }
                 if (status != "rejected") {
-                    TextButton(onClick = {
-                        scope.launch { api.adminPatchItem(token, id, "rejected"); onAction() }
-                    }) {
-                        Text("Reject", color = MaterialTheme.colorScheme.tertiary)
+                    SecondaryButton(
+                        text = "Reject",
+                        onClick = {
+                            scope.launch { api.adminPatchItem(token, id, "rejected"); onAction() }
+                        },
+                        modifier = Modifier.weight(1f),
+                        icon = { Icon(Icons.Filled.Close, contentDescription = null, modifier = Modifier.size(18.dp)) },
+                    )
+                }
+                TextButton(
+                    onClick = {
+                        scope.launch { api.adminDeleteItem(token, id); onAction() }
+                    },
+                    colors = ButtonDefaults.textButtonColors(
+                        contentColor = MaterialTheme.colorScheme.error,
+                    ),
+                ) {
+                    Icon(Icons.Filled.Delete, contentDescription = "Delete post", modifier = Modifier.size(18.dp))
+                    Spacer(Modifier.width(6.dp))
+                    Text("Delete")
+                }
+            }
+
+            previewFile?.let { file ->
+                val name = file.optString("name", "Untitled")
+                val url = file.optString("url", "")
+                val extension = name.substringAfterLast('.', "").lowercase()
+                var content by remember(url) { mutableStateOf("Loading $name…") }
+                var loadFailed by remember(url) { mutableStateOf(false) }
+                LaunchedEffect(url) {
+                    withContext(Dispatchers.IO) {
+                        if (extension == "zip") {
+                            content = listZipEntries(url).joinToString("\n")
+                            loadFailed = false
+                        } else {
+                            runCatching {
+                                java.net.URL(url).openStream().bufferedReader().use { reader ->
+                                    reader.readText().take(120_000)
+                                }
+                            }.onSuccess {
+                                content = it
+                                loadFailed = false
+                            }.onFailure {
+                                content = it.message ?: "Could not read $name"
+                                loadFailed = true
+                            }
+                        }
                     }
                 }
-                TextButton(onClick = {
-                    scope.launch { api.adminDeleteItem(token, id); onAction() }
-                }) {
-                    Text("Delete", color = MaterialTheme.colorScheme.error)
-                }
+                AlertDialog(
+                    onDismissRequest = { previewFile = null },
+                    title = { Text(name, maxLines = 1, overflow = TextOverflow.Ellipsis) },
+                    text = {
+                        Box(
+                            Modifier
+                                .heightIn(max = 420.dp)
+                                .verticalScroll(rememberScrollState())
+                                .horizontalScroll(rememberScrollState()),
+                        ) {
+                            Text(
+                                content,
+                                style = MaterialTheme.typography.bodySmall,
+                                fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace,
+                                color = if (loadFailed) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurfaceVariant,
+                                softWrap = false,
+                            )
+                        }
+                    },
+                    confirmButton = {
+                        TextButton(onClick = { previewFile = null }) { Text("Close") }
+                    },
+                )
             }
         }
     }
+}
+
+private fun listZipEntries(url: String): List<String> {
+    val entries = mutableListOf<String>()
+    return runCatching {
+        java.util.zip.ZipInputStream(java.net.URL(url).openStream().buffered()).use { zip ->
+            while (true) {
+                val entry = zip.nextEntry ?: break
+                if (!entry.isDirectory) {
+                    val size = if (entry.size >= 0) formatFileSize(entry.size) else "unknown size"
+                    entries += "$size  ${entry.name}"
+                }
+                if (entries.size >= 200) {
+                    entries += "… (truncated)"
+                    break
+                }
+                zip.closeEntry()
+            }
+        }
+        if (entries.isEmpty()) listOf("Zip archive is empty") else entries
+    }.getOrElse { listOf(it.message ?: "Could not inspect zip archive") }
 }
 
 @Composable
