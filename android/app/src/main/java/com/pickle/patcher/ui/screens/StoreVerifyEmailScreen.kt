@@ -86,20 +86,20 @@ fun StoreVerifyEmailScreen(
         verticalArrangement = Arrangement.Center,
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
-        StudioHero(
+        ScreenHeader(
             icon = Icons.Filled.Email,
-            title = "Verification Studio",
+            title = "Verify email",
             subtitle = if (codeSent) {
                 "Enter the 6-digit code sent to ${emailState.ifBlank { "your email" }}"
             } else {
                 "Enter your email to receive a verification code"
             },
             status = when {
-                success -> "VERIFIED"
-                codeSent -> "CODE SENT"
-                else -> "VERIFY"
+                success -> "Verified"
+                codeSent -> "Code sent"
+                else -> "Verify"
             },
-            statusTone = if (success) StudioTone.Primary else StudioTone.Secondary,
+            statusTone = if (success) Tone.Primary else Tone.Secondary,
         )
         Spacer(Modifier.height(20.dp))
 

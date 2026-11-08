@@ -80,14 +80,14 @@ fun StoreScreen(
     LaunchedEffect(page) { load() }
 
     Column(Modifier.fillMaxSize()) {
-        StudioHero(
+        ScreenHeader(
             icon = Icons.Filled.ShoppingCart,
-            title = "Store Studio",
+            title = "Store",
             subtitle = "Community mods, packages, and posts.",
-            status = "MARKET",
-            statusTone = StudioTone.Secondary,
+            status = "Market",
+            statusTone = Tone.Secondary,
             stats = listOf(
-                StudioStat("POSTS", "${items?.length() ?: 0}", StudioTone.Primary),
+                Stat("Posts", "${items?.length() ?: 0}", Tone.Primary),
             ),
             modifier = Modifier.padding(horizontal = 20.dp, vertical = 16.dp),
         )
@@ -437,7 +437,7 @@ private fun StoreItemCard(obj: JSONObject, onUserClick: (String) -> Unit, onOpen
     ) {
         Row(Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
             Card(
-                shape = RoundedCornerShape(16.dp),
+                shape = MaterialTheme.shapes.large,
                 colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerHighest),
                 modifier = Modifier.size(64.dp),
             ) {
@@ -539,13 +539,13 @@ private fun StoreItemCard(obj: JSONObject, onUserClick: (String) -> Unit, onOpen
                 }
                 Spacer(Modifier.height(6.dp))
                 Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                    StudioStatusPill(
+                    StatusPill(
                         "v${obj.optString("version", "1.0.0")}",
-                        tone = StudioTone.Primary,
+                        tone = Tone.Primary,
                     )
                     val st = obj.optString("status", "approved")
                     if (st != "approved") {
-                        StudioStatusPill(st.uppercase(), tone = StudioTone.Tertiary)
+                        StatusPill(st.replaceFirstChar { it.titlecase() }, tone = Tone.Tertiary)
                     }
                 }
             }

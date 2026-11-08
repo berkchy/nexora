@@ -83,16 +83,16 @@ fun StoreUploadScreen(
     Column(
         Modifier.fillMaxSize().padding(horizontal = 20.dp, vertical = 16.dp).verticalScroll(rememberScrollState()),
     ) {
-        StudioHero(
+        ScreenHeader(
             icon = Icons.Filled.Upload,
-            title = "Upload Studio",
+            title = "Upload",
             subtitle = "Publish a new package post.",
-            status = "UPLOAD",
-            statusTone = StudioTone.Secondary,
-            stats = listOf(StudioStat("FILES", "${libEntries.size}", StudioTone.Primary)),
+            status = "Upload",
+            statusTone = Tone.Secondary,
+            stats = listOf(Stat("Files", "${libEntries.size}", Tone.Primary)),
         )
         Spacer(Modifier.height(20.dp))
-        StudioStepHeader("01", "DETAILS", "Describe the post")
+        SectionHeader("01", "Details", "Describe the post")
 
         OutlinedTextField(value = title, onValueChange = { title = it }, label = { Text("Title") }, modifier = Modifier.fillMaxWidth(), singleLine = true)
         Spacer(Modifier.height(12.dp))
@@ -100,7 +100,7 @@ fun StoreUploadScreen(
         Spacer(Modifier.height(12.dp))
         OutlinedTextField(value = version, onValueChange = { version = it }, label = { Text("Version") }, modifier = Modifier.fillMaxWidth(), singleLine = true)
         Spacer(Modifier.height(20.dp))
-        StudioStepHeader("02", "ASSETS", "Logo and package files")
+        SectionHeader("02", "Assets", "Logo and package files")
 
         Row(verticalAlignment = Alignment.CenterVertically) {
             Button(onClick = { logoPicker.launch(arrayOf("image/*")) }) { Text("Pick Logo") }
@@ -123,7 +123,7 @@ fun StoreUploadScreen(
             )
         }
         Spacer(Modifier.height(20.dp))
-        StudioStepHeader("03", "LINKS", "Point to the project source")
+        SectionHeader("03", "Links", "Point to the project source")
         Row(verticalAlignment = Alignment.CenterVertically) {
             OutlinedTextField(value = linkInput, onValueChange = { linkInput = it }, label = { Text("Project link URL") }, modifier = Modifier.weight(1f), singleLine = true)
             Spacer(Modifier.width(8.dp))
@@ -210,7 +210,7 @@ fun StoreUploadScreen(
             )
         }
         Spacer(Modifier.height(20.dp))
-        StudioStepHeader("04", "PUBLISH", "Submit for review")
+        SectionHeader("04", "Publish", "Submit for review")
 
         Button(
             onClick = {

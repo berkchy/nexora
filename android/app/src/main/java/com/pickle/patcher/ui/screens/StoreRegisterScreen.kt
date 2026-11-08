@@ -39,12 +39,12 @@ fun StoreRegisterScreen(
             .padding(24.dp),
         verticalArrangement = Arrangement.Center,
     ) {
-        StudioHero(
+        ScreenHeader(
             icon = Icons.Filled.PersonAdd,
             title = "Create Account",
             subtitle = "Join the Nexora community store.",
-            status = "REGISTER",
-            statusTone = StudioTone.Secondary,
+            status = "Register",
+            statusTone = Tone.Secondary,
         )
         Spacer(Modifier.height(20.dp))
 

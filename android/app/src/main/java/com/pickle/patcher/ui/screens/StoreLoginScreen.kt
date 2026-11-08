@@ -41,12 +41,12 @@ fun StoreLoginScreen(
             .padding(24.dp),
         verticalArrangement = Arrangement.Center,
     ) {
-        StudioHero(
+        ScreenHeader(
             icon = Icons.Filled.Login,
-            title = "Account Studio",
+            title = "Sign in",
             subtitle = "Sign in to publish and download.",
-            status = "LOGIN",
-            statusTone = StudioTone.Primary,
+            status = "Sign in",
+            statusTone = Tone.Primary,
         )
         Spacer(Modifier.height(20.dp))
 

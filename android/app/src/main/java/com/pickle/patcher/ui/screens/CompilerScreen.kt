@@ -117,7 +117,7 @@ fun CompilerScreen(vm: PatcherViewModel, onOpenSettings: () -> Unit) {
     ) {
         Spacer(Modifier.height(4.dp))
 
-        CompilerHero(
+        CompilerHeader(
             scriptRoot = scriptRoot,
             scriptCount = scripts.size,
             selectedCount = selected.size,
@@ -133,7 +133,7 @@ fun CompilerScreen(vm: PatcherViewModel, onOpenSettings: () -> Unit) {
         // "no folder chosen" need to be told apart at a glance.
         if (scriptRoot == null) {
             Surface(
-                shape = RoundedCornerShape(20.dp),
+                shape = MaterialTheme.shapes.large,
                 color = MaterialTheme.colorScheme.surfaceContainerLow,
             ) {
                 Column(Modifier.fillMaxWidth().padding(16.dp)) {
@@ -166,7 +166,7 @@ fun CompilerScreen(vm: PatcherViewModel, onOpenSettings: () -> Unit) {
             }
         } else {
             Surface(
-                shape = RoundedCornerShape(16.dp),
+                shape = MaterialTheme.shapes.large,
                 color = MaterialTheme.colorScheme.surfaceContainerHighest,
             ) {
                 Row(
@@ -197,7 +197,7 @@ fun CompilerScreen(vm: PatcherViewModel, onOpenSettings: () -> Unit) {
 
         Spacer(Modifier.height(20.dp))
 
-        CompilerStepHeader("01", "PLUGINS (.sma)", "Pick the sources to build")
+        SectionHeader("01", "Plugins", "Pick the sources to build")
         AppCard {
             if (scriptRoot == null) {
                 Text("Select a folder above.", style = MaterialTheme.typography.bodySmall, color = Gray40)
@@ -252,11 +252,11 @@ fun CompilerScreen(vm: PatcherViewModel, onOpenSettings: () -> Unit) {
 
         if (selectedSources.isNotEmpty()) {
             Spacer(Modifier.height(20.dp))
-            CompilerStepHeader("02", "COMPILE", "Build the selected queue")
+            SectionHeader("02", "Compile", "Build the selected queue")
             AppCard {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Surface(
-                        shape = RoundedCornerShape(16.dp),
+                        shape = MaterialTheme.shapes.large,
                         color = MaterialTheme.colorScheme.primaryContainer,
                     ) {
                         Box(modifier = Modifier.size(48.dp), contentAlignment = Alignment.Center) {
@@ -344,22 +344,22 @@ fun CompilerScreen(vm: PatcherViewModel, onOpenSettings: () -> Unit) {
         when (val c = compile) {
             is CompileState.Compiling -> {
                 Spacer(Modifier.height(20.dp))
-                CompilerStepHeader("03", "OUTPUT", "Compiler log")
+                SectionHeader("03", "Output", "Compiler log")
                 OutputPanel(text = c.source, busy = true)
             }
             is CompileState.Done -> {
                 Spacer(Modifier.height(20.dp))
-                CompilerStepHeader("03", "OUTPUT", "Compiler log")
+                SectionHeader("03", "Output", "Compiler log")
                 OutputPanel(
                     text = c.log,
                     error = c.failures.isNotEmpty(),
-                    status = if (c.failures.isEmpty()) "DONE" else "ATTENTION",
+                    status = if (c.failures.isEmpty()) "Done" else "Needs attention",
                 )
             }
             is CompileState.Failed -> {
                 Spacer(Modifier.height(20.dp))
-                CompilerStepHeader("03", "OUTPUT", "Compiler log")
-                OutputPanel(text = c.message, error = true, status = "FAILED")
+                SectionHeader("03", "Output", "Compiler log")
+                OutputPanel(text = c.message, error = true, status = "Failed")
             }
             else -> {}
         }
@@ -372,7 +372,7 @@ fun CompilerScreen(vm: PatcherViewModel, onOpenSettings: () -> Unit) {
 }
 
 @Composable
-private fun CompilerHero(
+private fun CompilerHeader(
     scriptRoot: String?,
     scriptCount: Int,
     selectedCount: Int,
@@ -380,24 +380,18 @@ private fun CompilerHero(
     compile: CompileState,
 ) {
     val status = when {
-        compile is CompileState.Compiling -> "COMPILING"
-        compile is CompileState.Failed -> "FAILED"
-        compile is CompileState.Done && failureCount > 0 -> "ATTENTION"
-        compile is CompileState.Done -> "DONE"
-        scriptRoot == null -> "SETUP"
-        else -> "READY"
+        compile is CompileState.Compiling -> "Compiling"
+        compile is CompileState.Failed -> "Failed"
+        compile is CompileState.Done && failureCount > 0 -> "Needs attention"
+        compile is CompileState.Done -> "Done"
+        scriptRoot == null -> "Setup"
+        else -> "Ready"
     }
-    val container = when (status) {
-        "READY", "DONE" -> MaterialTheme.colorScheme.primaryContainer
-        "COMPILING", "ATTENTION" -> MaterialTheme.colorScheme.tertiaryContainer
-        "FAILED" -> MaterialTheme.colorScheme.errorContainer
-        else -> MaterialTheme.colorScheme.surfaceContainerHighest
-    }
-    val onContainer = when (status) {
-        "READY", "DONE" -> MaterialTheme.colorScheme.onPrimaryContainer
-        "COMPILING", "ATTENTION" -> MaterialTheme.colorScheme.onTertiaryContainer
-        "FAILED" -> MaterialTheme.colorScheme.onErrorContainer
-        else -> MaterialTheme.colorScheme.onSurfaceVariant
+    val tone = when (status) {
+        "Ready", "Done" -> Tone.Primary
+        "Compiling", "Needs attention" -> Tone.Tertiary
+        "Failed" -> Tone.Error
+        else -> Tone.Neutral
     }
     val subtitle = when {
         scriptRoot == null -> "Choose a scripts folder to unlock the compiler."
@@ -406,130 +400,18 @@ private fun CompilerHero(
         else -> "Compile .sma plugins with the local amxxpc."
     }
 
-    Surface(
-        modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(32.dp),
-        color = MaterialTheme.colorScheme.surfaceContainerLow,
-        tonalElevation = 1.dp,
-    ) {
-        Column(modifier = Modifier.padding(22.dp)) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Surface(
-                    shape = RoundedCornerShape(18.dp),
-                    color = MaterialTheme.colorScheme.tertiary,
-                ) {
-                    Box(modifier = Modifier.size(54.dp), contentAlignment = Alignment.Center) {
-                        Icon(
-                            Icons.Filled.Build,
-                            contentDescription = null,
-                            modifier = Modifier.size(26.dp),
-                            tint = MaterialTheme.colorScheme.onTertiary,
-                        )
-                    }
-                }
-                Spacer(Modifier.width(14.dp))
-                Column(modifier = Modifier.weight(1f)) {
-                    Text(
-                        "Compiler Studio",
-                        style = MaterialTheme.typography.headlineSmall,
-                        color = MaterialTheme.colorScheme.onSurface,
-                    )
-                    Spacer(Modifier.height(2.dp))
-                    Text(
-                        "Local amxxpc pipeline",
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                }
-                Surface(shape = RoundedCornerShape(50), color = container) {
-                    Text(
-                        status,
-                        style = MaterialTheme.typography.labelSmall,
-                        color = onContainer,
-                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 7.dp),
-                    )
-                }
-            }
-            Spacer(Modifier.height(16.dp))
-            Text(
-                subtitle,
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-            Spacer(Modifier.height(16.dp))
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                CompilerStat("FILES", "$scriptCount", scriptCount > 0, Modifier.weight(1f))
-                CompilerStat("SELECTED", "$selectedCount", selectedCount > 0, Modifier.weight(1f))
-                CompilerStat("ERRORS", "$failureCount", failureCount > 0, Modifier.weight(1f), error = true)
-            }
-        }
-    }
-}
-
-@Composable
-private fun CompilerStat(
-    label: String,
-    value: String,
-    active: Boolean,
-    modifier: Modifier = Modifier,
-    error: Boolean = false,
-) {
-    val container = when {
-        error && active -> MaterialTheme.colorScheme.errorContainer
-        active -> MaterialTheme.colorScheme.primaryContainer
-        else -> MaterialTheme.colorScheme.surfaceContainerHighest
-    }
-    val content = when {
-        error && active -> MaterialTheme.colorScheme.onErrorContainer
-        active -> MaterialTheme.colorScheme.onPrimaryContainer
-        else -> MaterialTheme.colorScheme.onSurfaceVariant
-    }
-    Surface(modifier = modifier, shape = RoundedCornerShape(16.dp), color = container) {
-        Column(modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp)) {
-            Text(label, style = MaterialTheme.typography.labelSmall, color = content)
-            Spacer(Modifier.height(2.dp))
-            Text(
-                value,
-                style = MaterialTheme.typography.labelLarge,
-                color = content,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-            )
-        }
-    }
-}
-
-@Composable
-private fun CompilerStepHeader(step: String, title: String, caption: String) {
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(bottom = 10.dp, top = 2.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        Surface(shape = RoundedCornerShape(50), color = MaterialTheme.colorScheme.secondaryContainer) {
-            Box(modifier = Modifier.size(30.dp), contentAlignment = Alignment.Center) {
-                Text(
-                    step,
-                    style = MaterialTheme.typography.labelMedium,
-                    color = MaterialTheme.colorScheme.onSecondaryContainer,
-                )
-            }
-        }
-        Spacer(Modifier.width(10.dp))
-        Column {
-            Text(
-                title,
-                style = MaterialTheme.typography.titleSmall,
-                color = MaterialTheme.colorScheme.onSurface,
-            )
-            Text(
-                caption,
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-        }
-    }
+    ScreenHeader(
+        icon = Icons.Filled.Build,
+        title = "Compiler",
+        subtitle = subtitle,
+        status = status,
+        statusTone = tone,
+        stats = listOf(
+            Stat("Files", "$scriptCount", if (scriptCount > 0) Tone.Primary else Tone.Neutral),
+            Stat("Selected", "$selectedCount", if (selectedCount > 0) Tone.Primary else Tone.Neutral),
+            Stat("Errors", "$failureCount", if (failureCount > 0) Tone.Error else Tone.Neutral),
+        ),
+    )
 }
 
 @Composable
@@ -553,7 +435,7 @@ private fun OutputPanel(
     }
     Surface(
         modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(20.dp),
+        shape = MaterialTheme.shapes.large,
         color = MaterialTheme.colorScheme.surfaceContainerLow,
     ) {
         Column(modifier = Modifier.padding(14.dp)) {
@@ -639,7 +521,7 @@ private fun BottomNotice(text: String) {
         contentAlignment = Alignment.BottomCenter,
     ) {
         Surface(
-            shape = RoundedCornerShape(16.dp),
+            shape = MaterialTheme.shapes.large,
             color = MaterialTheme.colorScheme.inverseSurface,
             modifier = Modifier.fillMaxWidth(),
         ) {
@@ -676,7 +558,7 @@ private fun ScriptRow(
             .fillMaxWidth()
             .padding(vertical = 3.dp)
             .clickable(onClick = onClick),
-        shape = RoundedCornerShape(14.dp),
+        shape = MaterialTheme.shapes.medium,
         color = container,
     ) {
         Row(
@@ -813,7 +695,7 @@ private fun LogBox(text: String, error: Boolean = false, busy: Boolean = false) 
         scrollState.scrollTo(scrollState.maxValue)
     }
     Surface(
-        shape = RoundedCornerShape(14.dp),
+        shape = MaterialTheme.shapes.medium,
         color = MaterialTheme.colorScheme.surfaceContainerLowest,
         modifier = Modifier
             .fillMaxWidth()

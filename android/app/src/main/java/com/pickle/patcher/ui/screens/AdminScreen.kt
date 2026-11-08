@@ -103,12 +103,12 @@ private fun AdminPosts(api: StoreApi, token: String) {
     LaunchedEffect(statusFilter) { load() }
 
     Column(Modifier.fillMaxSize()) {
-        StudioHero(
+        ScreenHeader(
             icon = Icons.Filled.Article,
-            title = "Posts Studio",
+            title = "Posts",
             subtitle = "Review, approve, and moderate store posts.",
-            status = "MODERATION",
-            statusTone = StudioTone.Secondary,
+            status = "Moderation",
+            statusTone = Tone.Secondary,
             modifier = Modifier.padding(horizontal = 20.dp, vertical = 16.dp),
         )
         Row(
@@ -156,7 +156,7 @@ private fun AdminPostCard(obj: JSONObject, api: StoreApi, token: String, onActio
     val id = obj.optString("id")
     val status = obj.optString("status", "pending")
     Surface(
-        shape = RoundedCornerShape(20.dp),
+        shape = MaterialTheme.shapes.large,
         color = MaterialTheme.colorScheme.surfaceContainerHigh,
         modifier = Modifier.fillMaxWidth(),
     ) {
@@ -200,12 +200,12 @@ private fun AdminPostCard(obj: JSONObject, api: StoreApi, token: String, onActio
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                 }
-                StudioStatusPill(
-                    status.uppercase(),
+                StatusPill(
+                    status.replaceFirstChar { it.titlecase() },
                     tone = when (status) {
-                        "approved" -> StudioTone.Primary
-                        "rejected" -> StudioTone.Error
-                        else -> StudioTone.Tertiary
+                        "approved" -> Tone.Primary
+                        "rejected" -> Tone.Error
+                        else -> Tone.Tertiary
                     },
                 )
             }
@@ -261,12 +261,12 @@ private fun AdminUsers(api: StoreApi, token: String) {
     LaunchedEffect(Unit) { load() }
 
     Column(Modifier.fillMaxSize()) {
-        StudioHero(
+        ScreenHeader(
             icon = Icons.Filled.People,
-            title = "Users Studio",
+            title = "Users",
             subtitle = "Manage roles, permissions, and accounts.",
-            status = "TEAM",
-            statusTone = StudioTone.Secondary,
+            status = "Team",
+            statusTone = Tone.Secondary,
             modifier = Modifier.padding(horizontal = 20.dp, vertical = 16.dp),
         )
         when {
@@ -314,7 +314,7 @@ private fun AdminUserCard(obj: JSONObject, api: StoreApi, token: String, onActio
     var perms by remember { mutableStateOf(initialPerms) }
 
     Surface(
-        shape = RoundedCornerShape(20.dp),
+        shape = MaterialTheme.shapes.large,
         color = MaterialTheme.colorScheme.surfaceContainerHigh,
         modifier = Modifier.fillMaxWidth(),
     ) {
@@ -355,9 +355,9 @@ private fun AdminUserCard(obj: JSONObject, api: StoreApi, token: String, onActio
                         style = MaterialTheme.typography.labelSmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
-                    StudioStatusPill(
-                        role.uppercase(),
-                        tone = if (role == "admin") StudioTone.Tertiary else StudioTone.Neutral,
+                    StatusPill(
+                        role.replaceFirstChar { it.titlecase() },
+                        tone = if (role == "admin") Tone.Tertiary else Tone.Neutral,
                         modifier = Modifier.padding(top = 4.dp),
                     )
                 }

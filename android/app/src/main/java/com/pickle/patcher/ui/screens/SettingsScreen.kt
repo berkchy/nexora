@@ -96,17 +96,17 @@ fun SettingsScreen(vm: PatcherViewModel, drawerWidthController: DrawerWidthContr
             .verticalScroll(rememberScrollState())
             .padding(horizontal = 20.dp, vertical = 16.dp),
     ) {
-        StudioHero(
+        ScreenHeader(
             icon = Icons.Filled.Settings,
-            title = "Settings Studio",
-            subtitle = "Tune the compiler, patcher, folders, and navigation.",
-            status = "SYSTEM",
-            statusTone = StudioTone.Secondary,
+            title = "Settings",
+            subtitle = "Build workers, folders, and drawer width.",
+            status = "System",
+            statusTone = Tone.Secondary,
         )
 
         Spacer(Modifier.height(20.dp))
 
-        StudioStepHeader("01", "COMPILER", "Parallel build workers")
+        SectionHeader("01", "Compiler", "Parallel build workers")
         AppCard {
             Row(
                 modifier = Modifier.fillMaxWidth(),
@@ -145,7 +145,7 @@ fun SettingsScreen(vm: PatcherViewModel, drawerWidthController: DrawerWidthContr
 
         Spacer(Modifier.height(20.dp))
 
-        StudioStepHeader("02", "PATCHER", "Parallel APK workers")
+        SectionHeader("02", "Patcher", "Parallel APK workers")
         AppCard {
             Row(
                 modifier = Modifier.fillMaxWidth(),
@@ -180,7 +180,7 @@ fun SettingsScreen(vm: PatcherViewModel, drawerWidthController: DrawerWidthContr
 
         Spacer(Modifier.height(20.dp))
 
-        StudioStepHeader("03", "FOLDERS", "Scripts and compiler output")
+        SectionHeader("03", "Folders", "Scripts and compiler output")
         AppCard {
             SettingsPathRow(
                 label = "Scripts",
@@ -203,7 +203,7 @@ fun SettingsScreen(vm: PatcherViewModel, drawerWidthController: DrawerWidthContr
             if (showPermissionRationale) {
                 Spacer(Modifier.height(10.dp))
                 Surface(
-                    shape = RoundedCornerShape(14.dp),
+                    shape = MaterialTheme.shapes.medium,
                     color = MaterialTheme.colorScheme.errorContainer,
                 ) {
                     Column(Modifier.padding(12.dp)) {
@@ -219,7 +219,7 @@ fun SettingsScreen(vm: PatcherViewModel, drawerWidthController: DrawerWidthContr
 
         Spacer(Modifier.height(20.dp))
 
-        StudioStepHeader("04", "NAVIGATION", "Side menu width")
+        SectionHeader("04", "Navigation", "Side menu width")
         AppCard {
             Row(
                 modifier = Modifier.fillMaxWidth(),

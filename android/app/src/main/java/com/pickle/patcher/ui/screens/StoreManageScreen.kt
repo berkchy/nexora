@@ -67,12 +67,12 @@ fun StoreManageScreen(
     }
 
     Column(Modifier.fillMaxSize()) {
-        StudioHero(
+        ScreenHeader(
             icon = Icons.Filled.Edit,
-            title = "Package Studio",
+            title = "Manage packages",
             subtitle = "Manage your uploaded package posts.",
-            status = "PACKAGES",
-            statusTone = StudioTone.Secondary,
+            status = "Packages",
+            statusTone = Tone.Secondary,
             modifier = Modifier.padding(horizontal = 20.dp, vertical = 16.dp),
         )
 
@@ -96,7 +96,7 @@ fun StoreManageScreen(
                             val id = obj.optString("id")
                             val status = obj.optString("status", "approved")
                             Surface(
-                                shape = RoundedCornerShape(20.dp),
+                                shape = MaterialTheme.shapes.large,
                                 color = MaterialTheme.colorScheme.surfaceContainerHigh,
                                 modifier = Modifier.fillMaxWidth(),
                             ) {
@@ -110,9 +110,9 @@ fun StoreManageScreen(
                                             maxLines = 1,
                                             overflow = TextOverflow.Ellipsis,
                                         )
-                                        StudioStatusPill(
-                                            status.uppercase(),
-                                            tone = if (status == "approved") StudioTone.Primary else StudioTone.Tertiary,
+                                        StatusPill(
+                                            status.replaceFirstChar { it.titlecase() },
+                                            tone = if (status == "approved") Tone.Primary else Tone.Tertiary,
                                         )
                                     }
                                     Spacer(Modifier.height(4.dp))

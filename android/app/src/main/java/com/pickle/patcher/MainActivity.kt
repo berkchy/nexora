@@ -294,6 +294,33 @@ fun PatcherApp(vm: PatcherViewModel, drawerWidthController: DrawerWidthControlle
                 },
             )
         },
+        bottomBar = {
+            if (currentRoute == Dest.Patch.route || currentRoute == Dest.Compiler.route || currentRoute == Dest.Addons.route) {
+                androidx.compose.material3.NavigationBar(
+                    containerColor = MaterialTheme.colorScheme.surfaceContainer,
+                    tonalElevation = 0.dp,
+                ) {
+                    androidx.compose.material3.NavigationBarItem(
+                        selected = currentRoute == Dest.Patch.route,
+                        onClick = { navToTab(nav, Dest.Patch.route, currentRoute) },
+                        icon = { Icon(androidx.compose.material.icons.Icons.Filled.RocketLaunch, contentDescription = null) },
+                        label = { Text("Patch") },
+                    )
+                    androidx.compose.material3.NavigationBarItem(
+                        selected = currentRoute == Dest.Compiler.route,
+                        onClick = { navToTab(nav, Dest.Compiler.route, currentRoute) },
+                        icon = { Icon(androidx.compose.material.icons.Icons.Filled.Code, contentDescription = null) },
+                        label = { Text("Compile") },
+                    )
+                    androidx.compose.material3.NavigationBarItem(
+                        selected = currentRoute == Dest.Addons.route,
+                        onClick = { navToTab(nav, Dest.Addons.route, currentRoute) },
+                        icon = { Icon(androidx.compose.material.icons.Icons.Filled.Extension, contentDescription = null) },
+                        label = { Text("Addons") },
+                    )
+                }
+            }
+        },
     ) { padding ->
         Column(modifier = Modifier.fillMaxSize().padding(padding)) {
             // In-app view of the background jobs; the notification is the same
@@ -516,7 +543,7 @@ private fun NavDrawer(
             ) {
                 DrawerHeader()
 
-                DrawerSection("PATCHER")
+                DrawerSection("Patcher")
                 DrawerItem("Patch", Icons.Filled.RocketLaunch, currentRoute == Dest.Patch.route) {
                     closeThen { nav.popBackStack(nav.graph.findStartDestination().id, inclusive = true); nav.navigate(Dest.Patch.route) }
                 }
@@ -527,7 +554,7 @@ private fun NavDrawer(
                     closeThen { nav.popBackStack(nav.graph.findStartDestination().id, inclusive = true); nav.navigate(Dest.Addons.route) }
                 }
 
-                DrawerSection("STORE")
+                DrawerSection("Store")
                 DrawerItem("Store", Icons.Filled.ShoppingCart, currentRoute == Dest.Store.route) {
                     closeThen { nav.popBackStack(nav.graph.findStartDestination().id, inclusive = true); nav.navigate(Dest.Store.route) }
                 }
@@ -587,7 +614,7 @@ private fun NavDrawer(
                     }
                 }
 
-                DrawerSection("SETTINGS")
+                DrawerSection("Settings")
                 DrawerItem("Settings", Icons.Filled.Tune, currentRoute == Dest.Settings.route) {
                     closeThen { nav.popBackStack(nav.graph.findStartDestination().id, inclusive = true); nav.navigate(Dest.Settings.route) }
                 }
@@ -595,7 +622,7 @@ private fun NavDrawer(
                     closeThen { nav.popBackStack(nav.graph.findStartDestination().id, inclusive = true); nav.navigate(Dest.Plugins.route) }
                 }
 
-                DrawerSection("TOOLS")
+                DrawerSection("Tools")
                 DrawerItem("Theme", Icons.Filled.Palette, false, onTheme)
                 DrawerItem("Update check", Icons.Filled.SystemUpdate) {
                     closeThen {
@@ -683,7 +710,7 @@ private fun DrawerHeader() {
         Column {
             Text("Nexora", style = MaterialTheme.typography.titleMedium)
             Text(
-                "AMXX patcher studio",
+                "AMXX tools",
                 style = MaterialTheme.typography.labelSmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )

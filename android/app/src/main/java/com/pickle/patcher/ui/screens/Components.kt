@@ -4,7 +4,6 @@ import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
-import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -23,7 +22,7 @@ import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -54,21 +53,11 @@ import com.pickle.patcher.ui.theme.Gray70
 import com.pickle.patcher.ui.theme.Gray85
 import com.pickle.patcher.ui.theme.Gray99
 
-private val CardShape = RoundedCornerShape(20.dp)
-private val ButtonShape = RoundedCornerShape(12.dp)
+private val CardShape: androidx.compose.foundation.shape.Shape
+    @Composable get() = MaterialTheme.shapes.large
 
 
-@Composable
-fun SectionHeader(text: String, modifier: Modifier = Modifier) {
-    Text(
-        text = text,
-        style = MaterialTheme.typography.titleSmall,
-        color = MaterialTheme.colorScheme.onSurfaceVariant,
-        modifier = modifier.padding(bottom = 10.dp, top = 4.dp),
-    )
-}
-
-enum class StudioTone {
+enum class Tone {
     Primary,
     Secondary,
     Tertiary,
@@ -76,33 +65,33 @@ enum class StudioTone {
     Neutral,
 }
 
-data class StudioStat(
+data class Stat(
     val label: String,
     val value: String,
-    val tone: StudioTone = StudioTone.Neutral,
+    val tone: Tone = Tone.Neutral,
 )
 
 @Composable
-private fun studioColors(tone: StudioTone): Pair<Color, Color> = when (tone) {
-    StudioTone.Primary ->
+private fun toneColors(tone: Tone): Pair<Color, Color> = when (tone) {
+    Tone.Primary ->
         MaterialTheme.colorScheme.primaryContainer to MaterialTheme.colorScheme.onPrimaryContainer
-    StudioTone.Secondary ->
+    Tone.Secondary ->
         MaterialTheme.colorScheme.secondaryContainer to MaterialTheme.colorScheme.onSecondaryContainer
-    StudioTone.Tertiary ->
+    Tone.Tertiary ->
         MaterialTheme.colorScheme.tertiaryContainer to MaterialTheme.colorScheme.onTertiaryContainer
-    StudioTone.Error ->
+    Tone.Error ->
         MaterialTheme.colorScheme.errorContainer to MaterialTheme.colorScheme.onErrorContainer
-    StudioTone.Neutral ->
+    Tone.Neutral ->
         MaterialTheme.colorScheme.surfaceContainerHighest to MaterialTheme.colorScheme.onSurfaceVariant
 }
 
 @Composable
-fun StudioStatusPill(
+fun StatusPill(
     text: String,
     modifier: Modifier = Modifier,
-    tone: StudioTone = StudioTone.Neutral,
+    tone: Tone = Tone.Neutral,
 ) {
-    val (container, content) = studioColors(tone)
+    val (container, content) = toneColors(tone)
     Surface(modifier = modifier, shape = RoundedCornerShape(50), color = container) {
         Text(
             text,
@@ -114,33 +103,33 @@ fun StudioStatusPill(
 }
 
 @Composable
-fun StudioHero(
+fun ScreenHeader(
     icon: ImageVector,
     title: String,
     subtitle: String,
     modifier: Modifier = Modifier,
     status: String? = null,
-    statusTone: StudioTone = StudioTone.Neutral,
-    stats: List<StudioStat> = emptyList(),
+    statusTone: Tone = Tone.Neutral,
+    stats: List<Stat> = emptyList(),
 ) {
     Surface(
         modifier = modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(32.dp),
+        shape = MaterialTheme.shapes.extraLarge,
         color = MaterialTheme.colorScheme.surfaceContainerLow,
         tonalElevation = 1.dp,
     ) {
-        Column(modifier = Modifier.padding(22.dp)) {
+        Column(modifier = Modifier.padding(20.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Surface(
-                    shape = RoundedCornerShape(18.dp),
-                    color = MaterialTheme.colorScheme.primary,
+                    shape = MaterialTheme.shapes.large,
+                    color = MaterialTheme.colorScheme.secondaryContainer,
                 ) {
-                    Box(modifier = Modifier.size(54.dp), contentAlignment = Alignment.Center) {
+                    Box(modifier = Modifier.size(52.dp), contentAlignment = Alignment.Center) {
                         Icon(
                             icon,
                             contentDescription = null,
                             modifier = Modifier.size(26.dp),
-                            tint = MaterialTheme.colorScheme.onPrimary,
+                            tint = MaterialTheme.colorScheme.onSecondaryContainer,
                         )
                     }
                 }
@@ -156,17 +145,19 @@ fun StudioHero(
                         subtitle,
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        maxLines = 2,
+                        overflow = TextOverflow.Ellipsis,
                     )
                 }
                 if (status != null) {
-                    StudioStatusPill(status, tone = statusTone)
+                    StatusPill(status, tone = statusTone)
                 }
             }
             if (stats.isNotEmpty()) {
                 Spacer(Modifier.height(16.dp))
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     stats.forEach { stat ->
-                        StudioStatCard(stat, Modifier.weight(1f))
+                        StatCard(stat, Modifier.weight(1f))
                     }
                 }
             }
@@ -175,9 +166,9 @@ fun StudioHero(
 }
 
 @Composable
-fun StudioStatCard(stat: StudioStat, modifier: Modifier = Modifier) {
-    val (container, content) = studioColors(stat.tone)
-    Surface(modifier = modifier, shape = RoundedCornerShape(16.dp), color = container) {
+fun StatCard(stat: Stat, modifier: Modifier = Modifier) {
+    val (container, content) = toneColors(stat.tone)
+    Surface(modifier = modifier, shape = MaterialTheme.shapes.large, color = container) {
         Column(modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp)) {
             Text(stat.label, style = MaterialTheme.typography.labelSmall, color = content)
             Spacer(Modifier.height(2.dp))
@@ -193,7 +184,7 @@ fun StudioStatCard(stat: StudioStat, modifier: Modifier = Modifier) {
 }
 
 @Composable
-fun StudioStepHeader(
+fun SectionHeader(
     step: String,
     title: String,
     caption: String,
@@ -202,18 +193,18 @@ fun StudioStepHeader(
     Row(
         modifier = modifier
             .fillMaxWidth()
-            .padding(bottom = 10.dp, top = 2.dp),
+            .padding(bottom = 10.dp, top = 4.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Surface(
-            shape = RoundedCornerShape(50),
-            color = MaterialTheme.colorScheme.secondaryContainer,
+            shape = MaterialTheme.shapes.small,
+            color = MaterialTheme.colorScheme.surfaceContainerHigh,
         ) {
             Box(modifier = Modifier.size(30.dp), contentAlignment = Alignment.Center) {
                 Text(
                     step,
                     style = MaterialTheme.typography.labelMedium,
-                    color = MaterialTheme.colorScheme.onSecondaryContainer,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             }
         }
@@ -242,8 +233,7 @@ fun AppCard(
         modifier = modifier.fillMaxWidth(),
         shape = CardShape,
         color = MaterialTheme.colorScheme.surfaceContainerHigh,
-        tonalElevation = 2.dp,
-        shadowElevation = 1.dp,
+        tonalElevation = 1.dp,
     ) {
         Column(modifier = Modifier.padding(18.dp)) {
             content()
@@ -267,7 +257,7 @@ fun PrimaryButton(
         onClick = onClick,
         enabled = enabled,
         modifier = modifier.fillMaxWidth().height(48.dp),
-        shape = ButtonShape,
+        shape = RoundedCornerShape(50),
         colors = ButtonDefaults.buttonColors(
             containerColor = containerColor,
             contentColor = contentColor,
@@ -289,16 +279,17 @@ fun SecondaryButton(
     enabled: Boolean = true,
     icon: @Composable (() -> Unit)? = null,
 ) {
-    OutlinedButton(
+    FilledTonalButton(
         onClick = onClick,
         enabled = enabled,
         modifier = modifier.height(48.dp),
-        shape = ButtonShape,
-        colors = ButtonDefaults.outlinedButtonColors(
-            contentColor = MaterialTheme.colorScheme.secondary,
+        shape = RoundedCornerShape(50),
+        colors = ButtonDefaults.filledTonalButtonColors(
+            containerColor = MaterialTheme.colorScheme.secondaryContainer,
+            contentColor = MaterialTheme.colorScheme.onSecondaryContainer,
+            disabledContainerColor = MaterialTheme.colorScheme.surfaceContainerHighest,
             disabledContentColor = MaterialTheme.colorScheme.onSurfaceVariant,
         ),
-        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
     ) {
         icon?.invoke()
         if (icon != null) Spacer(Modifier.width(6.dp))
@@ -355,7 +346,7 @@ fun StatPill(
 ) {
     Surface(
         modifier = modifier,
-        shape = RoundedCornerShape(14.dp),
+        shape = MaterialTheme.shapes.medium,
         color = MaterialTheme.colorScheme.surfaceContainerHighest,
     ) {
         Column(
@@ -481,7 +472,7 @@ fun MiniConsole(
     val scroll = rememberScrollState()
     Surface(
         modifier = modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(14.dp),
+        shape = MaterialTheme.shapes.medium,
         color = MaterialTheme.colorScheme.surfaceContainerLowest,
     ) {
         Column(

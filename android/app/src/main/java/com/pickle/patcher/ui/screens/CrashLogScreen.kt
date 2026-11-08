@@ -59,17 +59,17 @@ fun CrashLogScreen(vm: PatcherViewModel) {
             .verticalScroll(scroll)
             .padding(horizontal = 20.dp, vertical = 16.dp),
     ) {
-        StudioHero(
+        ScreenHeader(
             icon = Icons.Filled.BugReport,
-            title = "Crash Studio",
+            title = "Crash log",
             subtitle = "Stack traces from uncaught exceptions.",
-            status = if (crash != null) "CRASH FOUND" else "HEALTHY",
-            statusTone = if (crash != null) StudioTone.Error else StudioTone.Primary,
+            status = if (crash != null) "Crash found" else "Healthy",
+            statusTone = if (crash != null) Tone.Error else Tone.Primary,
         )
 
         Spacer(Modifier.height(20.dp))
 
-        StudioStepHeader("01", "LATEST CRASH", "Most recent stack trace")
+        SectionHeader("01", "Latest crash", "Most recent stack trace")
         AppCard {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Icon(
@@ -82,9 +82,9 @@ fun CrashLogScreen(vm: PatcherViewModel) {
                 Text("Latest crash", style = MaterialTheme.typography.titleSmall)
                 Spacer(Modifier.weight(1f))
                 if (crash != null) {
-                    StudioStatusPill("LOGGED", tone = StudioTone.Error)
+                    StatusPill("Logged", tone = Tone.Error)
                 } else {
-                    StudioStatusPill("NONE", tone = StudioTone.Primary)
+                    StatusPill("None", tone = Tone.Primary)
                 }
             }
 
@@ -114,7 +114,7 @@ fun CrashLogScreen(vm: PatcherViewModel) {
                 )
                 Spacer(Modifier.height(8.dp))
                 Surface(
-                    shape = RoundedCornerShape(14.dp),
+                    shape = MaterialTheme.shapes.medium,
                     color = MaterialTheme.colorScheme.surfaceContainerLowest,
                 ) {
                     Text(

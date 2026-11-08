@@ -81,17 +81,17 @@ fun StoreProfileScreen(
 
     Column(Modifier.fillMaxSize()) {
         val isOwn = profile?.optBoolean("isOwn", false) == true
-        StudioHero(
+        ScreenHeader(
             icon = Icons.Filled.Person,
-            title = "Profile Studio",
+            title = "Profile",
             subtitle = "@$username",
-            status = if (isOwn) "OWNER" else "VISITOR",
-            statusTone = if (isOwn) StudioTone.Primary else StudioTone.Secondary,
+            status = if (isOwn) "Owner" else "Visitor",
+            statusTone = if (isOwn) Tone.Primary else Tone.Secondary,
             stats = listOf(
-                StudioStat(
-                    "POSTS",
+                Stat(
+                    "Posts",
                     "${profile?.optJSONArray("items")?.length() ?: 0}",
-                    StudioTone.Primary,
+                    Tone.Primary,
                 ),
             ),
             modifier = Modifier.padding(horizontal = 20.dp, vertical = 16.dp),
@@ -167,7 +167,7 @@ fun StoreProfileScreen(
                         }
                     }
                     Spacer(Modifier.height(20.dp))
-                    StudioStepHeader("01", "PACKAGES", "Published posts")
+                    SectionHeader("01", "Packages", "Published posts")
                     val items = p.optJSONArray("items") ?: JSONArray()
                     if (items.length() == 0) {
                         Text(
@@ -178,7 +178,7 @@ fun StoreProfileScreen(
                     } else {
                         (0 until items.length()).map { items.getJSONObject(it) }.forEach { item ->
                             Surface(
-                                shape = RoundedCornerShape(16.dp),
+                                shape = MaterialTheme.shapes.large,
                                 color = MaterialTheme.colorScheme.surfaceContainerHigh,
                                 modifier = Modifier
                                     .fillMaxWidth()
@@ -220,9 +220,9 @@ fun StoreProfileScreen(
                                             val status = item.optString("status", "approved")
                                             if (status != "approved") {
                                                 Spacer(Modifier.width(6.dp))
-                                                StudioStatusPill(
-                                                    status.uppercase(),
-                                                    tone = StudioTone.Tertiary,
+                                                StatusPill(
+                                                    status.replaceFirstChar { it.titlecase() },
+                                                    tone = Tone.Tertiary,
                                                 )
                                             }
                                         }

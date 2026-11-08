@@ -70,34 +70,34 @@ fun AddonsScreen(vm: PatcherViewModel) {
         verticalArrangement = Arrangement.spacedBy(20.dp),
     ) {
         item {
-            StudioHero(
+            ScreenHeader(
                 icon = Icons.Filled.FolderOpen,
-                title = "Addons Studio",
+                title = "Addons",
                 subtitle = "Install and manage AMXX addons in your game directory.",
                 status = when {
-                    addons is AddonsState.Downloading -> "INSTALLING"
-                    addons is AddonsState.Error -> "ERROR"
-                    total == 0 -> "SETUP"
-                    missing > 0 || outdated > 0 -> "ATTENTION"
-                    else -> "READY"
+                    addons is AddonsState.Downloading -> "Installing"
+                    addons is AddonsState.Error -> "Error"
+                    total == 0 -> "Setup"
+                    missing > 0 || outdated > 0 -> "Needs attention"
+                    else -> "Ready"
                 },
                 statusTone = when {
-                    addons is AddonsState.Error -> StudioTone.Error
-                    addons is AddonsState.Downloading -> StudioTone.Tertiary
-                    total > 0 && missing == 0 && outdated == 0 -> StudioTone.Primary
-                    total > 0 -> StudioTone.Tertiary
-                    else -> StudioTone.Neutral
+                    addons is AddonsState.Error -> Tone.Error
+                    addons is AddonsState.Downloading -> Tone.Tertiary
+                    total > 0 && missing == 0 && outdated == 0 -> Tone.Primary
+                    total > 0 -> Tone.Tertiary
+                    else -> Tone.Neutral
                 },
                 stats = listOf(
-                    StudioStat("INSTALLED", "$installed", StudioTone.Primary),
-                    StudioStat("MISSING", "$missing", if (missing > 0) StudioTone.Error else StudioTone.Neutral),
-                    StudioStat("OUTDATED", "$outdated", if (outdated > 0) StudioTone.Error else StudioTone.Neutral),
+                    Stat("Installed", "$installed", Tone.Primary),
+                    Stat("Missing", "$missing", if (missing > 0) Tone.Error else Tone.Neutral),
+                    Stat("Outdated", "$outdated", if (outdated > 0) Tone.Error else Tone.Neutral),
                 ),
             )
         }
 
         item {
-            StudioStepHeader("01", "GAME", "Choose the target install")
+            SectionHeader("01", "Game", "Choose the target install")
             AppCard {
                 val game by vm.gameId.collectAsState()
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -130,12 +130,12 @@ fun AddonsScreen(vm: PatcherViewModel) {
         }
 
         item {
-            StudioStepHeader("02", "STORAGE ACCESS", "All files permission")
+            SectionHeader("02", "Storage access", "All files permission")
             PermissionCard()
         }
 
         item {
-            StudioStepHeader("03", "ADDON STATUS", "What is installed")
+            SectionHeader("03", "Addon status", "What is installed")
             AppCard {
                 if (total == 0) {
                     Text(
@@ -148,16 +148,16 @@ fun AddonsScreen(vm: PatcherViewModel) {
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.spacedBy(8.dp),
                     ) {
-                        StudioStatCard(StudioStat("TOTAL", "$total"), Modifier.weight(1f))
-                        StudioStatCard(
-                            StudioStat("READY", "$installed", StudioTone.Primary),
+                        StatCard(Stat("Total", "$total"), Modifier.weight(1f))
+                        StatCard(
+                            Stat("Ready", "$installed", Tone.Primary),
                             Modifier.weight(1f),
                         )
-                        StudioStatCard(
-                            StudioStat(
+                        StatCard(
+                            Stat(
                                 "MISSING",
                                 "${missing + outdated}",
-                                if (missing + outdated > 0) StudioTone.Error else StudioTone.Neutral,
+                                if (missing + outdated > 0) Tone.Error else Tone.Neutral,
                             ),
                             Modifier.weight(1f),
                         )
@@ -168,7 +168,7 @@ fun AddonsScreen(vm: PatcherViewModel) {
 
         if (total > 0 && (missing > 0 || outdated > 0)) {
             item {
-                StudioStepHeader("04", "REPAIR QUEUE", "Missing or outdated files")
+                SectionHeader("04", "Repair queue", "Missing or outdated files")
                 AppCard {
                     addonFiles.filter { !it.installed || it.outdated }.forEach { file ->
                         Row(
@@ -205,7 +205,7 @@ fun AddonsScreen(vm: PatcherViewModel) {
         }
 
         item {
-            StudioStepHeader("05", "INSTALL", "Fetch and write files")
+            SectionHeader("05", "Install", "Fetch and write files")
             AppCard {
                 when (val s = addons) {
                     is AddonsState.Downloading -> {
@@ -288,7 +288,7 @@ fun AddonsScreen(vm: PatcherViewModel) {
 
         if (addonFiles.isNotEmpty()) {
             item {
-                StudioStepHeader("06", "ALL FILES", "${addonFiles.size} tracked files")
+                SectionHeader("06", "All files", "${addonFiles.size} tracked files")
             }
             items(addonFiles) { file ->
                 val ok = file.installed && !file.outdated

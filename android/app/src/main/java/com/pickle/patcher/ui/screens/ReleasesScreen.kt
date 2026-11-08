@@ -58,27 +58,27 @@ fun ReleasesScreen(vm: PatcherViewModel) {
             .verticalScroll(scroll)
             .padding(horizontal = 20.dp, vertical = 16.dp),
     ) {
-        StudioHero(
+        ScreenHeader(
             icon = Icons.Filled.CloudDownload,
-            title = "Downloads Studio",
+            title = "Downloads",
             subtitle = "Install addons, bundles, and app updates.",
             status = when {
-                addons is AddonsState.Downloading || bundle is BundleState.Downloading -> "DOWNLOADING"
-                addons is AddonsState.Error || bundle is BundleState.DownloadError -> "ERROR"
-                addons is AddonsState.Done || bundle is BundleState.Ready || bundle is BundleState.Loaded -> "READY"
-                else -> "IDLE"
+                addons is AddonsState.Downloading || bundle is BundleState.Downloading -> "Downloading"
+                addons is AddonsState.Error || bundle is BundleState.DownloadError -> "Error"
+                addons is AddonsState.Done || bundle is BundleState.Ready || bundle is BundleState.Loaded -> "Ready"
+                else -> "Idle"
             },
             statusTone = when {
-                addons is AddonsState.Downloading || bundle is BundleState.Downloading -> StudioTone.Tertiary
-                addons is AddonsState.Error || bundle is BundleState.DownloadError -> StudioTone.Error
-                addons is AddonsState.Done || bundle is BundleState.Ready || bundle is BundleState.Loaded -> StudioTone.Primary
-                else -> StudioTone.Neutral
+                addons is AddonsState.Downloading || bundle is BundleState.Downloading -> Tone.Tertiary
+                addons is AddonsState.Error || bundle is BundleState.DownloadError -> Tone.Error
+                addons is AddonsState.Done || bundle is BundleState.Ready || bundle is BundleState.Loaded -> Tone.Primary
+                else -> Tone.Neutral
             },
         )
 
         Spacer(Modifier.height(20.dp))
 
-        StudioStepHeader("01", "ADDONS", "Plugins, modules, and configs")
+        SectionHeader("01", "Addons", "Plugins, modules, and configs")
         AppCard {
             Text(
                 "Plugins, modules, and configs for cstrike/.",
@@ -97,9 +97,9 @@ fun ReleasesScreen(vm: PatcherViewModel) {
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                 }
-                is AddonsState.Done -> StatusRow(StudioTone.Primary, a.message)
-                is AddonsState.Error -> StatusRow(StudioTone.Error, a.message)
-                is AddonsState.None -> StatusRow(StudioTone.Neutral, "Not downloaded yet.")
+                is AddonsState.Done -> StatusRow(Tone.Primary, a.message)
+                is AddonsState.Error -> StatusRow(Tone.Error, a.message)
+                is AddonsState.None -> StatusRow(Tone.Neutral, "Not downloaded yet.")
             }
 
             Spacer(Modifier.height(10.dp))
@@ -112,7 +112,7 @@ fun ReleasesScreen(vm: PatcherViewModel) {
 
         Spacer(Modifier.height(20.dp))
 
-        StudioStepHeader("02", "MOD BUNDLE", "Game libraries and metadata")
+        SectionHeader("02", "Mod bundle", "Game libraries and metadata")
         AppCard {
             note?.let {
                 Row(verticalAlignment = Alignment.CenterVertically) {
@@ -144,10 +144,10 @@ fun ReleasesScreen(vm: PatcherViewModel) {
                         )
                     }
                 }
-                is BundleState.DownloadError -> StatusRow(StudioTone.Error, b.message)
-                is BundleState.Ready -> StatusRow(StudioTone.Primary, "${b.bundleName}  ·  v${b.version}")
-                is BundleState.Loaded -> StatusRow(StudioTone.Primary, "Libs loaded  ·  Up to date")
-                is BundleState.None -> StatusRow(StudioTone.Neutral, "Not downloaded yet.")
+                is BundleState.DownloadError -> StatusRow(Tone.Error, b.message)
+                is BundleState.Ready -> StatusRow(Tone.Primary, "${b.bundleName}  ·  v${b.version}")
+                is BundleState.Loaded -> StatusRow(Tone.Primary, "Libs loaded  ·  Up to date")
+                is BundleState.None -> StatusRow(Tone.Neutral, "Not downloaded yet.")
             }
 
             Spacer(Modifier.height(10.dp))
@@ -169,7 +169,7 @@ fun ReleasesScreen(vm: PatcherViewModel) {
 
         Spacer(Modifier.height(20.dp))
 
-        StudioStepHeader("03", "APP UPDATE", "Check for a newer patcher")
+        SectionHeader("03", "App update", "Check for a newer patcher")
         AppCard {
             val context = LocalContext.current
             val pm = context.packageManager
@@ -204,18 +204,18 @@ fun ReleasesScreen(vm: PatcherViewModel) {
 
         Spacer(Modifier.height(20.dp))
 
-        StudioStepHeader("04", "GAME FOLDERS", "Verify your install layout")
+        SectionHeader("04", "Game folders", "Verify your install layout")
         GameFoldersCard()
         Spacer(Modifier.height(20.dp))
     }
 }
 
 @Composable
-private fun StatusRow(tone: StudioTone, text: String) {
+private fun StatusRow(tone: Tone, text: String) {
     val (_, content) = when (tone) {
-        StudioTone.Primary ->
+        Tone.Primary ->
             MaterialTheme.colorScheme.primaryContainer to MaterialTheme.colorScheme.primary
-        StudioTone.Error ->
+        Tone.Error ->
             MaterialTheme.colorScheme.errorContainer to MaterialTheme.colorScheme.error
         else ->
             MaterialTheme.colorScheme.surfaceContainerHighest to MaterialTheme.colorScheme.onSurfaceVariant
@@ -223,8 +223,8 @@ private fun StatusRow(tone: StudioTone, text: String) {
     Row(verticalAlignment = Alignment.CenterVertically) {
         Icon(
             when (tone) {
-                StudioTone.Primary -> Icons.Filled.CheckCircle
-                StudioTone.Error -> Icons.Filled.Error
+                Tone.Primary -> Icons.Filled.CheckCircle
+                Tone.Error -> Icons.Filled.Error
                 else -> Icons.Filled.Info
             },
             contentDescription = null,
@@ -253,7 +253,7 @@ private fun GameFoldersCard() {
             if (index > 0) Spacer(Modifier.height(8.dp))
             Surface(
                 modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(14.dp),
+                shape = MaterialTheme.shapes.medium,
                 color = if (exists) {
                     MaterialTheme.colorScheme.surfaceContainerHighest
                 } else {

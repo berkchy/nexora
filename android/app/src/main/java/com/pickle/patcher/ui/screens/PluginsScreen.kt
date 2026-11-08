@@ -209,28 +209,28 @@ fun PluginsScreen(vm: PatcherViewModel) {
             .imePadding()
             .padding(horizontal = 20.dp, vertical = 16.dp),
     ) {
-        StudioHero(
+        ScreenHeader(
             icon = Icons.Filled.Edit,
-            title = "Plugins Studio",
+            title = "Plugins",
             subtitle = file?.name
                 ?: "No plugins-*.ini found. Set the game folder on the Addons tab.",
             status = when {
-                dirty -> "UNSAVED"
-                saved -> "SAVED"
-                file == null -> "NO FILE"
-                else -> "READY"
+                dirty -> "Unsaved"
+                saved -> "Saved"
+                file == null -> "No file"
+                else -> "Ready"
             },
             statusTone = when {
-                dirty -> StudioTone.Tertiary
-                saved -> StudioTone.Primary
-                file == null -> StudioTone.Error
-                else -> StudioTone.Neutral
+                dirty -> Tone.Tertiary
+                saved -> Tone.Primary
+                file == null -> Tone.Error
+                else -> Tone.Neutral
             },
         )
 
         if (inis.isNotEmpty()) {
             Spacer(Modifier.height(20.dp))
-            StudioStepHeader("01", "CONFIG FILE", "Choose a plugin list")
+            SectionHeader("01", "Config file", "Choose a plugin list")
             LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 items(inis) { ini ->
                     val active = ini.file == file
@@ -259,11 +259,11 @@ fun PluginsScreen(vm: PatcherViewModel) {
         }
 
         Spacer(Modifier.height(20.dp))
-        if (file != null) StudioStepHeader("02", "EDITOR", "Edit the INI in place")
+        if (file != null) SectionHeader("02", "Editor", "Edit the INI in place")
 
         if (file != null) {
             Surface(
-                shape = RoundedCornerShape(20.dp),
+                shape = MaterialTheme.shapes.large,
                 color = MaterialTheme.colorScheme.surfaceContainerLowest,
                 modifier = Modifier.fillMaxWidth(),
             ) {
@@ -308,7 +308,7 @@ fun PluginsScreen(vm: PatcherViewModel) {
             }
 
             Spacer(Modifier.height(20.dp))
-            StudioStepHeader("03", "SAVE", "Write changes to disk")
+            SectionHeader("03", "Save", "Write changes to disk")
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(
                     when {
