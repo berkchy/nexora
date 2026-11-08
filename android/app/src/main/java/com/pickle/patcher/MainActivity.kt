@@ -296,23 +296,23 @@ fun PatcherApp(vm: PatcherViewModel, drawerWidthController: DrawerWidthControlle
         },
         bottomBar = {
             if (currentRoute == Dest.Patch.route || currentRoute == Dest.Compiler.route || currentRoute == Dest.Addons.route) {
-                androidx.compose.material3.NavigationBar(
+                NavigationBar(
                     containerColor = MaterialTheme.colorScheme.surfaceContainer,
                     tonalElevation = 0.dp,
                 ) {
-                    androidx.compose.material3.NavigationBarItem(
+                    NavigationBarItem(
                         selected = currentRoute == Dest.Patch.route,
                         onClick = { navToTab(nav, Dest.Patch.route, currentRoute) },
                         icon = { Icon(androidx.compose.material.icons.Icons.Filled.RocketLaunch, contentDescription = null) },
                         label = { Text("Patch") },
                     )
-                    androidx.compose.material3.NavigationBarItem(
+                    NavigationBarItem(
                         selected = currentRoute == Dest.Compiler.route,
                         onClick = { navToTab(nav, Dest.Compiler.route, currentRoute) },
                         icon = { Icon(androidx.compose.material.icons.Icons.Filled.Code, contentDescription = null) },
                         label = { Text("Compile") },
                     )
-                    androidx.compose.material3.NavigationBarItem(
+                    NavigationBarItem(
                         selected = currentRoute == Dest.Addons.route,
                         onClick = { navToTab(nav, Dest.Addons.route, currentRoute) },
                         icon = { Icon(androidx.compose.material.icons.Icons.Filled.Extension, contentDescription = null) },

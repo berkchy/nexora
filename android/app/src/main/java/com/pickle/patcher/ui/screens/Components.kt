@@ -53,7 +53,7 @@ import com.pickle.patcher.ui.theme.Gray70
 import com.pickle.patcher.ui.theme.Gray85
 import com.pickle.patcher.ui.theme.Gray99
 
-private val CardShape: androidx.compose.foundation.shape.Shape
+private val CardShape: androidx.compose.ui.graphics.Shape
     @Composable get() = MaterialTheme.shapes.large
 
 
