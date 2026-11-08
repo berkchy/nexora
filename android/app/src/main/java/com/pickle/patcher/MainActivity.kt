@@ -65,6 +65,9 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.unit.Density
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.unit.dp
@@ -83,6 +86,7 @@ import com.pickle.patcher.ui.screens.PluginsScreen
 import com.pickle.patcher.ui.screens.CrashLogScreen
 import com.pickle.patcher.ui.screens.PatchScreen
 import com.pickle.patcher.ui.DrawerWidthController
+import com.pickle.patcher.ui.UiScaleController
 import com.pickle.patcher.ui.screens.SettingsScreen
 import com.pickle.patcher.ui.screens.StoreScreen
 import com.pickle.patcher.ui.screens.StoreLoginScreen
@@ -112,15 +116,21 @@ class MainActivity : ComponentActivity() {
         setContent {
             val themeController: ThemeController = viewModel()
             val themeChoice by themeController.choice.collectAsState()
+            val uiScaleController: UiScaleController = viewModel()
+            val uiScale by uiScaleController.scale.collectAsState()
             NexoraTheme(themeChoice, themeController) {
-                val vm: PatcherViewModel = viewModel()
-                val drawerWidthController: DrawerWidthController = viewModel()
-                LaunchedEffect(Unit) {
-                    vm.autoInstallAddons()
-                    vm.scanAddonsStatus()
-                }
-                Box(Modifier.fillMaxSize()) {
-                    PatcherApp(vm, drawerWidthController)
+                CompositionLocalProvider(
+                    LocalDensity provides Density(LocalDensity.current.density * uiScale, LocalDensity.current.fontScale),
+                ) {
+                    val vm: PatcherViewModel = viewModel()
+                    val drawerWidthController: DrawerWidthController = viewModel()
+                    LaunchedEffect(Unit) {
+                        vm.autoInstallAddons()
+                        vm.scanAddonsStatus()
+                    }
+                    Box(Modifier.fillMaxSize()) {
+                        PatcherApp(vm, drawerWidthController, uiScaleController)
+                    }
                 }
             }
         }
@@ -149,7 +159,7 @@ private enum class Dest(val route: String) {
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun PatcherApp(vm: PatcherViewModel, drawerWidthController: DrawerWidthController) {
+fun PatcherApp(vm: PatcherViewModel, drawerWidthController: DrawerWidthController, uiScaleController: UiScaleController) {
     val nav = rememberNavController()
     val entry by nav.currentBackStackEntryAsState()
     val currentRoute = entry?.destination?.route
@@ -350,7 +360,7 @@ fun PatcherApp(vm: PatcherViewModel, drawerWidthController: DrawerWidthControlle
                 val api = StoreApi("https://nexora-store-tawny.vercel.app", context)
                 StoreProfileScreen(api, username = username, onBack = { nav.popBackStack() }, onEditProfile = { })
             }
-            composable(Dest.Settings.route) { SettingsScreen(vm, drawerWidthController) }
+            composable(Dest.Settings.route) { SettingsScreen(vm, drawerWidthController, uiScaleController) }
             composable(Dest.Plugins.route) { PluginsScreen(vm) }
             }
         }

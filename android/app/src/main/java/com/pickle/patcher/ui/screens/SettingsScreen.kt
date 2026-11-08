@@ -34,6 +34,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import com.pickle.patcher.patcher.PatcherViewModel
 import com.pickle.patcher.ui.DrawerWidthController
+import com.pickle.patcher.ui.UiScaleController
 
 /**
  * Everything the app can be tuned with, kept out of the three task screens so
@@ -44,11 +45,12 @@ import com.pickle.patcher.ui.DrawerWidthController
  * first thing on the screen was configuration.
  */
 @Composable
-fun SettingsScreen(vm: PatcherViewModel, drawerWidthController: DrawerWidthController) {
+fun SettingsScreen(vm: PatcherViewModel, drawerWidthController: DrawerWidthController, uiScaleController: UiScaleController) {
     val context = LocalContext.current
     val workers by vm.compileWorkers.collectAsState()
     val patchWorkers by vm.patchWorkers.collectAsState()
     val drawerWidth by drawerWidthController.fraction.collectAsState()
+    val uiScale by uiScaleController.scale.collectAsState()
     val maxWorkers = vm.maxCompileWorkers()
     val maxPatchWorkers = vm.maxPatchWorkers()
     val scriptRoot by vm.scriptRoot.collectAsState()
@@ -215,6 +217,40 @@ fun SettingsScreen(vm: PatcherViewModel, drawerWidthController: DrawerWidthContr
                     }
                 }
             }
+        }
+
+        Spacer(Modifier.height(20.dp))
+
+        SectionHeader("Interface", "Whole-app scale")
+        AppCard {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = androidx.compose.foundation.layout.Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Text(
+                    "Interface scale",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurface,
+                )
+                Text(
+                    "${(uiScale * 100).toInt()}%",
+                    style = MaterialTheme.typography.titleMedium,
+                    color = MaterialTheme.colorScheme.primary,
+                )
+            }
+            Spacer(Modifier.height(2.dp))
+            Text(
+                "Scales the whole app from 50% to 200%. Useful for dense screens or oversized displays.",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            Slider(
+                value = uiScale,
+                onValueChange = { uiScaleController.setScale(it) },
+                valueRange = 0.5f..2.0f,
+                steps = 29,
+            )
         }
 
         Spacer(Modifier.height(20.dp))
