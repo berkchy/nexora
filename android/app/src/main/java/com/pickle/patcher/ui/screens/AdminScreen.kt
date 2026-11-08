@@ -53,25 +53,26 @@ fun AdminScreen(api: StoreApi, onBack: () -> Unit) {
                 },
             )
         },
-        bottomBar = {
-            NavigationBar {
-                NavigationBarItem(
+    ) { padding ->
+        Column(Modifier.fillMaxSize().padding(padding)) {
+            Row(
+                Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 12.dp),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                FilterChip(
                     selected = tab == 0,
                     onClick = { tab = 0 },
-                    icon = { Icon(Icons.Filled.Article, contentDescription = null) },
                     label = { Text("Posts") },
                 )
-                NavigationBarItem(
+                FilterChip(
                     selected = tab == 1,
                     onClick = { tab = 1 },
-                    icon = { Icon(Icons.Filled.People, contentDescription = null) },
                     label = { Text("Users") },
                 )
             }
-        },
-    ) { padding ->
-        Box(Modifier.fillMaxSize().padding(padding)) {
-            if (tab == 0) AdminPosts(api, token) else AdminUsers(api, token)
+            Box(Modifier.fillMaxSize()) {
+                if (tab == 0) AdminPosts(api, token) else AdminUsers(api, token)
+            }
         }
     }
 }

@@ -97,7 +97,7 @@ fun AddonsScreen(vm: PatcherViewModel) {
         }
 
         item {
-            SectionHeader("01", "Game", "Choose the target install")
+            SectionHeader("Game", "Choose the target install")
             AppCard {
                 val game by vm.gameId.collectAsState()
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -130,12 +130,12 @@ fun AddonsScreen(vm: PatcherViewModel) {
         }
 
         item {
-            SectionHeader("02", "Storage access", "All files permission")
+            SectionHeader("Storage access", "All files permission")
             PermissionCard()
         }
 
         item {
-            SectionHeader("03", "Addon status", "What is installed")
+            SectionHeader("Addon status", "What is installed")
             AppCard {
                 if (total == 0) {
                     Text(
@@ -168,7 +168,7 @@ fun AddonsScreen(vm: PatcherViewModel) {
 
         if (total > 0 && (missing > 0 || outdated > 0)) {
             item {
-                SectionHeader("04", "Repair queue", "Missing or outdated files")
+                SectionHeader("Repair queue", "Missing or outdated files")
                 AppCard {
                     addonFiles.filter { !it.installed || it.outdated }.forEach { file ->
                         Row(
@@ -205,7 +205,7 @@ fun AddonsScreen(vm: PatcherViewModel) {
         }
 
         item {
-            SectionHeader("05", "Install", "Fetch and write files")
+            SectionHeader("Install", "Fetch and write files")
             AppCard {
                 when (val s = addons) {
                     is AddonsState.Downloading -> {
@@ -288,7 +288,7 @@ fun AddonsScreen(vm: PatcherViewModel) {
 
         if (addonFiles.isNotEmpty()) {
             item {
-                SectionHeader("06", "All files", "${addonFiles.size} tracked files")
+                SectionHeader("All files", "${addonFiles.size} tracked files")
             }
             items(addonFiles) { file ->
                 val ok = file.installed && !file.outdated

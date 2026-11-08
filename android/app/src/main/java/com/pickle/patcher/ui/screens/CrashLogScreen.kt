@@ -69,7 +69,7 @@ fun CrashLogScreen(vm: PatcherViewModel) {
 
         Spacer(Modifier.height(20.dp))
 
-        SectionHeader("01", "Latest crash", "Most recent stack trace")
+        SectionHeader("Latest crash", "Most recent stack trace")
         AppCard {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Icon(

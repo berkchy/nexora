@@ -106,7 +106,7 @@ fun SettingsScreen(vm: PatcherViewModel, drawerWidthController: DrawerWidthContr
 
         Spacer(Modifier.height(20.dp))
 
-        SectionHeader("01", "Compiler", "Parallel build workers")
+        SectionHeader("Compiler", "Parallel build workers")
         AppCard {
             Row(
                 modifier = Modifier.fillMaxWidth(),
@@ -145,7 +145,7 @@ fun SettingsScreen(vm: PatcherViewModel, drawerWidthController: DrawerWidthContr
 
         Spacer(Modifier.height(20.dp))
 
-        SectionHeader("02", "Patcher", "Parallel APK workers")
+        SectionHeader("Patcher", "Parallel APK workers")
         AppCard {
             Row(
                 modifier = Modifier.fillMaxWidth(),
@@ -180,7 +180,7 @@ fun SettingsScreen(vm: PatcherViewModel, drawerWidthController: DrawerWidthContr
 
         Spacer(Modifier.height(20.dp))
 
-        SectionHeader("03", "Folders", "Scripts and compiler output")
+        SectionHeader("Folders", "Scripts and compiler output")
         AppCard {
             SettingsPathRow(
                 label = "Scripts",
@@ -219,7 +219,7 @@ fun SettingsScreen(vm: PatcherViewModel, drawerWidthController: DrawerWidthContr
 
         Spacer(Modifier.height(20.dp))
 
-        SectionHeader("04", "Navigation", "Side menu width")
+        SectionHeader("Navigation", "Side menu width")
         AppCard {
             Row(
                 modifier = Modifier.fillMaxWidth(),

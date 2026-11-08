@@ -230,7 +230,7 @@ fun PluginsScreen(vm: PatcherViewModel) {
 
         if (inis.isNotEmpty()) {
             Spacer(Modifier.height(20.dp))
-            SectionHeader("01", "Config file", "Choose a plugin list")
+            SectionHeader("Config file", "Choose a plugin list")
             LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 items(inis) { ini ->
                     val active = ini.file == file
@@ -259,7 +259,7 @@ fun PluginsScreen(vm: PatcherViewModel) {
         }
 
         Spacer(Modifier.height(20.dp))
-        if (file != null) SectionHeader("02", "Editor", "Edit the INI in place")
+        if (file != null) SectionHeader("Editor", "Edit the INI in place")
 
         if (file != null) {
             Surface(
@@ -308,7 +308,7 @@ fun PluginsScreen(vm: PatcherViewModel) {
             }
 
             Spacer(Modifier.height(20.dp))
-            SectionHeader("03", "Save", "Write changes to disk")
+            SectionHeader("Save", "Write changes to disk")
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(
                     when {

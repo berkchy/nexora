@@ -78,7 +78,7 @@ fun ReleasesScreen(vm: PatcherViewModel) {
 
         Spacer(Modifier.height(20.dp))
 
-        SectionHeader("01", "Addons", "Plugins, modules, and configs")
+        SectionHeader("Addons", "Plugins, modules, and configs")
         AppCard {
             Text(
                 "Plugins, modules, and configs for cstrike/.",
@@ -112,7 +112,7 @@ fun ReleasesScreen(vm: PatcherViewModel) {
 
         Spacer(Modifier.height(20.dp))
 
-        SectionHeader("02", "Mod bundle", "Game libraries and metadata")
+        SectionHeader("Mod bundle", "Game libraries and metadata")
         AppCard {
             note?.let {
                 Row(verticalAlignment = Alignment.CenterVertically) {
@@ -169,7 +169,7 @@ fun ReleasesScreen(vm: PatcherViewModel) {
 
         Spacer(Modifier.height(20.dp))
 
-        SectionHeader("03", "App update", "Check for a newer patcher")
+        SectionHeader("App update", "Check for a newer patcher")
         AppCard {
             val context = LocalContext.current
             val pm = context.packageManager
@@ -204,7 +204,7 @@ fun ReleasesScreen(vm: PatcherViewModel) {
 
         Spacer(Modifier.height(20.dp))
 
-        SectionHeader("04", "Game folders", "Verify your install layout")
+        SectionHeader("Game folders", "Verify your install layout")
         GameFoldersCard()
         Spacer(Modifier.height(20.dp))
     }

@@ -197,7 +197,7 @@ fun CompilerScreen(vm: PatcherViewModel, onOpenSettings: () -> Unit) {
 
         Spacer(Modifier.height(20.dp))
 
-        SectionHeader("01", "Plugins", "Pick the sources to build")
+        SectionHeader("Plugins", "Pick the sources to build")
         AppCard {
             if (scriptRoot == null) {
                 Text("Select a folder above.", style = MaterialTheme.typography.bodySmall, color = Gray40)
@@ -252,7 +252,7 @@ fun CompilerScreen(vm: PatcherViewModel, onOpenSettings: () -> Unit) {
 
         if (selectedSources.isNotEmpty()) {
             Spacer(Modifier.height(20.dp))
-            SectionHeader("02", "Compile", "Build the selected queue")
+            SectionHeader("Compile", "Build the selected queue")
             AppCard {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Surface(
@@ -344,12 +344,12 @@ fun CompilerScreen(vm: PatcherViewModel, onOpenSettings: () -> Unit) {
         when (val c = compile) {
             is CompileState.Compiling -> {
                 Spacer(Modifier.height(20.dp))
-                SectionHeader("03", "Output", "Compiler log")
+                SectionHeader("Output", "Compiler log")
                 OutputPanel(text = c.source, busy = true)
             }
             is CompileState.Done -> {
                 Spacer(Modifier.height(20.dp))
-                SectionHeader("03", "Output", "Compiler log")
+                SectionHeader("Output", "Compiler log")
                 OutputPanel(
                     text = c.log,
                     error = c.failures.isNotEmpty(),
@@ -358,7 +358,7 @@ fun CompilerScreen(vm: PatcherViewModel, onOpenSettings: () -> Unit) {
             }
             is CompileState.Failed -> {
                 Spacer(Modifier.height(20.dp))
-                SectionHeader("03", "Output", "Compiler log")
+                SectionHeader("Output", "Compiler log")
                 OutputPanel(text = c.message, error = true, status = "Failed")
             }
             else -> {}

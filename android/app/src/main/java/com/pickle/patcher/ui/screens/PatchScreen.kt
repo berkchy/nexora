@@ -113,27 +113,27 @@ fun PatchScreen(vm: PatcherViewModel) {
 
         Spacer(Modifier.height(24.dp))
 
-        SectionHeader("01", "Source APK", "Game client")
+        SectionHeader("Source APK", "Game client")
         SourceCard(vm)
 
         Spacer(Modifier.height(24.dp))
 
-        SectionHeader("02", "Mod bundle", "Target libraries")
+        SectionHeader("Mod bundle", "Target libraries")
         BundleCard(vm)
 
         Spacer(Modifier.height(20.dp))
 
-        SectionHeader("03", "Libs", "Installed modules")
+        SectionHeader("Libs", "Installed modules")
         LibListCard(vm)
 
         Spacer(Modifier.height(20.dp))
 
-        SectionHeader("04", "Custom libs", "Optional overrides")
+        SectionHeader("Custom libs", "Optional overrides")
         CustomLibsCard(vm)
 
         Spacer(Modifier.height(24.dp))
 
-        SectionHeader("05", "Build", "Sign the output")
+        SectionHeader("Build", "Sign the output")
         PatchCard(vm)
 
         Spacer(Modifier.height(24.dp))

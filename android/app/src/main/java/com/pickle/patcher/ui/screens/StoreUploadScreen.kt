@@ -92,7 +92,7 @@ fun StoreUploadScreen(
             stats = listOf(Stat("Files", "${libEntries.size}", Tone.Primary)),
         )
         Spacer(Modifier.height(20.dp))
-        SectionHeader("01", "Details", "Describe the post")
+        SectionHeader("Details", "Describe the post")
 
         OutlinedTextField(value = title, onValueChange = { title = it }, label = { Text("Title") }, modifier = Modifier.fillMaxWidth(), singleLine = true)
         Spacer(Modifier.height(12.dp))
@@ -100,7 +100,7 @@ fun StoreUploadScreen(
         Spacer(Modifier.height(12.dp))
         OutlinedTextField(value = version, onValueChange = { version = it }, label = { Text("Version") }, modifier = Modifier.fillMaxWidth(), singleLine = true)
         Spacer(Modifier.height(20.dp))
-        SectionHeader("02", "Assets", "Logo and package files")
+        SectionHeader("Assets", "Logo and package files")
 
         Row(verticalAlignment = Alignment.CenterVertically) {
             Button(onClick = { logoPicker.launch(arrayOf("image/*")) }) { Text("Pick Logo") }
@@ -123,7 +123,7 @@ fun StoreUploadScreen(
             )
         }
         Spacer(Modifier.height(20.dp))
-        SectionHeader("03", "Links", "Point to the project source")
+        SectionHeader("Links", "Point to the project source")
         Row(verticalAlignment = Alignment.CenterVertically) {
             OutlinedTextField(value = linkInput, onValueChange = { linkInput = it }, label = { Text("Project link URL") }, modifier = Modifier.weight(1f), singleLine = true)
             Spacer(Modifier.width(8.dp))
@@ -210,7 +210,7 @@ fun StoreUploadScreen(
             )
         }
         Spacer(Modifier.height(20.dp))
-        SectionHeader("04", "Publish", "Submit for review")
+        SectionHeader("Publish", "Submit for review")
 
         Button(
             onClick = {

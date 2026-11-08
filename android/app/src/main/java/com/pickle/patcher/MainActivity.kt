@@ -53,9 +53,6 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.NavigationBar
-import androidx.compose.material3.NavigationBarItem
-import androidx.compose.material3.NavigationBarItemDefaults
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.TextButton
@@ -278,9 +275,8 @@ fun PatcherApp(vm: PatcherViewModel, drawerWidthController: DrawerWidthControlle
                     }
                 },
                 navigationIcon = {
-                    // Every destination is a top level tab now, so the menu
-                    // button is always the way back out - no screen stacks on
-                    // another one any more and no back arrow is needed.
+                     // The drawer is the one navigation surface for top-level
+                     // destinations, so the menu button stays available.
                     IconButton(
                         // DrawerState.open() is suspend; the scope lives in
                         // the drawer, this launches on the app's own.
@@ -293,33 +289,6 @@ fun PatcherApp(vm: PatcherViewModel, drawerWidthController: DrawerWidthControlle
                     }
                 },
             )
-        },
-        bottomBar = {
-            if (currentRoute == Dest.Patch.route || currentRoute == Dest.Compiler.route || currentRoute == Dest.Addons.route) {
-                NavigationBar(
-                    containerColor = MaterialTheme.colorScheme.surfaceContainer,
-                    tonalElevation = 0.dp,
-                ) {
-                    NavigationBarItem(
-                        selected = currentRoute == Dest.Patch.route,
-                        onClick = { navToTab(nav, Dest.Patch.route, currentRoute) },
-                        icon = { Icon(androidx.compose.material.icons.Icons.Filled.RocketLaunch, contentDescription = null) },
-                        label = { Text("Patch") },
-                    )
-                    NavigationBarItem(
-                        selected = currentRoute == Dest.Compiler.route,
-                        onClick = { navToTab(nav, Dest.Compiler.route, currentRoute) },
-                        icon = { Icon(androidx.compose.material.icons.Icons.Filled.Code, contentDescription = null) },
-                        label = { Text("Compile") },
-                    )
-                    NavigationBarItem(
-                        selected = currentRoute == Dest.Addons.route,
-                        onClick = { navToTab(nav, Dest.Addons.route, currentRoute) },
-                        icon = { Icon(androidx.compose.material.icons.Icons.Filled.Extension, contentDescription = null) },
-                        label = { Text("Addons") },
-                    )
-                }
-            }
         },
     ) { padding ->
         Column(modifier = Modifier.fillMaxSize().padding(padding)) {
@@ -673,8 +642,7 @@ private fun NavDrawer(
 private const val DRAWER_EDGE_DP = 28f
 
 /**
- * Switches the bottom-bar tabs, keeping each one's state. Same navigation the
- * NavigationBar does, shared so the drawer cannot drift from it.
+ * Switches between drawer destinations, keeping each one's state.
  */
 private fun navToTab(
     nav: androidx.navigation.NavHostController,

@@ -167,7 +167,7 @@ fun StoreProfileScreen(
                         }
                     }
                     Spacer(Modifier.height(20.dp))
-                    SectionHeader("01", "Packages", "Published posts")
+                    SectionHeader("Packages", "Published posts")
                     val items = p.optJSONArray("items") ?: JSONArray()
                     if (items.length() == 0) {
                         Text(
