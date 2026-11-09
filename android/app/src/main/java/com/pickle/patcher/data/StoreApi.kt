@@ -181,6 +181,7 @@ class StoreApi(private val baseUrl: String, private val context: android.content
 
     suspend fun uploadFile(file: File, onProgress: (Long, Long) -> Unit = { _, _ -> }): Result<CloudinaryUpload> = withContext(Dispatchers.IO) {
         val providerOrder = listOf("vps", "supabase", "cloudinary")
+        var lastError: Exception? = null
         for (provider in providerOrder) {
             val signResult = signUpload(file.name, provider = provider)
             if (signResult.isFailure) {
@@ -280,7 +281,7 @@ class StoreApi(private val baseUrl: String, private val context: android.content
     suspend fun deleteStorageFile(token: String, pathOrUrl: String): Result<JSONObject> {
         val path = storagePathFromUrl(pathOrUrl)
             ?: return Result.failure(Exception("Not a VPS storage path"))
-        return post("/api/storage/delete", JSONObject().put("path", path).toString(), token)
+        return authPost("/api/storage/delete", JSONObject().put("path", path).toString(), token)
     }
 
     suspend fun deleteItem(token: String, id: String): Result<JSONObject> =
