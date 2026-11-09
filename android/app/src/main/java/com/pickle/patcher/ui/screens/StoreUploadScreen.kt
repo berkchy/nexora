@@ -232,6 +232,7 @@ fun StoreUploadScreen(
                     // Upload files directly to Cloudinary/Supabase (bypasses server body limit).
                     progress = 0f
                     var logoUrl: String? = null
+                    var uploadedLogoUrl: String? = null
                     if (logoUri != null) {
                         val f = uriToFile(logoUri!!, "logo")
                         if (f != null) {
@@ -239,6 +240,7 @@ fun StoreUploadScreen(
                             val r = api.uploadFile(f) { w, t -> progress = if (t > 0) w.toFloat() / t else 0f }
                             if (r.isFailure) { error = r.exceptionOrNull()?.message ?: "Logo upload failed"; loading = false; return@launch }
                             logoUrl = r.getOrNull()?.url
+                            uploadedLogoUrl = logoUrl
                         }
                     }
                     val libUploads = mutableListOf<StoreApi.LibUpload>()
@@ -249,7 +251,12 @@ fun StoreUploadScreen(
                             progressLabel = "Uploading file ${idx + 1}/$totalLibs: ${f.name}"
                             progress = 0f
                             val r = api.uploadFile(f) { w, t -> progress = if (t > 0) w.toFloat() / t else 0f }
-                            if (r.isFailure) { error = r.exceptionOrNull()?.message ?: "File upload failed"; loading = false; return@launch }
+                            if (r.isFailure) {
+                                error = r.exceptionOrNull()?.message ?: "File upload failed"
+                                loading = false
+                                (libUploads.map { it.url } + listOfNotNull(uploadedLogoUrl)).forEach { url -> api.deleteStorageFile(token, url) }
+                                return@launch
+                            }
                             val u = r.getOrNull()!!
                             libUploads.add(StoreApi.LibUpload(cleanStoreFileName(f.name), u.url, u.bytes))
                         }
@@ -262,6 +269,7 @@ fun StoreUploadScreen(
                             if (msg.contains("cooldown", ignoreCase = true)) cooldown = msg
                             else error = msg
                             loading = false
+                            (libUploads.map { it.url } + listOfNotNull(uploadedLogoUrl)).forEach { url -> api.deleteStorageFile(token, url) }
                         },
                     )
                 }

@@ -153,8 +153,18 @@ fun StoreManageScreen(
             confirmButton = {
                 TextButton(onClick = {
                     scope.launch {
-                        api.deleteItem(api.token ?: "", id).fold(
-                            onSuccess = { deleteTarget = null; reload() },
+                        val token = api.token ?: ""
+                        val item = api.getItem(id).getOrNull()?.optJSONObject("item")
+                        val vpsUrls = (0 until (item?.optJSONArray("libs")?.length() ?: 0)).mapNotNull { index ->
+                            item?.optJSONArray("libs")?.optJSONObject(index)?.optString("url")
+                        }.filter { it.contains("/files/") }
+                        api.deleteItem(token, id).fold(
+                            onSuccess = {
+                                val cleanupFailures = vpsUrls.count { api.deleteStorageFile(token, it).isFailure }
+                                if (cleanupFailures > 0) error = "Item deleted, but $cleanupFailures file(s) could not be removed from storage."
+                                deleteTarget = null
+                                reload()
+                            },
                             onFailure = { t -> error = t.message; deleteTarget = null },
                         )
                     }
@@ -341,6 +351,7 @@ fun StoreManageScreen(
                                 // Upload logo only if newly picked.
                                 var logoUrl: String? = existingLogo
                                 var hasLogo = existingLogo != null
+                                var uploadedLogoUrl: String? = null
                                 if (logoUri != null) {
                                     val f = uriToFile(context, logoUri!!, "logo")
                                     if (f != null) {
@@ -348,6 +359,7 @@ fun StoreManageScreen(
                                         val r = api.uploadFile(f) { _, _ -> }
                                         if (r.isFailure) { error = r.exceptionOrNull()?.message ?: "Logo upload failed"; saving = false; return@launch }
                                         logoUrl = r.getOrNull()?.url
+                                        uploadedLogoUrl = logoUrl
                                         hasLogo = true
                                     }
                                 }
@@ -359,7 +371,12 @@ fun StoreManageScreen(
                                     if (f != null) {
                                         progressLabel = "Uploading file ${idx + 1}/$total: ${f.name}"
                                         val r = api.uploadFile(f) { _, _ -> }
-                                        if (r.isFailure) { error = r.exceptionOrNull()?.message ?: "File upload failed"; saving = false; return@launch }
+                                        if (r.isFailure) {
+                                            error = r.exceptionOrNull()?.message ?: "File upload failed"
+                                            saving = false
+                                            (uploadedNew.map { it.url } + listOfNotNull(uploadedLogoUrl)).forEach { url -> api.deleteStorageFile(token, url) }
+                                            return@launch
+                                        }
                                         val u = r.getOrNull()!!
                                         uploadedNew.add(com.pickle.patcher.data.StoreApi.LibUpload(f.name, u.url, u.bytes))
                                     }
@@ -385,8 +402,18 @@ fun StoreManageScreen(
                                     finalLibs,
                                     links,
                                 ).fold(
-                                    onSuccess = { saving = false; editTarget = null; reload() },
-                                    onFailure = { t -> error = t.message; saving = false },
+                                    onSuccess = {
+                                        val cleanupFailures = removedLibs.count { url -> api.deleteStorageFile(token, url).isFailure }
+                                        if (cleanupFailures > 0) error = "Post updated, but $cleanupFailures file(s) could not be removed from storage."
+                                        saving = false
+                                        editTarget = null
+                                        reload()
+                                    },
+                                    onFailure = { t ->
+                                        error = t.message
+                                        saving = false
+                                        (uploadedNew.map { it.url } + listOfNotNull(uploadedLogoUrl)).forEach { url -> api.deleteStorageFile(token, url) }
+                                    },
                                 )
                                 progressLabel = ""
                             }

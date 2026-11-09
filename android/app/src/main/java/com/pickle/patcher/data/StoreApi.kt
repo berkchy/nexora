@@ -88,12 +88,44 @@ class StoreApi(private val baseUrl: String, private val context: android.content
 
     suspend fun getItem(id: String): Result<JSONObject> = get("/api/items/$id", null)
 
-    suspend fun signUpload(filename: String = "file.bin"): Result<JSONObject> = get("/api/upload/sign?filename=${java.net.URLEncoder.encode(filename, "UTF-8")}", token)
+    suspend fun signUpload(filename: String = "file.bin", exclude: Set<String> = emptySet(), provider: String? = null): Result<JSONObject> {
+        val providerQuery = if (provider == null) "" else "&provider=${URLEncoder.encode(provider, "UTF-8")}"
+        val excludeQuery = if (exclude.isEmpty()) "" else "&exclude=${URLEncoder.encode(exclude.joinToString(","), "UTF-8")}"
+        return get("/api/upload/sign?filename=${URLEncoder.encode(filename, "UTF-8")}$providerQuery$excludeQuery", token)
+    }
 
-    suspend fun uploadFile(file: File, onProgress: (Long, Long) -> Unit = { _, _ -> }): Result<CloudinaryUpload> = withContext(Dispatchers.IO) {
-        val sign = signUpload(file.name).getOrElse { return@withContext Result.failure(it) }
+    private suspend fun uploadWithSign(
+        file: File,
+        sign: JSONObject,
+        onProgress: (Long, Long) -> Unit,
+    ): Result<CloudinaryUpload> = withContext(Dispatchers.IO) {
         val provider = sign.optString("provider", "cloudinary")
-        if (provider == "supabase") {
+        if (provider == "vps") {
+            val uploadUrl = sign.optString("uploadUrl")
+            val publicBaseUrl = sign.optString("publicBaseUrl")
+            val vpsToken = sign.optString("token")
+            if (uploadUrl.isBlank() || publicBaseUrl.isBlank() || vpsToken.isBlank()) return@withContext Result.failure(Exception("Invalid VPS sign"))
+            val req = Request.Builder()
+                .url(uploadUrl)
+                .post(ProgressRequestBody(file, "application/octet-stream", onProgress))
+                .header("Content-Type", "application/octet-stream")
+                .header("Authorization", "Bearer $vpsToken")
+                .build()
+            try {
+                client.newCall(req).execute().use { resp ->
+                    val body = resp.body?.string() ?: ""
+                    val json = try { JSONObject(body) } catch (_: Exception) { JSONObject() }
+                    if (!resp.isSuccessful || !json.optBoolean("ok", false)) {
+                        return@withContext Result.failure(Exception(json.optString("error", "VPS upload failed: HTTP ${resp.code}")))
+                    }
+                    val path = json.optString("path")
+                    if (!path.startsWith("/files/")) return@withContext Result.failure(Exception("No path from VPS storage"))
+                    Result.success(CloudinaryUpload(publicBaseUrl.trimEnd('/') + path, json.optLong("size", file.length())))
+                }
+            } catch (e: Exception) {
+                Result.failure(e)
+            }
+        } else if (provider == "supabase") {
             val uploadUrl = sign.optString("uploadUrl")
             val publicUrl = sign.optString("publicUrl")
             val apiKey = sign.optString("apiKey")
@@ -145,6 +177,23 @@ class StoreApi(private val baseUrl: String, private val context: android.content
                 Result.failure(e)
             }
         }
+    }
+
+    suspend fun uploadFile(file: File, onProgress: (Long, Long) -> Unit = { _, _ -> }): Result<CloudinaryUpload> = withContext(Dispatchers.IO) {
+        val providerOrder = listOf("vps", "supabase", "cloudinary")
+        for (provider in providerOrder) {
+            val signResult = signUpload(file.name, provider = provider)
+            if (signResult.isFailure) {
+                lastError = Exception(signResult.exceptionOrNull()?.message ?: "$provider sign failed")
+                continue
+            }
+            val sign = signResult.getOrThrow()
+            val result = uploadWithSign(file, sign, onProgress)
+            if (result.isSuccess) return@withContext result
+            lastError = result.exceptionOrNull() as? Exception ?: Exception("$provider upload failed")
+        }
+
+        Result.failure(lastError ?: Exception("All upload providers failed"))
     }
 
     suspend fun createItem(
@@ -221,6 +270,18 @@ class StoreApi(private val baseUrl: String, private val context: android.content
                 put("links", arr)
             }
         }.toString(), token)
+
+    private fun storagePathFromUrl(value: String): String? = runCatching {
+        val path = if (value.startsWith("/files/")) value else java.net.URL(value).path
+        if (!path.startsWith("/files/") || path.contains("..") || path.split('/').size != 5) return null
+        path
+    }.getOrNull()
+
+    suspend fun deleteStorageFile(token: String, pathOrUrl: String): Result<JSONObject> {
+        val path = storagePathFromUrl(pathOrUrl)
+            ?: return Result.failure(Exception("Not a VPS storage path"))
+        return post("/api/storage/delete", JSONObject().put("path", path).toString(), token)
+    }
 
     suspend fun deleteItem(token: String, id: String): Result<JSONObject> =
         delete("/api/items/$id", token)
