@@ -494,9 +494,27 @@ jobs:
             mv "$GITHUB_WORKSPACE/incremental-v7a/manifest.json" "$GITHUB_WORKSPACE/manifest-v7a.json"
           fi
 
-          # Addons zip
+          # Addons zip: refresh YaPB runtime config from upstream before packing.
+          # The graph data already tracked here is preserved; the upstream source
+          # tree does not ship it.
+          rm -rf "$GITHUB_WORKSPACE/yapb-upstream"
+          git clone --depth 1 https://github.com/yapb/yapb.git "$GITHUB_WORKSPACE/yapb-upstream"
+          YAPB_SRC="$GITHUB_WORKSPACE/yapb-upstream/cfg/addons/yapb"
+          YAPB_DEST="$GITHUB_WORKSPACE/addons/yapb"
+          [ -d "$YAPB_SRC" ] || { echo "::error::upstream YaPB addons directory missing at $YAPB_SRC"; exit 1; }
+          rm -rf /tmp/yapb-data
+          if [ -d "$YAPB_DEST/data" ]; then cp -a "$YAPB_DEST/data" /tmp/yapb-data; fi
+          rm -rf "$YAPB_DEST"
+          mkdir -p "$YAPB_DEST"
+          cp -a "$YAPB_SRC/." "$YAPB_DEST/"
+          if [ -d /tmp/yapb-data ]; then mkdir -p "$YAPB_DEST/data" && cp -a /tmp/yapb-data/. "$YAPB_DEST/data/"; fi
+          find "$YAPB_DEST" -type d -name bin -prune -exec rm -rf {} +
+          test -f "$YAPB_DEST/conf/yapb.cfg"
+          test -f "$YAPB_DEST/conf/gamedef.cfg"
+          if find "$YAPB_DEST" -type f -iname '*.dll' | grep -q .; then echo "::error::unexpected DLL bundled in addons/yapb"; exit 1; fi
+
           cd "$GITHUB_WORKSPACE"
-          zip -r amxx-addons.zip addons/ -x '*.gitignore' '*.git/*'
+          zip -r amxx-addons.zip addons/ -x '*.gitignore' '*.git/*' 'addons/yapb/bin/*' 'addons/yapb/*/bin/*' '*.dll'
 
           # Game assets zip.
           #
