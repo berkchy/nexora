@@ -502,12 +502,14 @@ jobs:
           YAPB_SRC="$GITHUB_WORKSPACE/yapb-upstream/cfg/addons/yapb"
           YAPB_DEST="$GITHUB_WORKSPACE/addons/yapb"
           [ -d "$YAPB_SRC" ] || { echo "::error::upstream YaPB addons directory missing at $YAPB_SRC"; exit 1; }
-          rm -rf /tmp/yapb-data
-          if [ -d "$YAPB_DEST/data" ]; then cp -a "$YAPB_DEST/data" /tmp/yapb-data; fi
+          YAPB_BACKUP="$GITHUB_WORKSPACE/.yapb-data-backup"
+          rm -rf "$YAPB_BACKUP"
+          if [ -d "$YAPB_DEST/data" ]; then cp -a "$YAPB_DEST/data" "$YAPB_BACKUP"; fi
           rm -rf "$YAPB_DEST"
           mkdir -p "$YAPB_DEST"
           cp -a "$YAPB_SRC/." "$YAPB_DEST/"
-          if [ -d /tmp/yapb-data ]; then mkdir -p "$YAPB_DEST/data" && cp -a /tmp/yapb-data/. "$YAPB_DEST/data/"; fi
+          if [ -d "$YAPB_BACKUP" ]; then mkdir -p "$YAPB_DEST/data" && cp -a "$YAPB_BACKUP/." "$YAPB_DEST/data/"; fi
+          rm -rf "$YAPB_BACKUP"
           find "$YAPB_DEST" -type d -name bin -prune -exec rm -rf {} +
           test -f "$YAPB_DEST/conf/yapb.cfg"
           test -f "$YAPB_DEST/conf/gamedef.cfg"
