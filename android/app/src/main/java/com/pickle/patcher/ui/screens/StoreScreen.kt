@@ -372,11 +372,15 @@ fun StoreScreen(
                                     }
                                     Spacer(Modifier.width(8.dp))
                                     Column {
-                                        Text(
-                                            uname,
-                                            style = MaterialTheme.typography.labelSmall,
-                                            color = MaterialTheme.colorScheme.primary,
-                                        )
+                                        Row(verticalAlignment = Alignment.CenterVertically) {
+                                            Text(
+                                                uname,
+                                                style = MaterialTheme.typography.labelSmall,
+                                                color = MaterialTheme.colorScheme.primary,
+                                            )
+                                            Spacer(Modifier.width(4.dp))
+                                            BadgeIcons(u?.optJSONArray("badges"), maxCount = 3, iconSize = 14.dp)
+                                        }
                                         Text(
                                             c.optString("content"),
                                             style = MaterialTheme.typography.bodySmall,
@@ -510,6 +514,8 @@ private fun StoreItemCard(obj: JSONObject, onUserClick: (String) -> Unit, onOpen
                             color = MaterialTheme.colorScheme.primary,
                         )
                     }
+                    Spacer(Modifier.width(4.dp))
+                    BadgeIcons(user?.optJSONArray("badges"), maxCount = 4, iconSize = 16.dp)
                     Spacer(Modifier.weight(1f))
                     Icon(
                         Icons.Filled.Favorite,

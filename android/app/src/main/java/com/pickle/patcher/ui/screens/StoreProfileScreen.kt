@@ -159,6 +159,12 @@ fun StoreProfileScreen(
                                 style = MaterialTheme.typography.titleMedium,
                                 color = MaterialTheme.colorScheme.onSurface,
                             )
+                            BadgeIcons(
+                                p.optJSONArray("badges"),
+                                modifier = Modifier.padding(top = 4.dp),
+                                maxCount = 6,
+                                iconSize = 18.dp,
+                            )
                             Text(
                                 "@${p.optString("username")}",
                                 style = MaterialTheme.typography.bodySmall,
@@ -340,6 +346,7 @@ fun StoreProfileScreen(
         EditProfileDialog(
             api = api,
             username = username,
+            initialBadges = profile?.optJSONArray("badges"),
             onDismiss = { showEdit = false },
             onSaved = { showEdit = false; load() },
         )
@@ -347,16 +354,40 @@ fun StoreProfileScreen(
 }
 
 @Composable
-private fun EditProfileDialog(api: StoreApi, username: String, onDismiss: () -> Unit, onSaved: () -> Unit) {
+private fun EditProfileDialog(api: StoreApi, username: String, initialBadges: JSONArray?, onDismiss: () -> Unit, onSaved: () -> Unit) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     var displayName by remember { mutableStateOf("") }
     var avatarUri by remember { mutableStateOf<Uri?>(null) }
     var loading by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf<String?>(null) }
+    var availableBadges by remember { mutableStateOf<List<JSONObject>>(emptyList()) }
+    var badgesLoading by remember { mutableStateOf(true) }
+    var selectedBadgeIds by remember(initialBadges) {
+        mutableStateOf(
+            buildSet<String> {
+                if (initialBadges != null) {
+                    repeat(initialBadges.length()) {
+                        initialBadges.optJSONObject(it)?.optString("id")?.takeIf(String::isNotBlank)?.let(::add)
+                    }
+                }
+            },
+        )
+    }
 
     val avatarPicker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
         if (uri != null) avatarUri = uri
+    }
+
+    LaunchedEffect(api) {
+        badgesLoading = true
+        api.getBadges().fold(
+            onSuccess = { result ->
+                availableBadges = (0 until result.length()).mapNotNull { result.optJSONObject(it) }
+                badgesLoading = false
+            },
+            onFailure = { badgesLoading = false },
+        )
     }
 
     fun uriToFile(uri: Uri): File? = try {
@@ -371,7 +402,7 @@ private fun EditProfileDialog(api: StoreApi, username: String, onDismiss: () -> 
         onDismissRequest = onDismiss,
         title = { Text("Edit Profile", color = MaterialTheme.colorScheme.onSurface) },
         text = {
-            Column {
+            Column(Modifier.fillMaxWidth().verticalScroll(rememberScrollState())) {
                 OutlinedTextField(value = displayName, onValueChange = { displayName = it }, label = { Text("Display name") }, modifier = Modifier.fillMaxWidth(), singleLine = true)
                 Spacer(Modifier.height(12.dp))
                 Row(verticalAlignment = Alignment.CenterVertically) {
@@ -383,6 +414,81 @@ private fun EditProfileDialog(api: StoreApi, username: String, onDismiss: () -> 
                         style = MaterialTheme.typography.bodySmall,
                     )
                 }
+                Spacer(Modifier.height(12.dp))
+                Text(
+                    "Badges",
+                    style = MaterialTheme.typography.titleSmall,
+                    color = MaterialTheme.colorScheme.onSurface,
+                )
+                Spacer(Modifier.height(8.dp))
+                if (badgesLoading) {
+                    Box(Modifier.fillMaxWidth().height(72.dp), contentAlignment = Alignment.Center) {
+                        CircularProgressIndicator()
+                    }
+                } else if (availableBadges.isEmpty()) {
+                    Text(
+                        "No badges available yet",
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        style = MaterialTheme.typography.bodySmall,
+                    )
+                } else {
+                    LazyColumn(
+                        modifier = Modifier.fillMaxWidth().heightIn(max = 180.dp),
+                        verticalArrangement = Arrangement.spacedBy(8.dp),
+                    ) {
+                        items(availableBadges) { badge ->
+                            val badgeId = badge.optString("id")
+                            val selected = badgeId in selectedBadgeIds
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clickable {
+                                        selectedBadgeIds = if (selected) selectedBadgeIds - badgeId else selectedBadgeIds + badgeId
+                                    },
+                                verticalAlignment = Alignment.CenterVertically,
+                            ) {
+                                Surface(
+                                    shape = MaterialTheme.shapes.small,
+                                    color = if (selected) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceContainerHigh,
+                                    modifier = Modifier.size(48.dp),
+                                ) {
+                                    Box(contentAlignment = Alignment.Center, modifier = Modifier.fillMaxSize()) {
+                                        AsyncImage(
+                                            model = badge.optString("imageUrl"),
+                                            contentDescription = badge.optString("name", "Badge"),
+                                            modifier = Modifier.fillMaxSize(),
+                                        )
+                                    }
+                                }
+                                Spacer(Modifier.width(10.dp))
+                                Column(Modifier.weight(1f)) {
+                                    Text(
+                                        badge.optString("name"),
+                                        style = MaterialTheme.typography.bodyMedium,
+                                        color = MaterialTheme.colorScheme.onSurface,
+                                    )
+                                    val description = badge.optString("description")
+                                    if (description.isNotBlank()) {
+                                        Text(
+                                            description,
+                                            style = MaterialTheme.typography.labelSmall,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                            maxLines = 2,
+                                            overflow = TextOverflow.Ellipsis,
+                                        )
+                                    }
+                                }
+                                if (selected) {
+                                    Icon(
+                                        androidx.compose.material.icons.Icons.Filled.Check,
+                                        contentDescription = "Selected",
+                                        tint = MaterialTheme.colorScheme.primary,
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
                 error?.let { Spacer(Modifier.height(8.dp)); Text(it, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall) }
             }
         },
@@ -393,12 +499,15 @@ private fun EditProfileDialog(api: StoreApi, username: String, onDismiss: () -> 
                     scope.launch {
                         val token = StoreSession.token(context) ?: api.token
                         if (token == null) { error = "Not logged in"; loading = false; return@launch }
-                        if (displayName.isNotBlank()) {
-                            api.updateProfile(token, displayName, null).fold(
-                                onSuccess = {},
-                                onFailure = { t -> error = t.message ?: "Update failed" },
-                            )
-                        }
+                        api.updateProfile(
+                            token,
+                            displayName.takeIf { it.isNotBlank() },
+                            null,
+                            selectedBadgeIds.toList(),
+                        ).fold(
+                            onSuccess = {},
+                            onFailure = { t -> error = t.message ?: "Update failed" },
+                        )
                         if (avatarUri != null && error == null) {
                             val f = uriToFile(avatarUri!!)
                             if (f != null) {

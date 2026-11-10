@@ -67,10 +67,24 @@ class StoreApi(private val baseUrl: String, private val context: android.content
 
     suspend fun me(): Result<JSONObject> = get("/api/auth/me", null)
 
-    suspend fun updateProfile(token: String, displayName: String?, username: String?): Result<JSONObject> =
+    suspend fun getBadges(): Result<JSONArray> = withContext(Dispatchers.IO) {
+        get("/api/badges", null).map { it.optJSONArray("data") ?: JSONArray() }
+    }
+
+    suspend fun updateProfile(
+        token: String,
+        displayName: String?,
+        username: String?,
+        badgeIds: List<String>? = null,
+    ): Result<JSONObject> =
         patch("/api/auth/profile", JSONObject().apply {
             if (displayName != null) put("displayName", displayName)
             if (username != null) put("username", username)
+            if (badgeIds != null) {
+                val arr = JSONArray()
+                badgeIds.forEach { arr.put(it) }
+                put("badgeIds", arr)
+            }
         }.toString(), token)
 
     suspend fun uploadAvatar(token: String, file: File): Result<JSONObject> =
