@@ -35,6 +35,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Download
 import androidx.compose.material.icons.filled.Logout
+import androidx.compose.material.icons.filled.Check
 import kotlinx.coroutines.launch
 import org.json.JSONArray
 import org.json.JSONObject
@@ -480,7 +481,7 @@ private fun EditProfileDialog(api: StoreApi, username: String, initialBadges: JS
                                 }
                                 if (selected) {
                                     Icon(
-                                        androidx.compose.material.icons.Icons.Filled.Check,
+                                        Icons.Filled.Check,
                                         contentDescription = "Selected",
                                         tint = MaterialTheme.colorScheme.primary,
                                     )
