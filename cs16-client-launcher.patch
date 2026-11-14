@@ -537,17 +537,6 @@ index 0000000..fbcf252
 +    </LinearLayout>
 +</ScrollView>
 \ No newline at end of file
-diff --git a/android/app/src/main/res/values/ic_launcher_background.xml b/android/app/src/main/res/values/ic_launcher_background.xml
-index a256bc8..1b28f97 100644
---- a/android/app/src/main/res/values/ic_launcher_background.xml
-+++ b/android/app/src/main/res/values/ic_launcher_background.xml
-@@ -1,4 +1,4 @@
- <?xml version="1.0" encoding="utf-8"?>
- <resources>
--    <color name="ic_launcher_background">#EEEEEE</color>
-+    <color name="ic_launcher_background">#FF0B0F0C</color>
- </resources>
-\ No newline at end of file
 diff --git a/android/app/src/main/res/values/launcher_colors.xml b/android/app/src/main/res/values/launcher_colors.xml
 new file mode 100644
 index 0000000..2bdc583
